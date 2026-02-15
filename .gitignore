@@ -1,0 +1,59 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Cargo
+Cargo.lock
+
+# Test artifacts
+/tests/fixtures/output/
+
+# Benchmark results
+/target/criterion/
+
+# Coverage
+/coverage/
+*.profraw
+*.profdata
+cobertura.xml
+
+# Documentation
+/doc/
+
+# Environment
+.env
+.env.local
+
+# Cache directories
+.cache/
+*.db
+*.db-journal
+*.db-wal
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Distribution
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+
+# Dependency directories
+node_modules/

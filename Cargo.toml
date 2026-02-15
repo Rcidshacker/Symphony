@@ -1,0 +1,108 @@
+[package]
+name = "symphony"
+version = "2.0.0"
+edition = "2021"
+authors = ["Symphony Contributors"]
+description = "AI-powered terminal music player with visualizations, streaming, and plugins"
+license = "MIT"
+readme = "README.md"
+homepage = "https://symphony-player.dev"
+repository = "https://github.com/symphony-player/symphony"
+documentation = "https://docs.rs/symphony"
+keywords = ["music", "player", "terminal", "tui", "ai", "streaming", "audio"]
+categories = ["command-line-interface", "multimedia::audio"]
+exclude = ["/.github", "/docs", "/tests", "/benches"]
+
+[dependencies]
+# UI Framework
+ratatui = "0.28"
+crossterm = "0.28"
+
+# Audio Processing
+rodio = { version = "0.19", default-features = false, features = ["mp3", "wav", "vorbis", "flac"] }
+symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "wav", "ogg", "vorbis"] }
+
+# FFT & Visualization
+rustfft = "6.2"
+realfft = "3.4"
+
+# Async Runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Configuration
+dirs = "5.0"
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# ID Generation
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# Async utilities
+futures = "0.3"
+
+# Random number generation (for shuffle)
+rand = "0.8"
+
+# File system traversal
+walkdir = "2.5"
+
+# AI/ML (Phase 3)
+async-trait = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
+
+# URL parsing
+url = "2.5"
+
+# Regex for lyrics parsing
+regex = "1.10"
+
+# Streaming (Phase 4)
+# ytdl = "0.8"
+# rspotify = "0.13"
+
+# Plugins (Phase 5)
+# wasmtime = "25.0"
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.12"
+
+[[bench]]
+name = "fft_benchmark"
+harness = false
+
+[[bench]]
+name = "comprehensive"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.bench]
+opt-level = 3
+lto = true

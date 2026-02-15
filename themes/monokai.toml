@@ -1,0 +1,33 @@
+# Monokai Pro Theme
+# Classic Monokai color scheme
+
+name = "monokai"
+author = "Wimer Hazenberg"
+description = "Classic Monokai color scheme"
+
+[ui]
+background = "#2d2d2d"
+foreground = "#fdfdfd"
+border = "#595959"
+text = "#fdfdfd"
+text_dim = "#969696"
+selection_bg = "#666666"
+selection_fg = "#fdfdfd"
+
+[spectrum]
+sub_bass = "#ff6188"     # Red
+bass = "#ff8c64"         # Orange
+mid_low = "#ffd866"      # Yellow
+mid = "#a9dc76"          # Green
+mid_high = "#78dce8"     # Cyan
+high = "#ab9df2"         # Purple
+treble = "#ff93b7"       # Pink
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#ff6188"      # Red
+secondary = "#ab9df2"    # Purple
+success = "#a9dc76"      # Green
+warning = "#ffd866"      # Yellow
+error = "#ff6188"        # Red
+info = "#78dce8"         # Cyan

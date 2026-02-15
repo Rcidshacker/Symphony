@@ -1,0 +1,33 @@
+# Gruvbox Theme
+# Retro groove color scheme
+
+name = "gruvbox"
+author = "Mordechai Hadad"
+description = "Retro groove color scheme"
+
+[ui]
+background = "#282828"
+foreground = "#ebdbb2"
+border = "#3c3836"
+text = "#ebdbb2"
+text_dim = "#928374"
+selection_bg = "#504945"
+selection_fg = "#ebdbb2"
+
+[spectrum]
+sub_bass = "#fb4934"     # Bright Red
+bass = "#fe8019"         # Bright Orange
+mid_low = "#fabd2f"      # Bright Yellow
+mid = "#b8bb26"          # Bright Green
+mid_high = "#8ec07c"     # Bright Aqua
+high = "#83a598"         # Bright Blue
+treble = "#d3869b"       # Bright Purple
+beat_pulse = "#fbf1c7"
+
+[accents]
+primary = "#fe8019"      # Bright Orange
+secondary = "#83a598"    # Bright Blue
+success = "#b8bb26"      # Bright Green
+warning = "#fabd2f"      # Bright Yellow
+error = "#fb4934"        # Bright Red
+info = "#8ec07c"         # Bright Aqua

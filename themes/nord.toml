@@ -1,0 +1,33 @@
+# Nord Theme
+# Arctic, bluish color palette
+
+name = "nord"
+author = "Arctic Ice Studio"
+description = "Arctic, bluish color palette"
+
+[ui]
+background = "#2e3440"
+foreground = "#eceff4"
+border = "#4c566a"
+text = "#eceff4"
+text_dim = "#8fbcbb"
+selection_bg = "#5e81ac"
+selection_fg = "#eceff4"
+
+[spectrum]
+sub_bass = "#bf616a"     # Aurora Red
+bass = "#d08770"         # Aurora Orange
+mid_low = "#ebcb8b"      # Aurora Yellow
+mid = "#a3be8c"          # Aurora Green
+mid_high = "#88c0d0"     # Frost Cyan
+high = "#81a1c1"         # Frost Blue
+treble = "#b48ead"       # Aurora Purple
+beat_pulse = "#8fbcbb"
+
+[accents]
+primary = "#88c0d0"      # Frost Cyan
+secondary = "#81a1c1"    # Frost Blue
+success = "#a3be8c"      # Aurora Green
+warning = "#ebcb8b"      # Aurora Yellow
+error = "#bf616a"        # Aurora Red
+info = "#8fbcbb"         # Frost Teal

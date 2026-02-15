@@ -1,0 +1,33 @@
+# Dracula Theme
+# Dark theme with purple accents
+
+name = "dracula"
+author = "Zeno Rocha"
+description = "Dark theme with purple accents"
+
+[ui]
+background = "#282a36"
+foreground = "#f8f8f2"
+border = "#6272a4"
+text = "#f8f8f2"
+text_dim = "#8b8fa7"
+selection_bg = "#44475a"
+selection_fg = "#f8f8f2"
+
+[spectrum]
+sub_bass = "#ff5555"     # Red
+bass = "#ff79c6"         # Pink
+mid_low = "#ffb86c"      # Orange
+mid = "#f1fa8c"          # Yellow
+mid_high = "#50fa7b"     # Green
+high = "#8be9fd"         # Cyan
+treble = "#bd93f9"       # Purple
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#bd93f9"      # Purple
+secondary = "#8be9fd"    # Cyan
+success = "#50fa7b"      # Green
+warning = "#ffb86c"      # Orange
+error = "#ff5555"        # Red
+info = "#8be9fd"         # Cyan

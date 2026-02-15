@@ -1,0 +1,194 @@
+# Symphony v2.0 Configuration
+# ~/.config/symphony/config.toml
+
+[general]
+music_directory = "~/Music"
+cache_directory = "~/.cache/symphony"
+database_path = "~/.local/share/symphony/library.db"
+theme = "monokai"
+default_view = "library"
+
+[audio]
+output_device = "default"
+sample_rate = 44100
+buffer_size = 2048
+volume = 0.6
+normalize_audio = false
+
+[audio.effects]
+equalizer = false
+reverb = false
+bass_boost = 1.0
+
+[visualizer]
+enabled = true
+mode = "spectrum"
+fft_size = 4096
+smoothing = 0.8
+color_scheme = "rainbow"
+beat_detection = true
+
+# =============================================================================
+# AI Configuration - Dual Provider Support
+# =============================================================================
+# Symphony supports two AI providers:
+# 1. Ollama (local, private, free) - Runs on your machine
+# 2. OpenRouter (cloud, convenient, cheap) - Uses cloud AI models
+
+[ai]
+enabled = true
+# Choose provider: "ollama" or "openrouter"
+provider = "ollama"
+recommendations_enabled = true
+natural_language_commands = true
+cache_responses = true
+
+# Ollama Configuration (Local AI)
+[ai.ollama]
+base_url = "http://localhost:11434"
+model = "llama3.2:3b"
+
+# OpenRouter Configuration (Cloud AI)
+[ai.openrouter]
+api_key = ""
+model = "anthropic/claude-3.5-sonnet"
+site_url = "https://github.com/symphony-player/symphony"
+app_name = "Symphony Music Player"
+
+# =============================================================================
+# Streaming Configuration - Phase 4
+# =============================================================================
+# Stream music from YouTube and Spotify alongside your local library
+
+[streaming]
+enabled = true
+
+[streaming.youtube]
+enabled = true
+quality = "medium"  # low, medium, high, best
+ytdlp_path = "yt-dlp"
+
+[streaming.spotify]
+enabled = false
+client_id = ""
+client_secret = ""
+redirect_uri = "http://localhost:8888/callback"
+quality = "high"
+
+[streaming.cache]
+enabled = true
+cache_dir = "~/.cache/symphony/streams"
+max_hot_size_mb = 100
+max_warm_size_mb = 2048
+max_cold_size_mb = 20480
+prefetch_enabled = true
+prefetch_count = 3
+
+[streaming.network]
+max_concurrent_downloads = 2
+bandwidth_limit_mbps = 0
+prefer_cached = true
+timeout_secs = 30
+
+# =============================================================================
+# Plugin System - Phase 5
+# =============================================================================
+# WASM-based plugins for extensibility
+
+[plugins]
+enabled = true
+plugin_dir = "~/.config/symphony/plugins"
+# Auto-load these plugins on startup
+auto_load = []
+
+# Discord Rich Presence Plugin
+[plugins.discord]
+enabled = false
+show_timestamp = true
+show_album_art = true
+
+# Last.fm Scrobbler Plugin
+[plugins.lastfm]
+enabled = false
+api_key = ""
+api_secret = ""
+username = ""
+# Scrobble threshold (percentage of track played)
+scrobble_threshold = 50
+
+# Notifications Plugin
+[plugins.notifications]
+enabled = false
+# Show notification on track change
+on_track_change = true
+# Show notification on playlist end
+on_playlist_end = true
+
+# =============================================================================
+# Lyrics System - Phase 5
+# =============================================================================
+# Synced lyrics with karaoke-style display
+
+[lyrics]
+enabled = true
+cache_dir = "~/.cache/symphony/lyrics"
+# Auto-fetch lyrics when not found locally
+auto_fetch = true
+# Show translation below lyrics
+show_translation = false
+# Karaoke-style highlighting
+karaoke_mode = true
+# Lines to show before/after current
+context_lines = 2
+
+# =============================================================================
+# Developer Integrations - Phase 5
+# =============================================================================
+# Integrations for developer workflows
+
+[integrations.git]
+enabled = true
+# Adapt music based on coding intensity
+adapt_music = false
+# Check interval in seconds
+check_interval = 60
+
+[integrations.pomodoro]
+enabled = false
+# Work session duration in minutes
+work_minutes = 25
+# Short break duration in minutes
+break_minutes = 5
+# Long break duration in minutes (after 4 sessions)
+long_break_minutes = 15
+# Auto-start breaks
+auto_start_break = false
+# Auto-start work sessions
+auto_start_work = false
+# Show notifications
+notifications = true
+
+[integrations.statusline]
+# Enable tmux status line
+tmux_enabled = false
+# Enable zsh status line
+zsh_enabled = false
+# Status file path (for external tools)
+status_file = ""
+
+# =============================================================================
+# Keybindings
+# =============================================================================
+[keybindings]
+play_pause = "Space"
+skip_next = "]"
+skip_prev = "["
+volume_up = "+"
+volume_down = "-"
+search = "/"
+ai_command = "a"
+toggle_lyrics = "l"
+toggle_karaoke = "K"
+translate_lyrics = "T"
+pomodoro_start = "p"
+pomodoro_break = "b"
