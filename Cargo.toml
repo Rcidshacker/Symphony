@@ -19,7 +19,7 @@ ratatui = "0.28"
 crossterm = "0.28"
 
 # Audio Processing
-rodio = { version = "0.19", default-features = false, features = ["mp3", "wav", "vorbis", "flac"] }
+rodio = { version = "0.21", default-features = false, features = ["mp3", "wav", "vorbis", "flac"] }
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "wav", "ogg", "vorbis"] }
 
 # FFT & Visualization
