@@ -16,7 +16,7 @@ exclude = ["/.github", "/docs", "/tests", "/benches"]
 [dependencies]
 # UI Framework
 ratatui = "0.28"
-crossterm = "0.28"
+crossterm = "0.29"
 
 # Audio Processing
 rodio = { version = "0.19", default-features = false, features = ["mp3", "wav", "vorbis", "flac"] }
