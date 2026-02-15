@@ -123,11 +123,10 @@ impl Database {
     /// Run streaming-specific migrations
     fn run_streaming_migration(&self) -> Result<(), DatabaseError> {
         // Add stream_id column to tracks if it doesn't exist
-        let result = self.conn.execute(
-            "ALTER TABLE tracks ADD COLUMN stream_id TEXT",
-            [],
-        );
-        
+        let result = self
+            .conn
+            .execute("ALTER TABLE tracks ADD COLUMN stream_id TEXT", []);
+
         // Ignore error if column already exists
         if let Err(e) = result {
             if !e.to_string().contains("duplicate column name") {
@@ -263,15 +262,16 @@ impl Database {
 
     /// Delete a track
     pub fn delete_track(&self, id: &str) -> Result<(), DatabaseError> {
-        self.conn.execute("DELETE FROM tracks WHERE id = ?1", [id])?;
+        self.conn
+            .execute("DELETE FROM tracks WHERE id = ?1", [id])?;
         Ok(())
     }
 
     /// Get track count
     pub fn track_count(&self) -> Result<usize, DatabaseError> {
-        let count: usize = self.conn.query_row("SELECT COUNT(*) FROM tracks", [], |row| {
-            row.get(0)
-        })?;
+        let count: usize = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))?;
         Ok(count)
     }
 
@@ -340,7 +340,12 @@ impl Database {
     }
 
     /// Add track to playlist
-    pub fn add_to_playlist(&self, playlist_id: &str, track_id: &str, position: i32) -> Result<(), DatabaseError> {
+    pub fn add_to_playlist(
+        &self,
+        playlist_id: &str,
+        track_id: &str,
+        position: i32,
+    ) -> Result<(), DatabaseError> {
         self.conn.execute(
             "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?1, ?2, ?3)",
             (playlist_id, track_id, position),

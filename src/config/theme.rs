@@ -64,7 +64,9 @@ impl Theme {
 
         // Validate theme
         if theme.name.is_empty() {
-            return Err(ThemeError::InvalidFormat("Theme name is required".to_string()));
+            return Err(ThemeError::InvalidFormat(
+                "Theme name is required".to_string(),
+            ));
         }
 
         Ok(theme)
@@ -72,8 +74,8 @@ impl Theme {
 
     /// Save theme to file
     pub fn to_file(&self, path: &Path) -> Result<(), ThemeError> {
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| ThemeError::InvalidFormat(e.to_string()))?;
+        let content =
+            toml::to_string_pretty(self).map_err(|e| ThemeError::InvalidFormat(e.to_string()))?;
         std::fs::write(path, content)?;
         Ok(())
     }
@@ -319,7 +321,9 @@ impl ThemeManager {
     /// Get current theme
     pub fn current(&self) -> &Theme {
         self.themes.get(&self.current_theme).unwrap_or_else(|| {
-            self.themes.get("monokai").expect("Default theme should exist")
+            self.themes
+                .get("monokai")
+                .expect("Default theme should exist")
         })
     }
 
@@ -359,7 +363,8 @@ impl ThemeManager {
     /// Get current theme index
     pub fn current_index(&self) -> usize {
         let themes = self.available_themes();
-        themes.iter()
+        themes
+            .iter()
             .position(|&t| t == self.current_theme)
             .unwrap_or(0)
     }
@@ -416,22 +421,22 @@ impl Theme {
                 selection_fg: Color::Rgb(253, 253, 253),
             },
             spectrum: SpectrumColors {
-                sub_bass: Color::Rgb(255, 97, 136),    // Red
-                bass: Color::Rgb(255, 140, 100),       // Orange
-                mid_low: Color::Rgb(255, 216, 102),    // Yellow
-                mid: Color::Rgb(169, 220, 118),        // Green
-                mid_high: Color::Rgb(120, 220, 232),   // Cyan
-                high: Color::Rgb(171, 157, 242),       // Purple
-                treble: Color::Rgb(255, 147, 183),     // Pink
+                sub_bass: Color::Rgb(255, 97, 136),  // Red
+                bass: Color::Rgb(255, 140, 100),     // Orange
+                mid_low: Color::Rgb(255, 216, 102),  // Yellow
+                mid: Color::Rgb(169, 220, 118),      // Green
+                mid_high: Color::Rgb(120, 220, 232), // Cyan
+                high: Color::Rgb(171, 157, 242),     // Purple
+                treble: Color::Rgb(255, 147, 183),   // Pink
                 beat_pulse: Color::Rgb(255, 255, 255),
             },
             accents: AccentColors {
-                primary: Color::Rgb(255, 97, 136),     // Red
-                secondary: Color::Rgb(171, 157, 242),  // Purple
-                success: Color::Rgb(169, 220, 118),    // Green
-                warning: Color::Rgb(255, 216, 102),    // Yellow
-                error: Color::Rgb(255, 97, 136),       // Red
-                info: Color::Rgb(120, 220, 232),       // Cyan
+                primary: Color::Rgb(255, 97, 136),    // Red
+                secondary: Color::Rgb(171, 157, 242), // Purple
+                success: Color::Rgb(169, 220, 118),   // Green
+                warning: Color::Rgb(255, 216, 102),   // Yellow
+                error: Color::Rgb(255, 97, 136),      // Red
+                info: Color::Rgb(120, 220, 232),      // Cyan
             },
         }
     }
@@ -452,22 +457,22 @@ impl Theme {
                 selection_fg: Color::Rgb(248, 248, 242),
             },
             spectrum: SpectrumColors {
-                sub_bass: Color::Rgb(255, 85, 85),     // Red
-                bass: Color::Rgb(255, 121, 198),       // Pink
-                mid_low: Color::Rgb(255, 184, 108),    // Orange
-                mid: Color::Rgb(241, 250, 140),        // Yellow
-                mid_high: Color::Rgb(80, 250, 123),    // Green
-                high: Color::Rgb(139, 233, 253),       // Cyan
-                treble: Color::Rgb(189, 147, 249),     // Purple
+                sub_bass: Color::Rgb(255, 85, 85),  // Red
+                bass: Color::Rgb(255, 121, 198),    // Pink
+                mid_low: Color::Rgb(255, 184, 108), // Orange
+                mid: Color::Rgb(241, 250, 140),     // Yellow
+                mid_high: Color::Rgb(80, 250, 123), // Green
+                high: Color::Rgb(139, 233, 253),    // Cyan
+                treble: Color::Rgb(189, 147, 249),  // Purple
                 beat_pulse: Color::Rgb(255, 255, 255),
             },
             accents: AccentColors {
-                primary: Color::Rgb(189, 147, 249),    // Purple
-                secondary: Color::Rgb(139, 233, 253),  // Cyan
-                success: Color::Rgb(80, 250, 123),     // Green
-                warning: Color::Rgb(255, 184, 108),    // Orange
-                error: Color::Rgb(255, 85, 85),        // Red
-                info: Color::Rgb(139, 233, 253),       // Cyan
+                primary: Color::Rgb(189, 147, 249),   // Purple
+                secondary: Color::Rgb(139, 233, 253), // Cyan
+                success: Color::Rgb(80, 250, 123),    // Green
+                warning: Color::Rgb(255, 184, 108),   // Orange
+                error: Color::Rgb(255, 85, 85),       // Red
+                info: Color::Rgb(139, 233, 253),      // Cyan
             },
         }
     }
@@ -488,22 +493,22 @@ impl Theme {
                 selection_fg: Color::Rgb(236, 239, 244),
             },
             spectrum: SpectrumColors {
-                sub_bass: Color::Rgb(191, 97, 106),    // Aurora Red
-                bass: Color::Rgb(208, 135, 112),       // Aurora Orange
-                mid_low: Color::Rgb(235, 203, 139),    // Aurora Yellow
-                mid: Color::Rgb(163, 190, 140),        // Aurora Green
-                mid_high: Color::Rgb(136, 192, 208),   // Frost Cyan
-                high: Color::Rgb(129, 161, 193),       // Frost Blue
-                treble: Color::Rgb(180, 142, 173),     // Aurora Purple
+                sub_bass: Color::Rgb(191, 97, 106),  // Aurora Red
+                bass: Color::Rgb(208, 135, 112),     // Aurora Orange
+                mid_low: Color::Rgb(235, 203, 139),  // Aurora Yellow
+                mid: Color::Rgb(163, 190, 140),      // Aurora Green
+                mid_high: Color::Rgb(136, 192, 208), // Frost Cyan
+                high: Color::Rgb(129, 161, 193),     // Frost Blue
+                treble: Color::Rgb(180, 142, 173),   // Aurora Purple
                 beat_pulse: Color::Rgb(143, 188, 187),
             },
             accents: AccentColors {
-                primary: Color::Rgb(136, 192, 208),    // Frost Cyan
-                secondary: Color::Rgb(129, 161, 193),  // Frost Blue
-                success: Color::Rgb(163, 190, 140),    // Aurora Green
-                warning: Color::Rgb(235, 203, 139),    // Aurora Yellow
-                error: Color::Rgb(191, 97, 106),       // Aurora Red
-                info: Color::Rgb(143, 188, 187),       // Frost Teal
+                primary: Color::Rgb(136, 192, 208),   // Frost Cyan
+                secondary: Color::Rgb(129, 161, 193), // Frost Blue
+                success: Color::Rgb(163, 190, 140),   // Aurora Green
+                warning: Color::Rgb(235, 203, 139),   // Aurora Yellow
+                error: Color::Rgb(191, 97, 106),      // Aurora Red
+                info: Color::Rgb(143, 188, 187),      // Frost Teal
             },
         }
     }
@@ -524,22 +529,22 @@ impl Theme {
                 selection_fg: Color::Rgb(253, 246, 227),
             },
             spectrum: SpectrumColors {
-                sub_bass: Color::Rgb(220, 50, 47),     // Red
-                bass: Color::Rgb(203, 75, 22),         // Orange
-                mid_low: Color::Rgb(181, 137, 0),      // Yellow
-                mid: Color::Rgb(133, 153, 0),          // Green
-                mid_high: Color::Rgb(42, 161, 152),    // Cyan
-                high: Color::Rgb(38, 139, 210),        // Blue
-                treble: Color::Rgb(108, 113, 196),     // Violet
+                sub_bass: Color::Rgb(220, 50, 47),  // Red
+                bass: Color::Rgb(203, 75, 22),      // Orange
+                mid_low: Color::Rgb(181, 137, 0),   // Yellow
+                mid: Color::Rgb(133, 153, 0),       // Green
+                mid_high: Color::Rgb(42, 161, 152), // Cyan
+                high: Color::Rgb(38, 139, 210),     // Blue
+                treble: Color::Rgb(108, 113, 196),  // Violet
                 beat_pulse: Color::Rgb(238, 232, 213),
             },
             accents: AccentColors {
-                primary: Color::Rgb(38, 139, 210),     // Blue
-                secondary: Color::Rgb(42, 161, 152),   // Cyan
-                success: Color::Rgb(133, 153, 0),      // Green
-                warning: Color::Rgb(181, 137, 0),      // Yellow
-                error: Color::Rgb(220, 50, 47),        // Red
-                info: Color::Rgb(42, 161, 152),        // Cyan
+                primary: Color::Rgb(38, 139, 210),   // Blue
+                secondary: Color::Rgb(42, 161, 152), // Cyan
+                success: Color::Rgb(133, 153, 0),    // Green
+                warning: Color::Rgb(181, 137, 0),    // Yellow
+                error: Color::Rgb(220, 50, 47),      // Red
+                info: Color::Rgb(42, 161, 152),      // Cyan
             },
         }
     }
@@ -560,22 +565,22 @@ impl Theme {
                 selection_fg: Color::Rgb(235, 219, 178),
             },
             spectrum: SpectrumColors {
-                sub_bass: Color::Rgb(251, 73, 52),     // Bright Red
-                bass: Color::Rgb(251, 150, 40),        // Bright Orange
-                mid_low: Color::Rgb(250, 189, 47),     // Bright Yellow
-                mid: Color::Rgb(184, 187, 38),         // Bright Green
-                mid_high: Color::Rgb(142, 192, 124),   // Bright Aqua
-                high: Color::Rgb(131, 165, 152),       // Bright Blue
-                treble: Color::Rgb(211, 134, 155),     // Bright Purple
+                sub_bass: Color::Rgb(251, 73, 52),   // Bright Red
+                bass: Color::Rgb(251, 150, 40),      // Bright Orange
+                mid_low: Color::Rgb(250, 189, 47),   // Bright Yellow
+                mid: Color::Rgb(184, 187, 38),       // Bright Green
+                mid_high: Color::Rgb(142, 192, 124), // Bright Aqua
+                high: Color::Rgb(131, 165, 152),     // Bright Blue
+                treble: Color::Rgb(211, 134, 155),   // Bright Purple
                 beat_pulse: Color::Rgb(251, 241, 199),
             },
             accents: AccentColors {
-                primary: Color::Rgb(251, 150, 40),     // Bright Orange
-                secondary: Color::Rgb(131, 165, 152),  // Bright Blue
-                success: Color::Rgb(184, 187, 38),     // Bright Green
-                warning: Color::Rgb(250, 189, 47),     // Bright Yellow
-                error: Color::Rgb(251, 73, 52),        // Bright Red
-                info: Color::Rgb(142, 192, 124),       // Bright Aqua
+                primary: Color::Rgb(251, 150, 40),    // Bright Orange
+                secondary: Color::Rgb(131, 165, 152), // Bright Blue
+                success: Color::Rgb(184, 187, 38),    // Bright Green
+                warning: Color::Rgb(250, 189, 47),    // Bright Yellow
+                error: Color::Rgb(251, 73, 52),       // Bright Red
+                info: Color::Rgb(142, 192, 124),      // Bright Aqua
             },
         }
     }
@@ -653,12 +658,9 @@ mod color_serde {
             _ => {
                 // Try parsing as hex color
                 if s.starts_with('#') && s.len() == 7 {
-                    let r = u8::from_str_radix(&s[1..3], 16)
-                        .map_err(|e| e.to_string())?;
-                    let g = u8::from_str_radix(&s[3..5], 16)
-                        .map_err(|e| e.to_string())?;
-                    let b = u8::from_str_radix(&s[5..7], 16)
-                        .map_err(|e| e.to_string())?;
+                    let r = u8::from_str_radix(&s[1..3], 16).map_err(|e| e.to_string())?;
+                    let g = u8::from_str_radix(&s[3..5], 16).map_err(|e| e.to_string())?;
+                    let b = u8::from_str_radix(&s[5..7], 16).map_err(|e| e.to_string())?;
                     Ok(Color::Rgb(r, g, b))
                 } else {
                     Err(format!("Unknown color: {}", s))

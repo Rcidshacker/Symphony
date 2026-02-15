@@ -9,9 +9,9 @@ mod tests {
 
     #[test]
     fn test_database_operations() {
-        use symphony::db::Database;
-        use symphony::app::{Track, TrackSource};
         use std::path::PathBuf;
+        use symphony::app::{Track, TrackSource};
+        use symphony::db::Database;
 
         let db = Database::in_memory().expect("Failed to create in-memory database");
 
@@ -32,8 +32,7 @@ mod tests {
         db.upsert_track(&track).expect("Failed to insert track");
 
         // Retrieve the track
-        let retrieved = db.get_track("test-track-1")
-            .expect("Failed to get track");
+        let retrieved = db.get_track("test-track-1").expect("Failed to get track");
 
         assert!(retrieved.is_some());
         let retrieved = retrieved.unwrap();

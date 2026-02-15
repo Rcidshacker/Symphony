@@ -87,22 +87,13 @@ mod tests {
     fn test_visualization_mode_cycle() {
         use symphony::ui::visualizer::VisualizationMode;
 
-        assert_eq!(
-            VisualizationMode::Bars.next(),
-            VisualizationMode::Waveform
-        );
+        assert_eq!(VisualizationMode::Bars.next(), VisualizationMode::Waveform);
         assert_eq!(
             VisualizationMode::Waveform.next(),
             VisualizationMode::Circular
         );
-        assert_eq!(
-            VisualizationMode::Circular.next(),
-            VisualizationMode::Off
-        );
-        assert_eq!(
-            VisualizationMode::Off.next(),
-            VisualizationMode::Bars
-        );
+        assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Off);
+        assert_eq!(VisualizationMode::Off.next(), VisualizationMode::Bars);
     }
 
     #[test]
@@ -151,6 +142,10 @@ mod tests {
         println!("Average FFT processing time: {:.2} µs", avg_us);
 
         // Should be less than 5ms per FFT
-        assert!(avg_us < 5000.0, "FFT processing took too long: {:.2} µs", avg_us);
+        assert!(
+            avg_us < 5000.0,
+            "FFT processing took too long: {:.2} µs",
+            avg_us
+        );
     }
 }

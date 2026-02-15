@@ -13,7 +13,9 @@ mod ui;
 use std::io;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -89,8 +91,7 @@ fn run_event_loop(
 fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
     match (key.modifiers, key.code) {
         // Quit
-        (KeyModifiers::CONTROL, KeyCode::Char('c')) |
-        (KeyModifiers::NONE, KeyCode::Char('q')) => {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) | (KeyModifiers::NONE, KeyCode::Char('q')) => {
             return Ok(false);
         }
 
@@ -100,20 +101,17 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         }
 
         // Next track
-        (KeyModifiers::NONE, KeyCode::Char('n')) |
-        (KeyModifiers::NONE, KeyCode::Char(']')) => {
+        (KeyModifiers::NONE, KeyCode::Char('n')) | (KeyModifiers::NONE, KeyCode::Char(']')) => {
             app.next_track();
         }
 
         // Previous track
-        (KeyModifiers::NONE, KeyCode::Char('p')) |
-        (KeyModifiers::NONE, KeyCode::Char('[')) => {
+        (KeyModifiers::NONE, KeyCode::Char('p')) | (KeyModifiers::NONE, KeyCode::Char('[')) => {
             app.previous_track();
         }
 
         // Volume up
-        (KeyModifiers::NONE, KeyCode::Char('+')) |
-        (KeyModifiers::NONE, KeyCode::Char('=')) => {
+        (KeyModifiers::NONE, KeyCode::Char('+')) | (KeyModifiers::NONE, KeyCode::Char('=')) => {
             app.volume_up();
         }
 
@@ -148,13 +146,11 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         }
 
         // Navigate playlist
-        (KeyModifiers::NONE, KeyCode::Up) |
-        (KeyModifiers::NONE, KeyCode::Char('k')) => {
+        (KeyModifiers::NONE, KeyCode::Up) | (KeyModifiers::NONE, KeyCode::Char('k')) => {
             app.navigate_up();
         }
 
-        (KeyModifiers::NONE, KeyCode::Down) |
-        (KeyModifiers::NONE, KeyCode::Char('j')) => {
+        (KeyModifiers::NONE, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => {
             app.navigate_down();
         }
 
@@ -164,8 +160,7 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         }
 
         // Help
-        (KeyModifiers::NONE, KeyCode::Char('h')) |
-        (KeyModifiers::NONE, KeyCode::Char('?')) => {
+        (KeyModifiers::NONE, KeyCode::Char('h')) | (KeyModifiers::NONE, KeyCode::Char('?')) => {
             app.toggle_help();
         }
 
@@ -209,9 +204,7 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
 }
 
 /// Restore terminal to original state
-fn restore_terminal(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-) -> anyhow::Result<()> {
+fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> anyhow::Result<()> {
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),

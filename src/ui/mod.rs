@@ -25,10 +25,10 @@ pub fn render(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),   // Header
-            Constraint::Length(12),  // Visualizer + Now Playing
-            Constraint::Min(10),     // Library/Queue
-            Constraint::Length(3),   // Status bar
+            Constraint::Length(3),  // Header
+            Constraint::Length(12), // Visualizer + Now Playing
+            Constraint::Min(10),    // Library/Queue
+            Constraint::Length(3),  // Status bar
         ])
         .split(f.area());
 
@@ -59,7 +59,11 @@ fn render_header(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     );
 
     let header = Paragraph::new(title)
-        .style(Style::default().fg(theme.accent()).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        )
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -75,9 +79,9 @@ fn render_now_playing_section(f: &mut Frame, app: &App, area: Rect, theme: &Them
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(20),  // Album art
-            Constraint::Min(30),     // Track info + progress
-            Constraint::Length(25),  // Visualizer
+            Constraint::Length(20), // Album art
+            Constraint::Min(30),    // Track info + progress
+            Constraint::Length(25), // Visualizer
         ])
         .split(area);
 
@@ -104,7 +108,7 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(5),  // Track details
+            Constraint::Min(5),    // Track details
             Constraint::Length(3), // Progress bar
             Constraint::Length(3), // Volume
         ])
@@ -126,7 +130,9 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         };
 
         // Add BPM if available from visualizer
-        let bpm_info = app.visualizer_state.spectrum
+        let bpm_info = app
+            .visualizer_state
+            .spectrum
             .as_ref()
             .and_then(|s| s.beat.estimated_bpm)
             .map(|bpm| format!(" | {} BPM", bpm as i32))

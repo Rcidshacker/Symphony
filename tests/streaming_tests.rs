@@ -57,7 +57,10 @@ fn test_stream_track() {
     assert_eq!(track.artist, "Test Artist");
     assert_eq!(track.duration, 180);
     assert_eq!(track.album, Some("Test Album".to_string()));
-    assert_eq!(track.thumbnail_url, Some("http://example.com/thumb.jpg".to_string()));
+    assert_eq!(
+        track.thumbnail_url,
+        Some("http://example.com/thumb.jpg".to_string())
+    );
     assert_eq!(track.formatted_duration(), "03:00");
 }
 
@@ -184,7 +187,10 @@ fn test_youtube_config_defaults() {
     let config = YouTubeConfig::default();
 
     assert_eq!(config.ytdlp_path, "yt-dlp");
-    assert_eq!(config.default_quality, symphony::streaming::StreamQuality::Medium);
+    assert_eq!(
+        config.default_quality,
+        symphony::streaming::StreamQuality::Medium
+    );
     assert!(config.include_thumbnails);
     assert_eq!(config.max_results, 20);
 }
@@ -210,7 +216,10 @@ fn test_stream_manager_config_defaults() {
     let config = StreamManagerConfig::default();
 
     assert!(config.enabled);
-    assert_eq!(config.default_quality, symphony::streaming::StreamQuality::Medium);
+    assert_eq!(
+        config.default_quality,
+        symphony::streaming::StreamQuality::Medium
+    );
     assert!(config.prefer_cached);
     assert_eq!(config.max_concurrent_downloads, 2);
 }

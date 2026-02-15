@@ -9,7 +9,7 @@ use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
 use crate::config::Config;
 use crate::db::Database;
-use crate::ui::artwork::{AsciiArt, ArtworkCache};
+use crate::ui::artwork::{ArtworkCache, AsciiArt};
 use crate::ui::visualizer::VisualizerState;
 
 /// Main application state

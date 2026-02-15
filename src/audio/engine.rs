@@ -144,24 +144,31 @@ impl AudioEngine {
     }
 
     /// Play a local file with track metadata
-    pub fn play_file_with_track(&mut self, path: &Path, track: StreamTrack) -> Result<(), AudioError> {
+    pub fn play_file_with_track(
+        &mut self,
+        path: &Path,
+        track: StreamTrack,
+    ) -> Result<(), AudioError> {
         self.play_file_internal(path, Some(track))
     }
 
     /// Internal file playback implementation
-    fn play_file_internal(&mut self, path: &Path, track: Option<StreamTrack>) -> Result<(), AudioError> {
+    fn play_file_internal(
+        &mut self,
+        path: &Path,
+        track: Option<StreamTrack>,
+    ) -> Result<(), AudioError> {
         // Create new sink
         let sink = Sink::try_new(&self.stream_handle)
             .map_err(|e| AudioError::SinkCreation(e.to_string()))?;
 
         // Open and decode file
-        let file =
-            File::open(path).map_err(|e| AudioError::FileOpen(format!("{}: {}", path.display(), e)))?;
+        let file = File::open(path)
+            .map_err(|e| AudioError::FileOpen(format!("{}: {}", path.display(), e)))?;
 
         let reader = BufReader::new(file);
 
-        let source =
-            Decoder::new(reader).map_err(|e| AudioError::DecodeError(e.to_string()))?;
+        let source = Decoder::new(reader).map_err(|e| AudioError::DecodeError(e.to_string()))?;
 
         // Apply volume
         let volume = self.volume.load(Ordering::SeqCst);
@@ -189,10 +196,15 @@ impl AudioEngine {
     }
 
     /// Play from a URL (HTTP streaming)
-    pub async fn play_url(&mut self, url: &str, track: Option<StreamTrack>) -> Result<(), AudioError> {
-        let client = self.http_client.as_ref().ok_or_else(|| {
-            AudioError::NetworkError("HTTP client not initialized".to_string())
-        })?;
+    pub async fn play_url(
+        &mut self,
+        url: &str,
+        track: Option<StreamTrack>,
+    ) -> Result<(), AudioError> {
+        let client = self
+            .http_client
+            .as_ref()
+            .ok_or_else(|| AudioError::NetworkError("HTTP client not initialized".to_string()))?;
 
         debug!("Fetching audio from URL: {}", url);
 
@@ -226,8 +238,7 @@ impl AudioEngine {
             .map_err(|e| AudioError::SinkCreation(e.to_string()))?;
 
         // Decode from cursor
-        let source = Decoder::new(cursor)
-            .map_err(|e| AudioError::DecodeError(e.to_string()))?;
+        let source = Decoder::new(cursor).map_err(|e| AudioError::DecodeError(e.to_string()))?;
 
         // Apply volume
         let volume = self.volume.load(Ordering::SeqCst);

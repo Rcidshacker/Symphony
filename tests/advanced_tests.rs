@@ -8,15 +8,12 @@
 
 #[cfg(test)]
 mod plugin_tests {
-    use symphony::plugins::{Permission, PluginEvent, PlaybackState, TrackInfo};
+    use symphony::plugins::{Permission, PlaybackState, PluginEvent, TrackInfo};
 
     #[test]
     fn test_plugin_event_serialization() {
-        let event = PluginEvent::TrackChanged(TrackInfo::new(
-            "test123",
-            "Test Song",
-            "Test Artist",
-        ));
+        let event =
+            PluginEvent::TrackChanged(TrackInfo::new("test123", "Test Song", "Test Artist"));
 
         let json = event.to_json().unwrap();
         assert!(json.contains("Test Song"));
@@ -25,10 +22,7 @@ mod plugin_tests {
 
     #[test]
     fn test_plugin_event_types() {
-        assert_eq!(
-            PluginEvent::AppStarted.event_type(),
-            "app_started"
-        );
+        assert_eq!(PluginEvent::AppStarted.event_type(), "app_started");
         assert_eq!(
             PluginEvent::PlaybackStateChanged(PlaybackState::Playing).event_type(),
             "playback_state_changed"
@@ -146,10 +140,7 @@ mod lyrics_tests {
     fn test_lyrics_to_lrc() {
         let lyrics = Lyrics::new(
             "test",
-            vec![
-                LyricsLine::new(0, "First"),
-                LyricsLine::new(5000, "Second"),
-            ],
+            vec![LyricsLine::new(0, "First"), LyricsLine::new(5000, "Second")],
         );
 
         let lrc = symphony::lyrics::lrc::to_lrc(&lyrics);
@@ -284,10 +275,7 @@ mod statusline_tests {
 
     #[test]
     fn test_tmux_format() {
-        let status = StatusLine::tmux_format(
-            Some(("Test Song", "Test Artist", 180, 90)),
-            true,
-        );
+        let status = StatusLine::tmux_format(Some(("Test Song", "Test Artist", 180, 90)), true);
         assert!(status.contains("Test Song"));
         assert!(status.contains("Test Artist"));
         assert!(status.contains("01:30/03:00"));
@@ -308,11 +296,7 @@ mod statusline_tests {
 
     #[test]
     fn test_json_format() {
-        let json = StatusLine::json_format(
-            Some(("Test", "Artist", 100, 50)),
-            true,
-            0.75,
-        );
+        let json = StatusLine::json_format(Some(("Test", "Artist", 100, 50)), true, 0.75);
 
         assert!(json.contains("\"title\":\"Test\""));
         assert!(json.contains("\"playing\":true"));
@@ -334,10 +318,7 @@ mod statusline_tests {
 
     #[test]
     fn test_waybar_format() {
-        let status = StatusLine::waybar_format(
-            Some(("Song", "Artist", 100, 50)),
-            true,
-        );
+        let status = StatusLine::waybar_format(Some(("Song", "Artist", 100, 50)), true);
 
         assert!(status.contains("\"text\""));
         assert!(status.contains("\"class\":\"playing\""));

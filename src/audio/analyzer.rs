@@ -8,9 +8,9 @@ use std::f32::consts::PI;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use rustfft::{FftPlanner, FftDirection};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
+use rustfft::{FftDirection, FftPlanner};
 
 /// FFT window size options
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -82,13 +82,48 @@ pub struct FrequencyBand {
 /// Predefined frequency bands
 pub fn get_frequency_bands() -> Vec<FrequencyBand> {
     vec![
-        FrequencyBand { name: "Sub Bass".into(), low: 20.0, high: 60.0, magnitude: 0.0 },
-        FrequencyBand { name: "Bass".into(), low: 60.0, high: 200.0, magnitude: 0.0 },
-        FrequencyBand { name: "Mid-Low".into(), low: 200.0, high: 500.0, magnitude: 0.0 },
-        FrequencyBand { name: "Mid".into(), low: 500.0, high: 2000.0, magnitude: 0.0 },
-        FrequencyBand { name: "Mid-High".into(), low: 2000.0, high: 4000.0, magnitude: 0.0 },
-        FrequencyBand { name: "High".into(), low: 4000.0, high: 8000.0, magnitude: 0.0 },
-        FrequencyBand { name: "Treble".into(), low: 8000.0, high: 20000.0, magnitude: 0.0 },
+        FrequencyBand {
+            name: "Sub Bass".into(),
+            low: 20.0,
+            high: 60.0,
+            magnitude: 0.0,
+        },
+        FrequencyBand {
+            name: "Bass".into(),
+            low: 60.0,
+            high: 200.0,
+            magnitude: 0.0,
+        },
+        FrequencyBand {
+            name: "Mid-Low".into(),
+            low: 200.0,
+            high: 500.0,
+            magnitude: 0.0,
+        },
+        FrequencyBand {
+            name: "Mid".into(),
+            low: 500.0,
+            high: 2000.0,
+            magnitude: 0.0,
+        },
+        FrequencyBand {
+            name: "Mid-High".into(),
+            low: 2000.0,
+            high: 4000.0,
+            magnitude: 0.0,
+        },
+        FrequencyBand {
+            name: "High".into(),
+            low: 4000.0,
+            high: 8000.0,
+            magnitude: 0.0,
+        },
+        FrequencyBand {
+            name: "Treble".into(),
+            low: 8000.0,
+            high: 20000.0,
+            magnitude: 0.0,
+        },
     ]
 }
 
@@ -270,10 +305,7 @@ impl SpectrumAnalyzer {
         let size = self.fft_size.size();
 
         // Copy samples to input buffer with windowing
-        let samples: Vec<f32> = self.sample_buffer.iter()
-            .take(size)
-            .copied()
-            .collect();
+        let samples: Vec<f32> = self.sample_buffer.iter().take(size).copied().collect();
 
         for i in 0..size {
             let sample = samples.get(i).copied().unwrap_or(0.0);
@@ -301,8 +333,8 @@ impl SpectrumAnalyzer {
 
         // Apply smoothing
         for i in 0..half_size {
-            magnitudes[i] = self.smoothing * self.previous_spectrum[i]
-                + (1.0 - self.smoothing) * magnitudes[i];
+            magnitudes[i] =
+                self.smoothing * self.previous_spectrum[i] + (1.0 - self.smoothing) * magnitudes[i];
         }
         self.previous_spectrum.copy_from_slice(&magnitudes);
 
@@ -355,7 +387,8 @@ impl SpectrumAnalyzer {
 
     /// Find peak frequency in spectrum
     fn find_peak_frequency(&self, magnitudes: &[f32]) -> f32 {
-        let max_idx = magnitudes.iter()
+        let max_idx = magnitudes
+            .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
@@ -439,10 +472,12 @@ impl BeatDetector {
     /// Detect beat from frequency bands and RMS
     fn detect(&mut self, bands: &[FrequencyBand], rms: f32) -> BeatResult {
         // Calculate bass energy (primary beat indicator)
-        let bass_energy = bands.iter()
+        let bass_energy = bands
+            .iter()
             .take(3) // Sub bass, Bass, Mid-Low
             .map(|b| b.magnitude)
-            .sum::<f32>() / 3.0;
+            .sum::<f32>()
+            / 3.0;
 
         // Add to history
         self.energy_history.push_back(bass_energy);
@@ -451,10 +486,14 @@ impl BeatDetector {
         }
 
         // Calculate average and variance
-        let avg: f32 = self.energy_history.iter().sum::<f32>() / self.energy_history.len().max(1) as f32;
-        let variance: f32 = self.energy_history.iter()
+        let avg: f32 =
+            self.energy_history.iter().sum::<f32>() / self.energy_history.len().max(1) as f32;
+        let variance: f32 = self
+            .energy_history
+            .iter()
             .map(|e| (e - avg).powi(2))
-            .sum::<f32>() / self.energy_history.len().max(1) as f32;
+            .sum::<f32>()
+            / self.energy_history.len().max(1) as f32;
 
         // Adaptive threshold
         let threshold = avg + self.threshold_mult * variance.sqrt();
@@ -477,9 +516,12 @@ impl BeatDetector {
             }
 
             if self.beat_intervals.len() >= 3 {
-                let avg_interval: f32 = self.beat_intervals.iter()
+                let avg_interval: f32 = self
+                    .beat_intervals
+                    .iter()
                     .map(|d| d.as_secs_f32())
-                    .sum::<f32>() / self.beat_intervals.len() as f32;
+                    .sum::<f32>()
+                    / self.beat_intervals.len() as f32;
                 self.estimated_bpm = 60.0 / avg_interval;
             }
 

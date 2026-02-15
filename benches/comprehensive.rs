@@ -2,7 +2,7 @@
 //!
 //! Benchmark all critical paths in Symphony.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::hint::black_box as bb;
 
 // ============================================================================
@@ -24,7 +24,9 @@ fn generate_sine_wave(frequency: f32, sample_rate: u32, num_samples: usize) -> V
 fn generate_noise(num_samples: usize) -> Vec<f32> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    (0..num_samples).map(|_| rng.gen::<f32>() * 2.0 - 1.0).collect()
+    (0..num_samples)
+        .map(|_| rng.gen::<f32>() * 2.0 - 1.0)
+        .collect()
 }
 
 // ============================================================================
@@ -32,16 +34,14 @@ fn generate_noise(num_samples: usize) -> Vec<f32> {
 // ============================================================================
 
 fn bench_fft(c: &mut Criterion) {
-    use rustfft::{FftPlanner, num_complex::Complex};
+    use rustfft::{num_complex::Complex, FftPlanner};
 
     let mut group = c.benchmark_group("FFT");
     group.measurement_time(std::time::Duration::from_secs(5));
 
     for &size in &[1024, 2048, 4096, 8192] {
         let samples: Vec<f32> = generate_sine_wave(440.0, 44100, size);
-        let mut buffer: Vec<Complex<f32>> = samples.iter()
-            .map(|&s| Complex::new(s, 0.0))
-            .collect();
+        let mut buffer: Vec<Complex<f32>> = samples.iter().map(|&s| Complex::new(s, 0.0)).collect();
 
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(size);
@@ -68,17 +68,20 @@ fn bench_spectrum_analysis(c: &mut Criterion) {
     // Benchmark raw FFT with windowing
     for &size in &[2048, 4096, 8192] {
         let samples: Vec<f32> = generate_sine_wave(440.0, 44100, size);
-        
+
         // Hanning window
         let window: Vec<f32> = (0..size)
-            .map(|i| 0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (size - 1) as f32).cos()))
+            .map(|i| {
+                0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (size - 1) as f32).cos())
+            })
             .collect();
 
         group.throughput(Throughput::Elements(size as u64));
         group.bench_with_input(BenchmarkId::new("windowed", size), &size, |b, _| {
             b.iter(|| {
                 // Apply window
-                let windowed: Vec<f32> = samples.iter()
+                let windowed: Vec<f32> = samples
+                    .iter()
                     .zip(window.iter())
                     .map(|(s, w)| s * w)
                     .collect();
@@ -103,7 +106,7 @@ fn bench_cache_operations(c: &mut Criterion) {
 
     group.bench_function("lru_get", |b| {
         let mut cache: VecDeque<(String, Vec<u8>)> = VecDeque::with_capacity(CACHE_SIZE);
-        
+
         // Pre-populate
         for i in 0..CACHE_SIZE {
             cache.push_back((format!("key_{}", i), vec![0u8; 1024]));
@@ -125,7 +128,7 @@ fn bench_cache_operations(c: &mut Criterion) {
         b.iter(|| {
             let key = format!("key_{}", rand::random::<usize>());
             let value = vec![0u8; 1024];
-            
+
             if cache.len() >= CACHE_SIZE {
                 cache.pop_back();
             }
@@ -164,9 +167,7 @@ fn bench_json_operations(c: &mut Criterion) {
     };
 
     group.bench_function("serialize", |b| {
-        b.iter(|| {
-            serde_json::to_string(black_box(&track)).unwrap()
-        });
+        b.iter(|| serde_json::to_string(black_box(&track)).unwrap());
     });
 
     let json = serde_json::to_string(&track).unwrap();
@@ -193,7 +194,8 @@ fn bench_string_operations(c: &mut Criterion) {
 
     group.bench_function("search_prefix", |b| {
         b.iter(|| {
-            let results: Vec<_> = strings.iter()
+            let results: Vec<_> = strings
+                .iter()
                 .filter(|s| s.starts_with("track_00"))
                 .collect();
             black_box(results);
@@ -202,9 +204,7 @@ fn bench_string_operations(c: &mut Criterion) {
 
     group.bench_function("search_contains", |b| {
         b.iter(|| {
-            let results: Vec<_> = strings.iter()
-                .filter(|s| s.contains("artist"))
-                .collect();
+            let results: Vec<_> = strings.iter().filter(|s| s.contains("artist")).collect();
             black_box(results);
         });
     });

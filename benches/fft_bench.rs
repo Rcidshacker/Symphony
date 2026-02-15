@@ -2,7 +2,7 @@
 //!
 //! Benchmark the FFT spectrum analyzer performance.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 /// Generate a sine wave
 fn generate_sine_wave(frequency: f32, sample_rate: u32, num_samples: usize) -> Vec<f32> {
@@ -17,15 +17,13 @@ fn generate_sine_wave(frequency: f32, sample_rate: u32, num_samples: usize) -> V
 
 /// Benchmark FFT with different sizes
 fn fft_benchmark(c: &mut Criterion) {
-    use rustfft::{FftPlanner, num_complex::Complex};
+    use rustfft::{num_complex::Complex, FftPlanner};
 
     let mut group = c.benchmark_group("FFT");
 
     for &size in &[2048, 4096, 8192] {
         let samples: Vec<f32> = generate_sine_wave(440.0, 44100, size);
-        let mut buffer: Vec<Complex<f32>> = samples.iter()
-            .map(|&s| Complex::new(s, 0.0))
-            .collect();
+        let mut buffer: Vec<Complex<f32>> = samples.iter().map(|&s| Complex::new(s, 0.0)).collect();
 
         let mut planner = FftPlanner::new();
         let fft = planner.plan_fft_forward(size);

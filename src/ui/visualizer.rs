@@ -205,7 +205,8 @@ impl VisualizerState {
         // Smooth animation towards target
         let smoothing = 0.3;
         for i in 0..num_bars {
-            self.bar_heights[i] = smoothing * self.target_heights[i] + (1.0 - smoothing) * self.bar_heights[i];
+            self.bar_heights[i] =
+                smoothing * self.target_heights[i] + (1.0 - smoothing) * self.bar_heights[i];
         }
     }
 
@@ -221,12 +222,7 @@ impl VisualizerState {
 }
 
 /// Render visualizer to frame
-pub fn render_visualizer(
-    f: &mut Frame,
-    area: Rect,
-    state: &VisualizerState,
-    theme: &Theme,
-) {
+pub fn render_visualizer(f: &mut Frame, area: Rect, state: &VisualizerState, theme: &Theme) {
     if state.mode == VisualizationMode::Off {
         return;
     }
@@ -265,7 +261,9 @@ fn render_bars(
     // Create block with title
     let title = format!(
         " 📊 SPECTRUM {} ",
-        state.spectrum.as_ref()
+        state
+            .spectrum
+            .as_ref()
             .and_then(|s| s.beat.estimated_bpm.map(|bpm| format!("~{:.0} BPM", bpm)))
             .unwrap_or_default()
     );
@@ -321,16 +319,11 @@ fn render_bars(
     // Add beat pulse glow effect
     if state.beat_pulse > 0.5 {
         let pulse_char = "░";
-        let pulse_style = Style::default()
-            .fg(theme.accent)
-            .bg(theme.background);
+        let pulse_style = Style::default().fg(theme.accent).bg(theme.background);
 
         for y in 0..inner.height {
             let span = Span::styled(pulse_char, pulse_style);
-            f.render_widget(
-                Paragraph::new(span),
-                Rect::new(inner.x, inner.y + y, 1, 1),
-            );
+            f.render_widget(Paragraph::new(span), Rect::new(inner.x, inner.y + y, 1, 1));
             f.render_widget(
                 Paragraph::new(span),
                 Rect::new(inner.x + inner.width - 1, inner.y + y, 1, 1),
@@ -392,8 +385,7 @@ fn render_waveform(
             break;
         }
 
-        let avg: f32 = spectrum.magnitudes[start..end].iter().sum::<f32>()
-            / (end - start) as f32;
+        let avg: f32 = spectrum.magnitudes[start..end].iter().sum::<f32>() / (end - start) as f32;
 
         // Map to vertical position
         let amplitude = avg * inner.height as f32 / 2.0;
@@ -484,20 +476,25 @@ fn render_circular(
         let style = Style::default().fg(color);
 
         // Draw line from inner to outer (simplified - just draw endpoints)
-        let outer_char = if magnitude > 0.7 { "●" } else if magnitude > 0.4 { "◉" } else { "○" };
+        let outer_char = if magnitude > 0.7 {
+            "●"
+        } else if magnitude > 0.4 {
+            "◉"
+        } else {
+            "○"
+        };
 
         // Draw outer point
         let outer_px = outer_x as u16;
         let outer_py = outer_y as u16;
 
-        if outer_px >= inner.x && outer_px < inner.x + inner.width
-            && outer_py >= inner.y && outer_py < inner.y + inner.height
+        if outer_px >= inner.x
+            && outer_px < inner.x + inner.width
+            && outer_py >= inner.y
+            && outer_py < inner.y + inner.height
         {
             let span = Span::styled(outer_char, style);
-            f.render_widget(
-                Paragraph::new(span),
-                Rect::new(outer_px, outer_py, 1, 1),
-            );
+            f.render_widget(Paragraph::new(span), Rect::new(outer_px, outer_py, 1, 1));
         }
     }
 
@@ -519,12 +516,7 @@ fn render_circular(
 }
 
 /// Render mini spectrum (for status bar or small areas)
-pub fn render_mini_spectrum(
-    f: &mut Frame,
-    area: Rect,
-    magnitudes: &[f32],
-    theme: &Theme,
-) {
+pub fn render_mini_spectrum(f: &mut Frame, area: Rect, magnitudes: &[f32], theme: &Theme) {
     if area.width < 4 || magnitudes.is_empty() {
         return;
     }
@@ -568,7 +560,10 @@ mod tests {
     fn test_visualization_mode_cycle() {
         let mode = VisualizationMode::Bars;
         assert_eq!(mode.next(), VisualizationMode::Waveform);
-        assert_eq!(VisualizationMode::Waveform.next(), VisualizationMode::Circular);
+        assert_eq!(
+            VisualizationMode::Waveform.next(),
+            VisualizationMode::Circular
+        );
         assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Off);
         assert_eq!(VisualizationMode::Off.next(), VisualizationMode::Bars);
     }

@@ -59,7 +59,7 @@ impl Default for ArtworkConfig {
         Self {
             max_width: 40,
             max_height: 20,
-            charset: " .:-=+*#%@".to_string(),  // Dark to light
+            charset: " .:-=+*#%@".to_string(), // Dark to light
             use_color: true,
             invert: false,
             dither: true,
@@ -99,10 +99,7 @@ impl AsciiArt {
     }
 
     /// Create from image data
-    pub fn from_image(
-        image_data: &[u8],
-        config: &ArtworkConfig,
-    ) -> Result<Self, ArtworkError> {
+    pub fn from_image(image_data: &[u8], config: &ArtworkConfig) -> Result<Self, ArtworkError> {
         // This is a simplified ASCII art conversion
         // In production, use the `image` crate for proper image processing
 
@@ -117,7 +114,8 @@ impl AsciiArt {
         // Terminal characters are roughly 2x taller than wide
         let aspect_ratio = (width as f64) / (height as f64) * 0.5;
         let target_width = config.max_width.min(width as usize);
-        let target_height = (target_width as f64 / aspect_ratio).min(config.max_height as f64) as usize;
+        let target_height =
+            (target_width as f64 / aspect_ratio).min(config.max_height as f64) as usize;
 
         // Resize and convert to ASCII
         let mut chars = Vec::with_capacity(target_height);
@@ -283,7 +281,12 @@ fn decode_image(data: &[u8]) -> Result<SimpleImage, ArtworkError> {
         width: 100,
         height: 100,
         pixels: vec![
-            Pixel { r: 50, g: 50, b: 50, a: 255 };
+            Pixel {
+                r: 50,
+                g: 50,
+                b: 50,
+                a: 255
+            };
             100 * 100
         ],
     })
@@ -369,7 +372,9 @@ pub fn render_album_art(
     theme: &Theme,
     title: Option<&str>,
 ) {
-    let block_title = title.map(|t| format!(" 🖼️ {} ", t)).unwrap_or_else(|| " 🖼️ ALBUM ART ".to_string());
+    let block_title = title
+        .map(|t| format!(" 🖼️ {} ", t))
+        .unwrap_or_else(|| " 🖼️ ALBUM ART ".to_string());
 
     let block = Block::default()
         .title(block_title)
@@ -390,7 +395,8 @@ pub fn render_album_art(
         }
         None => {
             // Show placeholder
-            let placeholder = AsciiArt::placeholder(inner.width as usize, inner.height as usize, theme);
+            let placeholder =
+                AsciiArt::placeholder(inner.width as usize, inner.height as usize, theme);
             render_ascii_art(f, inner, &placeholder, theme);
         }
     }
@@ -418,10 +424,7 @@ fn render_ascii_art(f: &mut Frame, area: Rect, art: &AsciiArt, theme: &Theme) {
                 .bg(theme.background);
 
             let span = Span::styled(char.to_string(), style);
-            f.render_widget(
-                Paragraph::new(span),
-                Rect::new(x_pos, y_pos, 1, 1),
-            );
+            f.render_widget(Paragraph::new(span), Rect::new(x_pos, y_pos, 1, 1));
         }
     }
 }
@@ -494,9 +497,24 @@ mod tests {
 
     #[test]
     fn test_pixel_grayscale() {
-        let white = Pixel { r: 255, g: 255, b: 255, a: 255 };
-        let black = Pixel { r: 0, g: 0, b: 0, a: 255 };
-        let gray = Pixel { r: 128, g: 128, b: 128, a: 255 };
+        let white = Pixel {
+            r: 255,
+            g: 255,
+            b: 255,
+            a: 255,
+        };
+        let black = Pixel {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255,
+        };
+        let gray = Pixel {
+            r: 128,
+            g: 128,
+            b: 128,
+            a: 255,
+        };
 
         assert!((white.grayscale() - 1.0).abs() < 0.01);
         assert!((black.grayscale() - 0.0).abs() < 0.01);

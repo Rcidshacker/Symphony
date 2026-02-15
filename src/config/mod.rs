@@ -220,8 +220,12 @@ pub struct AiConfig {
     pub cache_responses: bool,
 }
 
-fn default_true() -> bool { true }
-fn default_provider() -> String { "ollama".to_string() }
+fn default_true() -> bool {
+    true
+}
+fn default_provider() -> String {
+    "ollama".to_string()
+}
 
 /// Ollama (local AI) configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -235,8 +239,12 @@ pub struct OllamaConfig {
     pub model: String,
 }
 
-fn default_ollama_url() -> String { "http://localhost:11434".to_string() }
-fn default_ollama_model() -> String { "llama3.2:3b".to_string() }
+fn default_ollama_url() -> String {
+    "http://localhost:11434".to_string()
+}
+fn default_ollama_model() -> String {
+    "llama3.2:3b".to_string()
+}
 
 impl Default for OllamaConfig {
     fn default() -> Self {
@@ -267,9 +275,15 @@ pub struct OpenRouterConfig {
     pub app_name: String,
 }
 
-fn default_openrouter_model() -> String { "anthropic/claude-3.5-sonnet".to_string() }
-fn default_site_url() -> String { "https://github.com/symphony-player/symphony".to_string() }
-fn default_app_name() -> String { "Symphony Music Player".to_string() }
+fn default_openrouter_model() -> String {
+    "anthropic/claude-3.5-sonnet".to_string()
+}
+fn default_site_url() -> String {
+    "https://github.com/symphony-player/symphony".to_string()
+}
+fn default_app_name() -> String {
+    "Symphony Music Player".to_string()
+}
 
 impl Default for OpenRouterConfig {
     fn default() -> Self {
@@ -307,7 +321,8 @@ impl AiConfig {
             "openrouter" => {
                 if self.openrouter.api_key.is_empty() {
                     return Err(ConfigError::InvalidConfig(
-                        "OpenRouter API key not set. Get one from https://openrouter.ai/keys".to_string()
+                        "OpenRouter API key not set. Get one from https://openrouter.ai/keys"
+                            .to_string(),
                     ));
                 }
                 Ok(crate::ai::AIProviderConfig::OpenRouter {
@@ -317,9 +332,10 @@ impl AiConfig {
                     app_name: Some(self.openrouter.app_name.clone()),
                 })
             }
-            _ => Err(ConfigError::InvalidConfig(
-                format!("Unknown AI provider: {}. Use 'ollama' or 'openrouter'", self.provider)
-            )),
+            _ => Err(ConfigError::InvalidConfig(format!(
+                "Unknown AI provider: {}. Use 'ollama' or 'openrouter'",
+                self.provider
+            ))),
         }
     }
 }
@@ -364,7 +380,9 @@ pub struct YouTubeStreamingConfig {
     pub ytdlp_path: String,
 }
 
-fn default_ytdlp_path() -> String { "yt-dlp".to_string() }
+fn default_ytdlp_path() -> String {
+    "yt-dlp".to_string()
+}
 
 impl Default for YouTubeStreamingConfig {
     fn default() -> Self {
@@ -400,7 +418,9 @@ pub struct SpotifyStreamingConfig {
     pub quality: String,
 }
 
-fn default_spotify_redirect() -> String { "http://localhost:8888/callback".to_string() }
+fn default_spotify_redirect() -> String {
+    "http://localhost:8888/callback".to_string()
+}
 
 impl Default for SpotifyStreamingConfig {
     fn default() -> Self {
@@ -453,10 +473,18 @@ fn default_cache_dir() -> PathBuf {
         .join("streams")
 }
 
-fn default_hot_size() -> u64 { 100 }
-fn default_warm_size() -> u64 { 2048 }
-fn default_cold_size() -> u64 { 20480 }
-fn default_prefetch_count() -> usize { 3 }
+fn default_hot_size() -> u64 {
+    100
+}
+fn default_warm_size() -> u64 {
+    2048
+}
+fn default_cold_size() -> u64 {
+    20480
+}
+fn default_prefetch_count() -> usize {
+    3
+}
 
 impl Default for StreamingCacheConfig {
     fn default() -> Self {
@@ -492,8 +520,12 @@ pub struct NetworkConfig {
     pub timeout_secs: u64,
 }
 
-fn default_max_downloads() -> usize { 2 }
-fn default_timeout() -> u64 { 30 }
+fn default_max_downloads() -> usize {
+    2
+}
+fn default_timeout() -> u64 {
+    30
+}
 
 impl Default for NetworkConfig {
     fn default() -> Self {
@@ -607,7 +639,9 @@ pub struct LastfmPluginConfig {
     pub scrobble_threshold: u8,
 }
 
-fn default_scrobble_threshold() -> u8 { 50 }
+fn default_scrobble_threshold() -> u8 {
+    50
+}
 
 impl Default for LastfmPluginConfig {
     fn default() -> Self {
@@ -695,7 +729,9 @@ fn default_lyrics_cache_dir() -> PathBuf {
         .join("lyrics")
 }
 
-fn default_context_lines() -> usize { 2 }
+fn default_context_lines() -> usize {
+    2
+}
 
 impl Default for LyricsConfig {
     fn default() -> Self {
@@ -742,7 +778,9 @@ pub struct GitIntegrationConfig {
     pub check_interval: u64,
 }
 
-fn default_git_check_interval() -> u64 { 60 }
+fn default_git_check_interval() -> u64 {
+    60
+}
 
 impl Default for GitIntegrationConfig {
     fn default() -> Self {
@@ -786,9 +824,15 @@ pub struct PomodoroConfig {
     pub notifications: bool,
 }
 
-fn default_work_minutes() -> u64 { 25 }
-fn default_break_minutes() -> u64 { 5 }
-fn default_long_break_minutes() -> u64 { 15 }
+fn default_work_minutes() -> u64 {
+    25
+}
+fn default_break_minutes() -> u64 {
+    5
+}
+fn default_long_break_minutes() -> u64 {
+    15
+}
 
 impl Default for PomodoroConfig {
     fn default() -> Self {
@@ -894,8 +938,8 @@ impl Config {
             std::fs::create_dir_all(parent)?;
         }
 
-        let contents = toml::to_string_pretty(self)
-            .map_err(|e| ConfigError::WriteError(e.to_string()))?;
+        let contents =
+            toml::to_string_pretty(self).map_err(|e| ConfigError::WriteError(e.to_string()))?;
 
         std::fs::write(&config_path, contents)?;
 
@@ -905,7 +949,9 @@ impl Config {
     /// Get configuration file path
     fn config_path() -> Result<PathBuf, ConfigError> {
         Ok(dirs::config_dir()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Config directory not found"))?
+            .ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::NotFound, "Config directory not found")
+            })?
             .join("symphony")
             .join("config.toml"))
     }
