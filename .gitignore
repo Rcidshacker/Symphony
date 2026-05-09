@@ -11,9 +11,6 @@
 *~
 .DS_Store
 
-# Cargo
-Cargo.lock
-
 # Test artifacts
 /tests/fixtures/output/
 

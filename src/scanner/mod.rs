@@ -182,7 +182,7 @@ impl LibraryScanner {
         }
 
         // Fallback: use file name as title
-        ("Unknown Artist".to_string(), file_name.to_string())
+        (file_name.to_string(), "Unknown Artist".to_string())
     }
 
     /// Get list of supported extensions
@@ -236,8 +236,8 @@ mod tests {
 
         // No separator
         let (title, artist) = scanner.parse_file_name("Just A Song Name");
-        assert_eq!(artist, "Unknown Artist");
         assert_eq!(title, "Just A Song Name");
+        assert_eq!(artist, "Unknown Artist");
     }
 
     #[test]

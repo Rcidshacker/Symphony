@@ -127,6 +127,7 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             crate::app::TrackSource::YouTube => "YOUTUBE",
             crate::app::TrackSource::Spotify => "SPOTIFY",
             crate::app::TrackSource::SoundCloud => "SOUNDCLOUD",
+            crate::app::TrackSource::Cached => "CACHED",
         };
 
         // Add BPM if available from visualizer
@@ -259,6 +260,7 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 crate::app::TrackSource::YouTube => " [YT]",
                 crate::app::TrackSource::Spotify => " [SP]",
                 crate::app::TrackSource::SoundCloud => " [SC]",
+                crate::app::TrackSource::Cached => " [CA]",
             };
 
             let text = format!(

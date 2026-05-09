@@ -20,17 +20,17 @@
   <a href="https://www.rust-lang.org/">
     <img src="https://img.shields.io/badge/rust-1.75%2B-orange.svg?style=flat-square" alt="Rust Version">
   </a>
-  <a href="https://github.com/symphony-player/symphony/blob/main/LICENSE">
+  <a href="https://github.com/Rcidshacker/Symphony/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License">
   </a>
-  <a href="https://github.com/symphony-player/symphony/stargazers">
-    <img src="https://img.shields.io/github/stars/symphony-player/symphony?style=flat-square" alt="GitHub Stars">
+  <a href="https://github.com/Rcidshacker/Symphony/stargazers">
+    <img src="https://img.shields.io/github/stars/Rcidshacker/Symphony?style=flat-square" alt="GitHub Stars">
   </a>
-  <a href="https://github.com/symphony-player/symphony/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/symphony-player/symphony/ci.yml?style=flat-square" alt="CI Status">
+  <a href="https://github.com/Rcidshacker/Symphony/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/Rcidshacker/Symphony/ci.yml?style=flat-square" alt="CI Status">
   </a>
-  <a href="https://codecov.io/gh/symphony-player/symphony">
-    <img src="https://img.shields.io/codecov/c/github/symphony-player/symphony?style=flat-square" alt="Coverage">
+  <a href="https://codecov.io/gh/Rcidshacker/Symphony">
+    <img src="https://img.shields.io/codecov/c/github/Rcidshacker/Symphony?style=flat-square" alt="Coverage">
   </a>
 </p>
 
@@ -195,7 +195,7 @@ sudo apt install ffmpeg  # Linux
 
 ```bash
 # Clone the repository
-git clone https://github.com/symphony-player/symphony.git
+git clone https://github.com/Rcidshacker/Symphony.git
 cd symphony
 
 # Build in release mode
@@ -281,7 +281,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama serve
 
 # Download a model
-ollama pull llama3.2:3b
+ollama pull gemma3:4b
 ```
 
 Configure Symphony (`~/.config/symphony/config.toml`):
@@ -291,7 +291,7 @@ enabled = true
 provider = "ollama"
 
 [ai.ollama]
-model = "llama3.2:3b"
+model = "gemma3:4b"
 ```
 
 ### Cloud AI (OpenRouter)
@@ -394,7 +394,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 ```bash
 # Clone and build
-git clone https://github.com/symphony-player/symphony.git
+git clone https://github.com/Rcidshacker/Symphony.git
 cd symphony
 cargo build
 
@@ -442,7 +442,7 @@ Built with amazing open-source projects:
 
 ## Community
 
-- **GitHub**: https://github.com/symphony-player/symphony
+- **GitHub**: https://github.com/Rcidshacker/Symphony
 - **Discord**: https://discord.gg/symphony-player
 - **Twitter**: @symphony_player
 

@@ -9,6 +9,11 @@ mod config;
 mod db;
 mod scanner;
 mod ui;
+mod ai;
+mod streaming;
+mod plugins;
+mod lyrics;
+mod integrations;
 
 use std::io;
 

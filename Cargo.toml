@@ -7,9 +7,9 @@ description = "AI-powered terminal music player with visualizations, streaming, 
 license = "MIT"
 readme = "README.md"
 homepage = "https://symphony-player.dev"
-repository = "https://github.com/symphony-player/symphony"
+repository = "https://github.com/Rcidshacker/Symphony"
 documentation = "https://docs.rs/symphony"
-keywords = ["music", "player", "terminal", "tui", "ai", "streaming", "audio"]
+keywords = ["music", "player", "terminal", "tui", "ai"]
 categories = ["command-line-interface", "multimedia::audio"]
 exclude = ["/.github", "/docs", "/tests", "/benches"]
 
@@ -85,7 +85,7 @@ criterion = "0.5"
 tempfile = "3.12"
 
 [[bench]]
-name = "fft_benchmark"
+name = "fft_bench"
 harness = false
 
 [[bench]]

@@ -98,7 +98,7 @@ impl Default for GeneralConfig {
             music_directory: dirs::audio_dir().unwrap_or_else(|| PathBuf::from("~/Music")),
             cache_directory: data_dir.join("cache"),
             database_path: data_dir.join("library.db"),
-            theme: "monokai-pro".to_string(),
+            theme: "monokai".to_string(),
             default_view: "library".to_string(),
         }
     }
@@ -243,7 +243,7 @@ fn default_ollama_url() -> String {
     "http://localhost:11434".to_string()
 }
 fn default_ollama_model() -> String {
-    "llama3.2:3b".to_string()
+    "gemma3:4b".to_string()
 }
 
 impl Default for OllamaConfig {
@@ -279,7 +279,7 @@ fn default_openrouter_model() -> String {
     "anthropic/claude-3.5-sonnet".to_string()
 }
 fn default_site_url() -> String {
-    "https://github.com/symphony-player/symphony".to_string()
+    "https://github.com/Rcidshacker/Symphony".to_string()
 }
 fn default_app_name() -> String {
     "Symphony Music Player".to_string()
@@ -895,6 +895,10 @@ pub struct KeybindingsConfig {
     pub search: String,
     pub ai_command: String,
     pub toggle_lyrics: String,
+    pub toggle_karaoke: String,
+    pub translate_lyrics: String,
+    pub pomodoro_start: String,
+    pub pomodoro_break: String,
 }
 
 impl Default for KeybindingsConfig {
@@ -908,6 +912,10 @@ impl Default for KeybindingsConfig {
             search: "/".to_string(),
             ai_command: "a".to_string(),
             toggle_lyrics: "l".to_string(),
+            toggle_karaoke: "K".to_string(),
+            translate_lyrics: "T".to_string(),
+            pomodoro_start: "P".to_string(),
+            pomodoro_break: "B".to_string(),
         }
     }
 }
