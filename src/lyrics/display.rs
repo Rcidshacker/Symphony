@@ -199,10 +199,7 @@ impl LyricsDisplay {
                             .add_modifier(Modifier::ITALIC)
                     };
 
-                    display_lines.push(Line::from(Span::styled(
-                        translation.clone(),
-                        trans_style,
-                    )));
+                    display_lines.push(Line::from(Span::styled(translation.clone(), trans_style)));
                 }
             }
 
@@ -372,10 +369,7 @@ impl MiniLyricsDisplay {
         if text.is_empty() {
             Line::raw("")
         } else {
-            Line::styled(
-                format!("♪ {}", text),
-                Style::default().fg(Color::Yellow),
-            )
+            Line::styled(format!("♪ {}", text), Style::default().fg(Color::Yellow))
         }
     }
 }

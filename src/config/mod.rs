@@ -86,7 +86,7 @@ pub struct GeneralConfig {
 
 impl Default for GeneralConfig {
     fn default() -> Self {
-        let config_dir = dirs::config_dir()
+        let _config_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("symphony");
 

@@ -470,7 +470,7 @@ impl BeatDetector {
     }
 
     /// Detect beat from frequency bands and RMS
-    fn detect(&mut self, bands: &[FrequencyBand], rms: f32) -> BeatResult {
+    fn detect(&mut self, bands: &[FrequencyBand], _rms: f32) -> BeatResult {
         // Calculate bass energy (primary beat indicator)
         let bass_energy = bands
             .iter()
