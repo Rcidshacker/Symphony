@@ -106,19 +106,19 @@ impl PluginRuntime {
     pub async fn load_all_plugins(&mut self) -> Result<Vec<String>, PluginError> {
         let mut loaded = Vec::new();
 
-        if !self.plugin_dir.exists() {
+        if !tokio::fs::try_exists(&self.plugin_dir).await.unwrap_or(false) {
             return Ok(loaded);
         }
 
-        let entries = std::fs::read_dir(&self.plugin_dir)?;
-        for entry in entries.filter_map(|e| e.ok()) {
+        let mut entries = tokio::fs::read_dir(&self.plugin_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            if path.is_dir() {
+            if entry.file_type().await?.is_dir() {
                 // Look for plugin.toml
                 let manifest_path = path.join("plugin.toml");
                 let wasm_path = path.join("plugin.wasm");
 
-                if manifest_path.exists() {
+                if tokio::fs::try_exists(&manifest_path).await.unwrap_or(false) {
                     match self.load_plugin(&manifest_path, &wasm_path).await {
                         Ok(name) => {
                             loaded.push(name);
@@ -142,7 +142,7 @@ impl PluginRuntime {
         wasm_path: &Path,
     ) -> Result<String, PluginError> {
         // Read and parse manifest
-        let manifest_content = std::fs::read_to_string(manifest_path)?;
+        let manifest_content = tokio::fs::read_to_string(manifest_path).await?;
         let manifest: PluginManifest = toml::from_str(&manifest_content)
             .map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
 
@@ -159,7 +159,7 @@ impl PluginRuntime {
         info!("Loading plugin: {} v{}", name, manifest.version);
 
         // Verify WASM file exists
-        if !wasm_path.exists() {
+        if !tokio::fs::try_exists(wasm_path).await.unwrap_or(false) {
             // Create placeholder for built-in plugins that don't have WASM yet
             let plugin = LoadedPlugin {
                 manifest,
