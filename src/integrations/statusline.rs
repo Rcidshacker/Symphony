@@ -141,7 +141,7 @@ impl StatusLine {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "%{F#00ff00}▶%{F-}" } else { "⏸" };
             format!(
-                "{} {} - {} %{F#888}{}%{F-}/%{F#888}{}%{F-}",
+                "{} {} - {} %{{F#888}}{}%{{F-}}/%{{F#888}}{}%{{F-}}",
                 icon,
                 truncate(title, 25),
                 truncate(artist, 15),
@@ -223,7 +223,7 @@ mod tests {
         );
         assert!(status.contains("Test Song"));
         assert!(status.contains("Test Artist"));
-        assert!(status.contains("01:30/03:00"));
+        assert!(status.contains("1:30/3:00"));
     }
 
     #[test]

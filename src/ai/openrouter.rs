@@ -169,27 +169,29 @@ Respond ONLY with valid JSON, no explanation:
     }
 
     /// Build headers for OpenRouter requests
-    fn build_headers(&self) -> reqwest::header::HeaderMap {
+    fn build_headers(&self) -> Result<reqwest::header::HeaderMap, AIError> {
         let mut headers = reqwest::header::HeaderMap::new();
 
-        headers.insert(
-            "Authorization",
-            format!("Bearer {}", self.api_key).parse().unwrap(),
-        );
-        headers.insert(
-            "Content-Type",
-            "application/json".parse().unwrap(),
-        );
+        let auth_header = format!("Bearer {}", self.api_key).parse().map_err(|_| {
+            AIError::ConfigError("Invalid characters in OpenRouter API key".to_string())
+        })?;
+
+        headers.insert("Authorization", auth_header);
+        headers.insert("Content-Type", "application/json".parse().unwrap());
 
         // Optional metadata headers
         if let Some(ref url) = self.site_url {
-            headers.insert("HTTP-Referer", url.parse().unwrap());
+            if let Ok(val) = url.parse() {
+                headers.insert("HTTP-Referer", val);
+            }
         }
         if let Some(ref name) = self.app_name {
-            headers.insert("X-Title", name.parse().unwrap());
+            if let Ok(val) = name.parse() {
+                headers.insert("X-Title", val);
+            }
         }
 
-        headers
+        Ok(headers)
     }
 
     /// Parse JSON response into MusicIntent
@@ -259,7 +261,7 @@ Respond ONLY with valid JSON, no explanation:
     pub async fn list_models(&self) -> Result<Vec<(String, String)>, AIError> {
         let response = self.client
             .get("https://openrouter.ai/api/v1/models")
-            .headers(self.build_headers())
+            .headers(self.build_headers()?)
             .send()
             .await?;
 
@@ -314,7 +316,7 @@ impl LLMProvider for OpenRouterProvider {
 
         let response = self.client
             .post("https://openrouter.ai/api/v1/chat/completions")
-            .headers(self.build_headers())
+            .headers(self.build_headers()?)
             .json(&request)
             .send()
             .await?;
@@ -353,7 +355,7 @@ impl LLMProvider for OpenRouterProvider {
 
         let response = self.client
             .post("https://openrouter.ai/api/v1/chat/completions")
-            .headers(self.build_headers())
+            .headers(self.build_headers()?)
             .json(&request)
             .send()
             .await?;
@@ -413,9 +415,10 @@ Select exactly {} tracks. Respond with a JSON array of track names only:
 
     async fn health_check(&self) -> Result<bool, AIError> {
         // Try to list models as a health check
+        let headers = self.build_headers()?;
         let result = self.client
             .get("https://openrouter.ai/api/v1/models")
-            .headers(self.build_headers())
+            .headers(headers)
             .send()
             .await;
 
