@@ -332,8 +332,8 @@ impl ContextDetector {
     }
 
     /// Get recommendations based on detected context
-    pub fn get_recommendations(&self) -> ContextRecommendations {
-        self.detect_activity(); // This line shouldn't compile - detect_activity takes &mut self
+    pub fn get_recommendations(&mut self) -> ContextRecommendations {
+        self.detect_activity();
 
         ContextRecommendations {
             moods: vec![self.context.recommended_mood()],

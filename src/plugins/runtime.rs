@@ -246,24 +246,31 @@ impl PluginRuntime {
             }
         };
 
-        for (name, plugin) in &mut self.plugins {
-            if !plugin.enabled || plugin.status != PluginStatus::Active {
+        let plugin_names: Vec<String> = self.plugins.keys().cloned().collect();
+
+        for name in plugin_names {
+            let (enabled, status, has_permission) = if let Some(plugin) = self.plugins.get(&name) {
+                (
+                    plugin.enabled,
+                    plugin.status,
+                    self.has_event_permission(&plugin.manifest, event),
+                )
+            } else {
+                continue;
+            };
+
+            if !enabled || status != PluginStatus::Active {
                 continue;
             }
 
-            // Check if plugin has permission for this event type
-            if !self.has_event_permission(&plugin.manifest, event) {
+            if !has_permission {
                 continue;
             }
-
-            // In production, this would:
-            // 1. Write event JSON to plugin memory
-            // 2. Call on_event(ptr, len) function
 
             debug!("Sending event {:?} to plugin {}", event.event_type(), name);
 
             // Handle built-in plugin logic directly (simplified)
-            self.handle_builtin_plugin_event(name, event, &event_json);
+            self.handle_builtin_plugin_event(&name, event, &event_json);
         }
     }
 
