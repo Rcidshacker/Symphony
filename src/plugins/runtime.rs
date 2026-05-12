@@ -110,8 +110,8 @@ impl PluginRuntime {
             return Ok(loaded);
         }
 
-        let entries = std::fs::read_dir(&self.plugin_dir)?;
-        for entry in entries.filter_map(|e| e.ok()) {
+        let mut entries = tokio::fs::read_dir(&self.plugin_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             if path.is_dir() {
                 // Look for plugin.toml
