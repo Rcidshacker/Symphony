@@ -607,3 +607,54 @@ impl Default for UiState {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_toggle_playback() {
+        let mut app = App {
+            config: crate::config::Config::default(),
+            audio_engine: crate::audio::AudioEngine::default(),
+            database: None,
+            theme_manager: crate::config::theme::ThemeManager::new(),
+            playback_state: PlaybackState {
+                is_playing: false,
+                volume: 0.5,
+                is_muted: false,
+                shuffle: false,
+                repeat: RepeatMode::Off,
+                current_track: None,
+                position: 0.0,
+                duration: 0.0,
+            },
+            library: Library {
+                tracks: vec![],
+                queue: vec![],
+                queue_index: 0,
+                playlists: vec![],
+                selected_index: 0,
+                filter: String::new(),
+                filtered_tracks: vec![],
+            },
+            ui_state: UiState::default(),
+            visualizer_state: crate::ui::visualizer::VisualizerState::new(32),
+            artwork_cache: crate::ui::artwork::ArtworkCache::default(),
+            current_track_artwork: None,
+            start_time: std::time::Instant::now(),
+        };
+
+        // By default, playback should be paused based on our setup
+        assert!(!app.playback_state.is_playing);
+
+        // Toggle playback to play
+        app.toggle_playback();
+        assert!(app.playback_state.is_playing);
+
+        // Toggle playback to pause
+        app.toggle_playback();
+        assert!(!app.playback_state.is_playing);
+    }
+}
