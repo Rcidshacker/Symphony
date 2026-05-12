@@ -310,7 +310,7 @@ impl App {
 
         // If more than 3 seconds into track, restart current track
         if self.playback_state.position > 3.0 {
-            self.seek_to(0.0);
+            self.play_track_at_index(self.library.queue_index);
             return;
         }
 
@@ -429,11 +429,6 @@ impl App {
                 self.library.queue_index = 0;
             }
         }
-    }
-
-    /// Seek to position
-    fn seek_to(&mut self, _position: f64) {
-        // TODO: Implement seeking in audio engine
     }
 
     /// Navigate up in the library list
