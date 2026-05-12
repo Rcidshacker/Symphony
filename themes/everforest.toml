@@ -1,0 +1,33 @@
+# Everforest Theme
+# Comfortable and pleasant green-tinted dark theme
+
+name = "everforest"
+author = "sainnhe"
+description = "Comfortable and pleasant green-tinted dark theme"
+
+[ui]
+background = "#2d353b"
+foreground = "#d3c6aa"
+border = "#475258"
+text = "#d3c6aa"
+text_dim = "#7a8478"
+selection_bg = "#3d484d"
+selection_fg = "#d3c6aa"
+
+[spectrum]
+sub_bass = "#e67e80"     # Red
+bass = "#e69875"         # Orange
+mid_low = "#dbbc7f"      # Yellow
+mid = "#a7c080"          # Green
+mid_high = "#83c092"     # Aqua
+high = "#7fbbb3"         # Blue
+treble = "#d699b6"       # Purple
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#a7c080"      # Green
+secondary = "#7fbbb3"    # Blue
+success = "#a7c080"      # Green
+warning = "#dbbc7f"      # Yellow
+error = "#e67e80"        # Red
+info = "#83c092"         # Aqua

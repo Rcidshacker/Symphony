@@ -1,0 +1,33 @@
+# Rosé Pine Theme
+# All natural pine, faux fur and a bit of soho vibes
+
+name = "rose-pine"
+author = "Rosé Pine"
+description = "All natural pine, faux fur and a bit of soho vibes"
+
+[ui]
+background = "#191724"
+foreground = "#e0def4"
+border = "#403d52"
+text = "#e0def4"
+text_dim = "#6e6a86"
+selection_bg = "#26233a"
+selection_fg = "#e0def4"
+
+[spectrum]
+sub_bass = "#eb6f92"     # Love (rose)
+bass = "#f6c177"         # Gold
+mid_low = "#ebbcba"      # Rose
+mid = "#9ccfd8"          # Foam
+mid_high = "#31748f"     # Pine
+high = "#c4a7e7"         # Iris
+treble = "#eb6f92"       # Love
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#c4a7e7"      # Iris
+secondary = "#9ccfd8"    # Foam
+success = "#31748f"      # Pine
+warning = "#f6c177"      # Gold
+error = "#eb6f92"        # Love
+info = "#9ccfd8"         # Foam

@@ -1,0 +1,33 @@
+# Tokyo Night Theme
+# Dark blue-purple night aesthetic
+
+name = "tokyo-night"
+author = "enkia"
+description = "Dark blue-purple night aesthetic inspired by Tokyo after dark"
+
+[ui]
+background = "#1a1b26"
+foreground = "#c0caf5"
+border = "#414868"
+text = "#c0caf5"
+text_dim = "#565f89"
+selection_bg = "#283457"
+selection_fg = "#c0caf5"
+
+[spectrum]
+sub_bass = "#f7768e"     # Red
+bass = "#ff9e64"         # Orange
+mid_low = "#e0af68"      # Yellow
+mid = "#9ece6a"          # Green
+mid_high = "#73daca"     # Teal
+high = "#7dcfff"         # Sky blue
+treble = "#bb9af7"       # Purple
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#7aa2f7"      # Blue
+secondary = "#bb9af7"    # Purple
+success = "#9ece6a"      # Green
+warning = "#e0af68"      # Yellow
+error = "#f7768e"        # Red
+info = "#7dcfff"         # Sky blue

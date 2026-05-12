@@ -1,0 +1,33 @@
+# Catppuccin Mocha Theme
+# Soothing pastel dark theme
+
+name = "catppuccin"
+author = "Catppuccin Org"
+description = "Soothing pastel dark theme (Mocha variant)"
+
+[ui]
+background = "#1e1e2e"
+foreground = "#cdd6f4"
+border = "#45475a"
+text = "#cdd6f4"
+text_dim = "#6c7086"
+selection_bg = "#313244"
+selection_fg = "#cdd6f4"
+
+[spectrum]
+sub_bass = "#f38ba8"     # Red
+bass = "#fab387"         # Peach
+mid_low = "#f9e2af"      # Yellow
+mid = "#a6e3a1"          # Green
+mid_high = "#94e2d5"     # Teal
+high = "#89dceb"         # Sky
+treble = "#cba6f7"       # Mauve
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#cba6f7"      # Mauve
+secondary = "#89b4fa"    # Blue
+success = "#a6e3a1"      # Green
+warning = "#f9e2af"      # Yellow
+error = "#f38ba8"        # Red
+info = "#89dceb"         # Sky

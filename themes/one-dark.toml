@@ -1,0 +1,33 @@
+# One Dark Theme
+# Atom's iconic dark theme
+
+name = "one-dark"
+author = "Atom"
+description = "Atom's iconic dark syntax theme"
+
+[ui]
+background = "#282c34"
+foreground = "#abb2bf"
+border = "#3e4451"
+text = "#abb2bf"
+text_dim = "#5c6370"
+selection_bg = "#3e4451"
+selection_fg = "#abb2bf"
+
+[spectrum]
+sub_bass = "#e06c75"     # Red
+bass = "#d19a66"         # Orange
+mid_low = "#e5c07b"      # Yellow
+mid = "#98c379"          # Green
+mid_high = "#56b6c2"     # Cyan
+high = "#61afef"         # Blue
+treble = "#c678dd"       # Purple
+beat_pulse = "#ffffff"
+
+[accents]
+primary = "#61afef"      # Blue
+secondary = "#c678dd"    # Purple
+success = "#98c379"      # Green
+warning = "#e5c07b"      # Yellow
+error = "#e06c75"        # Red
+info = "#56b6c2"         # Cyan
