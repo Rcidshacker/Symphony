@@ -25,10 +25,10 @@ impl StreamSource {
     /// Get the display icon for this source
     pub fn icon(&self) -> &'static str {
         match self {
-            StreamSource::YouTube => "🔴",      // YouTube red
-            StreamSource::Spotify => "🟢",      // Spotify green
-            StreamSource::Local => "💿",        // Local disc
-            StreamSource::Cached => "⚡",       // Cached lightning
+            StreamSource::YouTube => "🔴", // YouTube red
+            StreamSource::Spotify => "🟢", // Spotify green
+            StreamSource::Local => "💿",   // Local disc
+            StreamSource::Cached => "⚡",  // Cached lightning
         }
     }
 
@@ -129,7 +129,12 @@ pub struct StreamTrack {
 
 impl StreamTrack {
     /// Create a new stream track
-    pub fn new(id: impl Into<String>, title: impl Into<String>, artist: impl Into<String>, source: StreamSource) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        artist: impl Into<String>,
+        source: StreamSource,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -179,23 +184,31 @@ impl StreamTrack {
     pub fn display_line(&self, width: usize) -> String {
         let source_tag = format!("[{}]", self.source);
         let duration_str = self.formatted_duration();
-        
+
         // Calculate available space for title/artist
         let used = source_tag.len() + duration_str.len() + 4; // 4 for spacing
         let available = width.saturating_sub(used);
-        
+
         let title_artist = if self.title.len() + self.artist.len() + 3 <= available {
             format!("{} - {}", self.title, self.artist)
         } else {
             // Truncate if too long
             let max_title = available.saturating_sub(self.artist.len() + 6);
             if max_title > 10 {
-                format!("{}... - {}", &self.title[..max_title.min(self.title.len())], self.artist)
+                format!(
+                    "{}... - {}",
+                    &self.title[..max_title.min(self.title.len())],
+                    self.artist
+                )
             } else {
-                format!("{} - {}", &self.title[..available.min(self.title.len())], self.artist)
+                format!(
+                    "{} - {}",
+                    &self.title[..available.min(self.title.len())],
+                    self.artist
+                )
             }
         };
-        
+
         format!("{} {} {}", source_tag, title_artist, duration_str)
     }
 }
@@ -281,7 +294,7 @@ impl DownloadProgress {
         self.bytes_downloaded = downloaded;
         self.total_bytes = total;
         self.speed_bps = speed;
-        
+
         if let Some(total) = total {
             if total > 0 {
                 self.percentage = ((downloaded as f64 / total as f64) * 100.0) as u8;
@@ -337,13 +350,17 @@ pub enum DownloadStatus {
 pub trait StreamProvider: Send + Sync {
     /// Search for tracks
     async fn search(&self, query: &str, limit: usize) -> Result<SearchResult, StreamError>;
-    
+
     /// Get a direct stream URL for a track
-    async fn get_stream_url(&self, track_id: &str, quality: StreamQuality) -> Result<String, StreamError>;
-    
+    async fn get_stream_url(
+        &self,
+        track_id: &str,
+        quality: StreamQuality,
+    ) -> Result<String, StreamError>;
+
     /// Get detailed track information
     async fn get_track_info(&self, track_id: &str) -> Result<StreamTrack, StreamError>;
-    
+
     /// Download a track to local storage
     async fn download_track(
         &self,
@@ -351,13 +368,13 @@ pub trait StreamProvider: Send + Sync {
         quality: StreamQuality,
         output_path: &PathBuf,
     ) -> Result<(), StreamError>;
-    
+
     /// Check if the provider is available
     async fn is_available(&self) -> bool;
-    
+
     /// Get the provider name
     fn name(&self) -> &str;
-    
+
     /// Get the source type
     fn source(&self) -> StreamSource;
 }
@@ -368,55 +385,55 @@ pub enum StreamError {
     /// Provider is not available
     #[error("Provider not available: {0}")]
     Unavailable(String),
-    
+
     /// Search failed
     #[error("Search failed: {0}")]
     SearchFailed(String),
-    
+
     /// Track was not found
     #[error("Track not found: {0}")]
     TrackNotFound(String),
-    
+
     /// Download failed
     #[error("Download failed: {0}")]
     DownloadFailed(String),
-    
+
     /// Authentication required
     #[error("Authentication required for {0}")]
     AuthRequired(String),
-    
+
     /// Network error
     #[error("Network error: {0}")]
     NetworkError(String),
-    
+
     /// IO error
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    
+
     /// JSON parsing error
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
-    
+
     /// Process execution error
     #[error("Process error: {0}")]
     ProcessError(String),
-    
+
     /// Invalid configuration
     #[error("Invalid configuration: {0}")]
     ConfigError(String),
-    
+
     /// Rate limited
     #[error("Rate limited, please try again later")]
     RateLimited,
-    
+
     /// Quota exceeded
     #[error("Quota exceeded: {0}")]
     QuotaExceeded(String),
-    
+
     /// Content not available in region
     #[error("Content not available in your region")]
     RegionRestricted,
-    
+
     /// Content is age-restricted
     #[error("Content is age-restricted")]
     AgeRestricted,
@@ -427,9 +444,7 @@ impl StreamError {
     pub fn is_recoverable(&self) -> bool {
         matches!(
             self,
-            StreamError::NetworkError(_)
-                | StreamError::RateLimited
-                | StreamError::ProcessError(_)
+            StreamError::NetworkError(_) | StreamError::RateLimited | StreamError::ProcessError(_)
         )
     }
 
@@ -469,7 +484,7 @@ mod tests {
         let track = StreamTrack::new("test123", "Test Song", "Test Artist", StreamSource::YouTube)
             .with_duration(180)
             .with_album("Test Album");
-        
+
         assert_eq!(track.id, "test123");
         assert_eq!(track.title, "Test Song");
         assert_eq!(track.artist, "Test Artist");
@@ -481,7 +496,7 @@ mod tests {
     fn test_download_progress() {
         let mut progress = DownloadProgress::new("track123");
         progress.update(1024 * 1024, Some(5 * 1024 * 1024), Some(512 * 1024));
-        
+
         assert_eq!(progress.percentage, 20);
         assert_eq!(progress.formatted_speed(), "512.0 KB/s");
     }
@@ -490,7 +505,7 @@ mod tests {
     fn test_search_result() {
         let track = StreamTrack::new("id", "Title", "Artist", StreamSource::YouTube);
         let result = SearchResult::new(vec![track], "query", StreamSource::YouTube);
-        
+
         assert_eq!(result.len(), 1);
         assert!(!result.is_empty());
     }

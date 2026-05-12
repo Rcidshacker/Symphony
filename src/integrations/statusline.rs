@@ -18,10 +18,7 @@ impl StatusLine {
     /// );
     /// // Returns: "🎵 Bohemian Rhapsody - Queen [01:30/03:00]"
     /// ```
-    pub fn tmux_format(
-        track: Option<(&str, &str, u64, u64)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn tmux_format(track: Option<(&str, &str, u64, u64)>, is_playing: bool) -> String {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
             let pos_str = format_duration(position);
@@ -41,13 +38,15 @@ impl StatusLine {
     }
 
     /// Generate zsh prompt format (compact)
-    pub fn zsh_format(
-        track: Option<(&str, &str)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn zsh_format(track: Option<(&str, &str)>, is_playing: bool) -> String {
         if let Some((title, artist)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
-            format!("{} {} - {}", icon, truncate(title, 25), truncate(artist, 15))
+            format!(
+                "{} {} - {}",
+                icon,
+                truncate(title, 25),
+                truncate(artist, 15)
+            )
         } else {
             String::new()
         }
@@ -88,10 +87,7 @@ impl StatusLine {
     }
 
     /// Generate i3blocks format
-    pub fn i3blocks_format(
-        track: Option<(&str, &str)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn i3blocks_format(track: Option<(&str, &str)>, is_playing: bool) -> String {
         if let Some((title, artist)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
             format!("{} {} - {}", icon, truncate(title, 30), artist)
@@ -101,10 +97,7 @@ impl StatusLine {
     }
 
     /// Generate waybar format (for Sway/Wayland)
-    pub fn waybar_format(
-        track: Option<(&str, &str, u64, u64)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn waybar_format(track: Option<(&str, &str, u64, u64)>, is_playing: bool) -> String {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
             let progress = if duration > 0 {
@@ -134,14 +127,15 @@ impl StatusLine {
     }
 
     /// Generate polybar format
-    pub fn polybar_format(
-        track: Option<(&str, &str, u64, u64)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn polybar_format(track: Option<(&str, &str, u64, u64)>, is_playing: bool) -> String {
         if let Some((title, artist, duration, position)) = track {
-            let icon = if is_playing { "%{F#00ff00}▶%{F-}" } else { "⏸" };
+            let icon = if is_playing {
+                "%{F#00ff00}▶%{F-}"
+            } else {
+                "⏸"
+            };
             format!(
-                "{} {} - {} %{F#888}{}%{F-}/%{F#888}{}%{F-}",
+                "{} {} - {} %{{F#888}}{}%{{F-}}/%{{F#888}}{}%{{F-}}",
                 icon,
                 truncate(title, 25),
                 truncate(artist, 15),
@@ -158,7 +152,7 @@ impl StatusLine {
 fn format_duration(secs: u64) -> String {
     let minutes = secs / 60;
     let seconds = secs % 60;
-    format!("{}:{:02}", minutes, seconds)
+    format!("{:02}:{:02}", minutes, seconds)
 }
 
 /// Truncate string to max length
@@ -217,10 +211,7 @@ mod tests {
 
     #[test]
     fn test_tmux_format() {
-        let status = StatusLine::tmux_format(
-            Some(("Test Song", "Test Artist", 180, 90)),
-            true,
-        );
+        let status = StatusLine::tmux_format(Some(("Test Song", "Test Artist", 180, 90)), true);
         assert!(status.contains("Test Song"));
         assert!(status.contains("Test Artist"));
         assert!(status.contains("01:30/03:00"));
@@ -241,11 +232,7 @@ mod tests {
 
     #[test]
     fn test_json_format() {
-        let json = StatusLine::json_format(
-            Some(("Test", "Artist", 100, 50)),
-            true,
-            0.75,
-        );
+        let json = StatusLine::json_format(Some(("Test", "Artist", 100, 50)), true, 0.75);
 
         assert!(json.contains("\"title\":\"Test\""));
         assert!(json.contains("\"playing\":true"));
@@ -267,10 +254,10 @@ mod tests {
 
     #[test]
     fn test_format_duration() {
-        assert_eq!(format_duration(0), "0:00");
-        assert_eq!(format_duration(59), "0:59");
-        assert_eq!(format_duration(60), "1:00");
-        assert_eq!(format_duration(125), "2:05");
+        assert_eq!(format_duration(0), "00:00");
+        assert_eq!(format_duration(59), "00:59");
+        assert_eq!(format_duration(60), "01:00");
+        assert_eq!(format_duration(125), "02:05");
         assert_eq!(format_duration(3661), "61:01");
     }
 }

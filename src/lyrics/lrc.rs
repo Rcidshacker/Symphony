@@ -20,19 +20,16 @@ impl LrcParser {
         let mut metadata = LyricsMetadata::default();
 
         // Regex for timestamp: [mm:ss.xx] or [mm:ss:xx]
-        let timestamp_re = Regex::new(r"\[(\d+):(\d+)(?:[.:](\d+))?\](.*)").map_err(|e| {
-            LyricsError::ParseError(format!("Failed to compile regex: {}", e))
-        })?;
+        let timestamp_re = Regex::new(r"\[(\d+):(\d+)(?:[.:](\d+))?\](.*)")
+            .map_err(|e| LyricsError::ParseError(format!("Failed to compile regex: {}", e)))?;
 
         // Regex for metadata tags: [tag:value]
-        let metadata_re = Regex::new(r"\[([a-z]+):(.+)\]").map_err(|e| {
-            LyricsError::ParseError(format!("Failed to compile regex: {}", e))
-        })?;
+        let metadata_re = Regex::new(r"\[([a-z]+):(.+)\]")
+            .map_err(|e| LyricsError::ParseError(format!("Failed to compile regex: {}", e)))?;
 
         // Regex for enhanced LRC word timing: <mm:ss.xx>
-        let word_re = Regex::new(r"<(\d+):(\d+)(?:[.:](\d+))?([^>]*)>").map_err(|e| {
-            LyricsError::ParseError(format!("Failed to compile regex: {}", e))
-        })?;
+        let word_re = Regex::new(r"<(\d+):(\d+)(?:[.:](\d+))?([^>]*)>")
+            .map_err(|e| LyricsError::ParseError(format!("Failed to compile regex: {}", e)))?;
 
         for line in content.lines() {
             let line = line.trim();
@@ -42,61 +39,13 @@ impl LrcParser {
             }
 
             // Try to parse as metadata tag first
-            if let Some(captures) = metadata_re.captures(line) {
-                let tag = captures[1].to_lowercase();
-                let value = captures[2].trim().to_string();
-
-                match tag.as_str() {
-                    "ti" | "title" => metadata.title = Some(value),
-                    "ar" | "artist" => metadata.artist = Some(value),
-                    "al" | "album" => metadata.album = Some(value),
-                    "au" | "author" => metadata.author = Some(value),
-                    "by" | "creator" => metadata.creator = Some(value),
-                    "length" => {
-                        // Parse length like "3:45" or "225"
-                        metadata.length_ms = parse_length(&value);
-                    }
-                    "offset" => {
-                        metadata.offset_ms = value.parse().unwrap_or(0);
-                    }
-                    "re" | "tool" => {} // Tool used to create
-                    "ve" | "version" => {} // LRC version
-                    _ => debug!("Unknown metadata tag: {}", tag),
-                }
+            if parse_metadata_tag(line, &metadata_re, &mut metadata) {
                 continue;
             }
 
             // Try to parse as lyrics line with timestamp
-            if let Some(captures) = timestamp_re.captures(line) {
-                let minutes: u64 = captures[1].parse().unwrap_or(0);
-                let seconds: u64 = captures[2].parse().unwrap_or(0);
-                let centiseconds: u64 = captures.get(3)
-                    .map(|m| m.as_str().parse().unwrap_or(0))
-                    .unwrap_or(0);
-
-                // Convert to milliseconds
-                let timestamp_ms = minutes * 60 * 1000 + seconds * 1000 + centiseconds * 10;
-
-                let text = captures[4].trim().to_string();
-
-                // Parse word-level timestamps if present (enhanced LRC)
-                let word_timestamps = if word_re.is_match(&text) {
-                    Some(parse_word_timestamps(&text, &word_re)?)
-                } else {
-                    None
-                };
-
-                // Clean up text by removing word timing tags
-                let clean_text = word_re.replace_all(&text, "$4").to_string();
-
-                if !clean_text.is_empty() {
-                    lines.push(LyricsLine {
-                        timestamp_ms,
-                        text: clean_text,
-                        translation: None,
-                        word_timestamps,
-                    });
-                }
+            if let Some(lyrics_line) = parse_time_tag(line, &timestamp_re, &word_re)? {
+                lines.push(lyrics_line);
             }
         }
 
@@ -134,6 +83,75 @@ impl LrcParser {
     }
 }
 
+/// Parse time tag and return a LyricsLine if successful
+fn parse_time_tag(
+    line: &str,
+    timestamp_re: &Regex,
+    word_re: &Regex,
+) -> Result<Option<LyricsLine>, LyricsError> {
+    if let Some(captures) = timestamp_re.captures(line) {
+        let minutes: u64 = captures[1].parse().unwrap_or(0);
+        let seconds: u64 = captures[2].parse().unwrap_or(0);
+        let centiseconds: u64 = captures
+            .get(3)
+            .map(|m| m.as_str().parse().unwrap_or(0))
+            .unwrap_or(0);
+
+        // Convert to milliseconds
+        let timestamp_ms = minutes * 60 * 1000 + seconds * 1000 + centiseconds * 10;
+
+        let text = captures[4].trim().to_string();
+
+        // Parse word-level timestamps if present (enhanced LRC)
+        let word_timestamps = if word_re.is_match(&text) {
+            Some(parse_word_timestamps(&text, word_re)?)
+        } else {
+            None
+        };
+
+        // Clean up text by removing word timing tags
+        let clean_text = word_re.replace_all(&text, "$4").to_string();
+
+        if !clean_text.is_empty() {
+            return Ok(Some(LyricsLine {
+                timestamp_ms,
+                text: clean_text,
+                translation: None,
+                word_timestamps,
+            }));
+        }
+    }
+    Ok(None)
+}
+
+/// Parse metadata tag and update metadata struct
+fn parse_metadata_tag(line: &str, metadata_re: &Regex, metadata: &mut LyricsMetadata) -> bool {
+    if let Some(captures) = metadata_re.captures(line) {
+        let tag = captures[1].to_lowercase();
+        let value = captures[2].trim().to_string();
+
+        match tag.as_str() {
+            "ti" | "title" => metadata.title = Some(value),
+            "ar" | "artist" => metadata.artist = Some(value),
+            "al" | "album" => metadata.album = Some(value),
+            "au" | "author" => metadata.author = Some(value),
+            "by" | "creator" => metadata.creator = Some(value),
+            "length" => {
+                // Parse length like "3:45" or "225"
+                metadata.length_ms = parse_length(&value);
+            }
+            "offset" => {
+                metadata.offset_ms = value.parse().unwrap_or(0);
+            }
+            "re" | "tool" => {}    // Tool used to create
+            "ve" | "version" => {} // LRC version
+            _ => debug!("Unknown metadata tag: {}", tag),
+        }
+        return true;
+    }
+    false
+}
+
 /// Parse length string to milliseconds
 fn parse_length(s: &str) -> Option<u64> {
     // Try "mm:ss" format
@@ -154,12 +172,13 @@ fn parse_length(s: &str) -> Option<u64> {
 /// Parse word-level timestamps from enhanced LRC
 fn parse_word_timestamps(text: &str, re: &Regex) -> Result<Vec<WordTimestamp>, LyricsError> {
     let mut words = Vec::new();
-    let mut last_end_ms = 0u64;
+    let mut _last_end_ms = 0u64;
 
     for captures in re.captures_iter(text) {
         let minutes: u64 = captures[1].parse().unwrap_or(0);
         let seconds: u64 = captures[2].parse().unwrap_or(0);
-        let centiseconds: u64 = captures.get(3)
+        let centiseconds: u64 = captures
+            .get(3)
             .map(|m| m.as_str().parse().unwrap_or(0))
             .unwrap_or(0);
 
@@ -175,7 +194,7 @@ fn parse_word_timestamps(text: &str, re: &Regex) -> Result<Vec<WordTimestamp>, L
                 start_ms,
                 end_ms,
             });
-            last_end_ms = end_ms;
+            _last_end_ms = end_ms;
         }
     }
 
@@ -265,10 +284,7 @@ mod tests {
     fn test_to_lrc() {
         let lyrics = Lyrics::new(
             "test",
-            vec![
-                LyricsLine::new(0, "First"),
-                LyricsLine::new(5000, "Second"),
-            ],
+            vec![LyricsLine::new(0, "First"), LyricsLine::new(5000, "Second")],
         );
 
         let lrc = to_lrc(&lyrics);

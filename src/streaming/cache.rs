@@ -13,7 +13,7 @@
 //! Tracks can be promoted/demoted between tiers based on access patterns.
 
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -42,8 +42,8 @@ impl CacheTier {
     /// Get the default max size for this tier in bytes
     pub fn default_max_size(&self) -> u64 {
         match self {
-            CacheTier::Hot => 100 * 1024 * 1024,       // 100 MB
-            CacheTier::Warm => 2 * 1024 * 1024 * 1024, // 2 GB
+            CacheTier::Hot => 100 * 1024 * 1024,        // 100 MB
+            CacheTier::Warm => 2 * 1024 * 1024 * 1024,  // 2 GB
             CacheTier::Cold => 20 * 1024 * 1024 * 1024, // 20 GB
         }
     }
@@ -94,11 +94,11 @@ impl Default for CacheConfig {
 
         Self {
             cache_dir,
-            max_hot_size: 100 * 1024 * 1024,            // 100 MB
-            max_warm_size: 2 * 1024 * 1024 * 1024,      // 2 GB
-            max_cold_size: 20 * 1024 * 1024 * 1024,     // 20 GB
-            hot_tier_threshold: 5,                        // 5 plays to become hot
-            cold_tier_days: 30,                           // 30 days to become cold
+            max_hot_size: 100 * 1024 * 1024,        // 100 MB
+            max_warm_size: 2 * 1024 * 1024 * 1024,  // 2 GB
+            max_cold_size: 20 * 1024 * 1024 * 1024, // 20 GB
+            hot_tier_threshold: 5,                  // 5 plays to become hot
+            cold_tier_days: 30,                     // 30 days to become cold
             prefetch_enabled: true,
             prefetch_count: 3,
         }
@@ -135,7 +135,9 @@ pub struct CachedTrack {
 impl CachedTrack {
     /// Get the age of this cache entry
     pub fn age(&self) -> Duration {
-        (Utc::now() - self.cached_at).to_std().unwrap_or(Duration::ZERO)
+        (Utc::now() - self.cached_at)
+            .to_std()
+            .unwrap_or(Duration::ZERO)
     }
 
     /// Get time since last play
@@ -161,7 +163,8 @@ impl CachedTrack {
         match self.tier {
             CacheTier::Hot => false,
             CacheTier::Warm => self.play_count >= config.hot_tier_threshold,
-            CacheTier::Cold => self.time_since_play()
+            CacheTier::Cold => self
+                .time_since_play()
                 .map(|d| d < Duration::from_secs(86400 * 7)) // Played within 7 days
                 .unwrap_or(false),
         }
@@ -170,10 +173,12 @@ impl CachedTrack {
     /// Check if track should be demoted to a lower tier
     pub fn should_demote(&self, config: &CacheConfig) -> bool {
         match self.tier {
-            CacheTier::Hot => self.time_since_play()
+            CacheTier::Hot => self
+                .time_since_play()
                 .map(|d| d > Duration::from_secs(86400 * 7)) // Not played in 7 days
                 .unwrap_or(true),
-            CacheTier::Warm => self.time_since_play()
+            CacheTier::Warm => self
+                .time_since_play()
                 .map(|d| d > Duration::from_secs(86400 * config.cold_tier_days as u64))
                 .unwrap_or(true),
             CacheTier::Cold => false,
@@ -240,7 +245,7 @@ impl SmartCache {
         // Initialize database
         let db_path = config.cache_dir.join("cache.db");
         let db = Connection::open(&db_path)?;
-        
+
         // Create tables
         Self::init_database(&db)?;
 
@@ -303,10 +308,9 @@ impl SmartCache {
         let mut stats = CacheStats::default();
 
         // Count tracks by tier
-        let mut stmt = db.prepare(
-            "SELECT tier, COUNT(*), SUM(size_bytes) FROM cached_tracks GROUP BY tier"
-        )?;
-        
+        let mut stmt =
+            db.prepare("SELECT tier, COUNT(*), SUM(size_bytes) FROM cached_tracks GROUP BY tier")?;
+
         let tier_iter = stmt.query_map([], |row| {
             let tier: String = row.get(0)?;
             let count: i64 = row.get(1)?;
@@ -337,7 +341,7 @@ impl SmartCache {
         db.query_row(
             "SELECT 1 FROM cached_tracks WHERE track_id = ?1",
             params![track_id],
-            |_| Ok(())
+            |_| Ok(()),
         )
         .is_ok()
     }
@@ -379,7 +383,9 @@ impl SmartCache {
                     },
                     size_bytes: row.get::<_, i64>(4)? as u64,
                     cached_at: row.get::<_, String>(5)?.parse().unwrap_or(Utc::now()),
-                    last_played: row.get::<_, Option<String>>(6)?.and_then(|s| s.parse().ok()),
+                    last_played: row
+                        .get::<_, Option<String>>(6)?
+                        .and_then(|s| s.parse().ok()),
                     play_count: row.get::<_, i64>(7)? as u32,
                     tier: match row.get::<_, String>(8)?.as_str() {
                         "hot" => CacheTier::Hot,
@@ -435,7 +441,10 @@ impl SmartCache {
             ],
         )?;
 
-        info!("Cached track {} ({} bytes) in {} tier", track.id, size_bytes, tier);
+        info!(
+            "Cached track {} ({} bytes) in {} tier",
+            track.id, size_bytes, tier
+        );
 
         // Update stats
         drop(db);
@@ -551,7 +560,7 @@ impl SmartCache {
         };
 
         let current_size = self.get_tier_size(tier).await?;
-        
+
         if current_size + needed_bytes <= max_size {
             return Ok(()); // No eviction needed
         }
@@ -591,7 +600,10 @@ impl SmartCache {
             }
 
             // Remove from database
-            db.execute("DELETE FROM cached_tracks WHERE track_id = ?1", params![track_id])?;
+            db.execute(
+                "DELETE FROM cached_tracks WHERE track_id = ?1",
+                params![track_id],
+            )?;
 
             freed += size as u64;
             info!("Evicted track {} from {} tier", track_id, tier);
@@ -621,7 +633,10 @@ impl SmartCache {
         }
 
         // Remove from database
-        db.execute("DELETE FROM cached_tracks WHERE track_id = ?1", params![track_id])?;
+        db.execute(
+            "DELETE FROM cached_tracks WHERE track_id = ?1",
+            params![track_id],
+        )?;
 
         info!("Removed track {} from cache", track_id);
         Ok(())
@@ -693,10 +708,12 @@ impl SmartCache {
         let safe_title: String = track
             .title
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
-                c
-            } else {
-                '_'
+            .map(|c| {
+                if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
             })
             .collect();
 
@@ -741,7 +758,10 @@ impl SmartCache {
             ],
         )?;
 
-        debug!("Queued track {} for prefetch (priority {})", track_id, priority);
+        debug!(
+            "Queued track {} for prefetch (priority {})",
+            track_id, priority
+        );
         Ok(())
     }
 
@@ -751,7 +771,7 @@ impl SmartCache {
 
         db.prepare(
             "SELECT track_id, source, title, artist, priority FROM prefetch_queue 
-             ORDER BY priority DESC, added_at ASC LIMIT ?1"
+             ORDER BY priority DESC, added_at ASC LIMIT ?1",
         )
         .and_then(|mut stmt| {
             let items = stmt
