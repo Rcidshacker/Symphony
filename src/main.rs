@@ -3,17 +3,17 @@
 //! A sophisticated terminal music player with AI integration,
 //! real-time visualizations, and developer-focused features.
 
+mod ai;
 mod app;
 mod audio;
 mod config;
 mod db;
-mod scanner;
-mod ui;
-mod ai;
-mod streaming;
-mod plugins;
-mod lyrics;
 mod integrations;
+mod lyrics;
+mod plugins;
+mod scanner;
+mod streaming;
+mod ui;
 
 use std::io;
 

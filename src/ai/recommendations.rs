@@ -116,7 +116,11 @@ impl RecommendationEngine {
             .collect();
 
         // Sort by score
-        recommendations.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        recommendations.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Apply diversity
         recommendations = self.apply_diversity(recommendations, limit);
@@ -140,7 +144,9 @@ impl RecommendationEngine {
         let mut genre_counts: HashMap<String, u32> = HashMap::new();
 
         for track in history {
-            *artist_counts.entry(track.artist.to_lowercase()).or_insert(0) += 1;
+            *artist_counts
+                .entry(track.artist.to_lowercase())
+                .or_insert(0) += 1;
             if let Some(ref genre) = track.genre {
                 *genre_counts.entry(genre.to_lowercase()).or_insert(0) += 1;
             }
@@ -158,9 +164,15 @@ impl RecommendationEngine {
                     .map(|&c| c as f32 / history.len() as f32)
                     .unwrap_or(0.0);
 
-                let genre_score = t.genre
+                let genre_score = t
+                    .genre
                     .as_ref()
-                    .map(|g| genre_counts.get(&g.to_lowercase()).map(|&c| c as f32 / history.len() as f32).unwrap_or(0.0))
+                    .map(|g| {
+                        genre_counts
+                            .get(&g.to_lowercase())
+                            .map(|&c| c as f32 / history.len() as f32)
+                            .unwrap_or(0.0)
+                    })
                     .unwrap_or(0.0);
 
                 let score = artist_score * self.weights.artist_similarity
@@ -184,7 +196,11 @@ impl RecommendationEngine {
             .filter(|r| r.score >= self.min_score)
             .collect();
 
-        recommendations.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        recommendations.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         recommendations.into_iter().take(limit).collect()
     }
@@ -208,8 +224,7 @@ impl RecommendationEngine {
         }
 
         let mut rng = rand::thread_rng();
-        let mut selected: Vec<&Track> = unplayed
-            .choose_multiple(&mut rng, limit * 2);
+        let mut selected: Vec<&Track> = unplayed.choose_multiple(&mut rng, limit * 2);
 
         selected.shuffle(&mut rng);
 
@@ -283,7 +298,12 @@ impl RecommendationEngine {
 
         for rec in recs.drain(..) {
             let artist_key = rec.track.artist.to_lowercase();
-            let genre_key = rec.track.genre.as_ref().map(|g| g.to_lowercase()).unwrap_or_default();
+            let genre_key = rec
+                .track
+                .genre
+                .as_ref()
+                .map(|g| g.to_lowercase())
+                .unwrap_or_default();
 
             // Allow if we haven't seen too many from same artist/genre
             let artist_count = seen_artists.iter().filter(|a| **a == artist_key).count();
@@ -335,7 +355,11 @@ impl RecommendationEngine {
         all_recs.retain(|r| seen_ids.insert(r.track.id.clone()));
 
         // Sort by score
-        all_recs.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        all_recs.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         all_recs.into_iter().take(limit).collect()
     }
@@ -388,9 +412,9 @@ mod tests {
         let current = create_test_track("0", "Artist A", Some("rock"));
         let library = vec![
             current.clone(),
-            create_test_track("1", "Artist A", Some("rock")),  // Same artist & genre
-            create_test_track("2", "Artist B", Some("rock")),  // Same genre
-            create_test_track("3", "Artist C", Some("pop")),   // Different
+            create_test_track("1", "Artist A", Some("rock")), // Same artist & genre
+            create_test_track("2", "Artist B", Some("rock")), // Same genre
+            create_test_track("3", "Artist C", Some("pop")),  // Different
         ];
 
         let recs = engine.get_similar(&current, &library, 5);
@@ -435,6 +459,8 @@ mod tests {
         let recs = engine.get_discovery(&library, &played, 2);
 
         assert!(recs.len() <= 2);
-        assert!(recs.iter().all(|r| r.source == RecommendationSource::Discovery));
+        assert!(recs
+            .iter()
+            .all(|r| r.source == RecommendationSource::Discovery));
     }
 }

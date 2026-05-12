@@ -380,11 +380,7 @@ impl PomodoroTimer {
         let filled = (width as f32 * progress) as usize;
         let empty = width - filled;
 
-        format!(
-            "[{}{}]",
-            "█".repeat(filled),
-            "░".repeat(empty)
-        )
+        format!("[{}{}]", "█".repeat(filled), "░".repeat(empty))
     }
 
     /// Get statistics summary

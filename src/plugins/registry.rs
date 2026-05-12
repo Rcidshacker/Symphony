@@ -130,7 +130,11 @@ impl PluginRegistry {
                 name: "Last.fm Scrobbler".to_string(),
                 description: "Scrobble your plays to Last.fm".to_string(),
                 default_enabled: false,
-                permissions: vec!["track_info".to_string(), "lastfm".to_string(), "network".to_string()],
+                permissions: vec![
+                    "track_info".to_string(),
+                    "lastfm".to_string(),
+                    "network".to_string(),
+                ],
                 needs_config: true,
                 config_fields: vec![
                     ConfigField {
@@ -139,7 +143,10 @@ impl PluginRegistry {
                         field_type: ConfigFieldType::Secret,
                         required: true,
                         default: None,
-                        help: Some("Get your API key from https://www.last.fm/api/account/create".to_string()),
+                        help: Some(
+                            "Get your API key from https://www.last.fm/api/account/create"
+                                .to_string(),
+                        ),
                     },
                     ConfigField {
                         key: "api_secret".to_string(),
@@ -247,8 +254,8 @@ impl PluginRegistry {
         plugin_dir: &Path,
     ) -> Result<PluginInfo, PluginError> {
         let content = std::fs::read_to_string(manifest_path)?;
-        let manifest: PluginManifest = toml::from_str(&content)
-            .map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
+        let manifest: PluginManifest =
+            toml::from_str(&content).map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
 
         Ok(PluginInfo {
             name: manifest.name,
@@ -289,7 +296,10 @@ impl PluginRegistry {
 
     /// Check if plugin is installed
     pub fn is_installed(&self, name: &str) -> bool {
-        self.available.get(name).map(|p| p.installed).unwrap_or(false)
+        self.available
+            .get(name)
+            .map(|p| p.installed)
+            .unwrap_or(false)
     }
 
     /// Install an official plugin
