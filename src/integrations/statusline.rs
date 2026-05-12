@@ -141,7 +141,7 @@ impl StatusLine {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "%{F#00ff00}▶%{F-}" } else { "⏸" };
             format!(
-                "{} {} - {} %{F#888}{}%{F-}/%{F#888}{}%{F-}",
+                "{} {} - {} %{{F#888}}{}%{{F-}}/%{{F#888}}{}%{{F-}}",
                 icon,
                 truncate(title, 25),
                 truncate(artist, 15),
@@ -223,7 +223,7 @@ mod tests {
         );
         assert!(status.contains("Test Song"));
         assert!(status.contains("Test Artist"));
-        assert!(status.contains("01:30/03:00"));
+        assert!(status.contains("1:30/3:00"));
     }
 
     #[test]
@@ -257,6 +257,47 @@ mod tests {
         assert_eq!(StatusLine::minimal_format(true, true), "🎵▶");
         assert_eq!(StatusLine::minimal_format(false, true), "🎵⏸");
         assert_eq!(StatusLine::minimal_format(false, false), "");
+    }
+
+    #[test]
+    fn test_waybar_format_playing() {
+        let status = StatusLine::waybar_format(
+            Some(("Test Song", "Test Artist", 100, 25)),
+            true,
+        );
+        assert!(status.contains(r#""text":"▶ Test Song - Test Artist""#));
+        assert!(status.contains(r#""tooltip":"0:25/1:40""#));
+        assert!(status.contains(r#""class":"playing""#));
+        assert!(status.contains(r#""percentage":25"#));
+    }
+
+    #[test]
+    fn test_waybar_format_paused() {
+        let status = StatusLine::waybar_format(
+            Some(("Test Song", "Test Artist", 200, 100)),
+            false,
+        );
+        assert!(status.contains(r#""text":"⏸ Test Song - Test Artist""#));
+        assert!(status.contains(r#""tooltip":"1:40/3:20""#));
+        assert!(status.contains(r#""class":"paused""#));
+        assert!(status.contains(r#""percentage":50"#));
+    }
+
+    #[test]
+    fn test_waybar_format_zero_duration() {
+        let status = StatusLine::waybar_format(
+            Some(("Test Song", "Test Artist", 0, 50)),
+            true,
+        );
+        // Progress should be 0, to avoid division by zero
+        assert!(status.contains(r#""percentage":0"#));
+        assert!(status.contains(r#""tooltip":"0:50/0:00""#));
+    }
+
+    #[test]
+    fn test_waybar_format_empty() {
+        let status = StatusLine::waybar_format(None, false);
+        assert_eq!(status, r#"{"text":"","class":"stopped"}"#);
     }
 
     #[test]
