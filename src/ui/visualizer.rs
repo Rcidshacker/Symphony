@@ -7,7 +7,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style},
     text::Span,
-    widgets::{Block, Borders, Canvas, Paragraph},
+    widgets::{Block, Borders, canvas::canvas, Paragraph},
     Frame,
 };
 
