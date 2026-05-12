@@ -180,18 +180,21 @@ impl SimpleEmbeddingGenerator {
     }
 
     /// Calculate TF (term frequency)
-    fn term_frequencies(&self, tokens: &[String]) -> HashMap<usize, f32> {
-        let mut tf = HashMap::new();
+    fn term_frequencies(&self, tokens: &[String]) -> Vec<f32> {
+        let mut tf = vec![0.0; self.dimension];
+        if tokens.is_empty() {
+            return tf;
+        }
         let total = tokens.len() as f32;
 
         for token in tokens {
             if let Some(&idx) = self.vocabulary.get(token) {
-                *tf.entry(idx).or_insert(0.0) += 1.0;
+                tf[idx] += 1.0;
             }
         }
 
         // Normalize by total tokens
-        for count in tf.values_mut() {
+        for count in &mut tf {
             *count /= total;
         }
 
@@ -207,8 +210,8 @@ impl EmbeddingGenerator for SimpleEmbeddingGenerator {
         // Create embedding vector
         let mut embedding = vec![0.0; self.dimension];
 
-        for (&idx, &tf_value) in &tf {
-            embedding[idx] = tf_value * self.idf_values[idx];
+        for idx in 0..self.dimension {
+            embedding[idx] = tf[idx] * self.idf_values[idx];
         }
 
         // Normalize the vector
