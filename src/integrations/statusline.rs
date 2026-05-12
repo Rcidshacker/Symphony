@@ -141,7 +141,7 @@ impl StatusLine {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "%{F#00ff00}▶%{F-}" } else { "⏸" };
             format!(
-                "{} {} - {} %{F#888}{}%{F-}/%{F#888}{}%{F-}",
+                "{} {} - {} %{{F#888}}{}%{{F-}}/%{{F#888}}{}%{{F-}}",
                 icon,
                 truncate(title, 25),
                 truncate(artist, 15),
@@ -272,5 +272,33 @@ mod tests {
         assert_eq!(format_duration(60), "1:00");
         assert_eq!(format_duration(125), "2:05");
         assert_eq!(format_duration(3661), "61:01");
+    }
+
+    #[test]
+    fn test_polybar_format() {
+        let status = StatusLine::polybar_format(
+            Some(("Test Song", "Test Artist", 180, 90)),
+            true,
+        );
+        assert!(status.contains("Test Song"));
+        assert!(status.contains("Test Artist"));
+        assert!(status.contains("%{F#00ff00}▶%{F-}"));
+        assert!(status.contains("%{F#888}1:30%{F-}"));
+        assert!(status.contains("%{F#888}3:00%{F-}"));
+    }
+
+    #[test]
+    fn test_polybar_format_paused() {
+        let status = StatusLine::polybar_format(
+            Some(("Test Song", "Test Artist", 180, 90)),
+            false,
+        );
+        assert!(status.contains("⏸"));
+    }
+
+    #[test]
+    fn test_polybar_format_empty() {
+        let status = StatusLine::polybar_format(None, false);
+        assert_eq!(status, "");
     }
 }
