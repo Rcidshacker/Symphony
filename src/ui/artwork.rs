@@ -270,12 +270,8 @@ impl Pixel {
 }
 
 /// Decode image from bytes (simplified)
-fn decode_image(data: &[u8]) -> Result<SimpleImage, ArtworkError> {
+fn decode_image(_data: &[u8]) -> Result<SimpleImage, ArtworkError> {
     // This is a placeholder implementation
-    // In production, use the `image` crate:
-    // let img = image::load_from_memory(data)
-    //     .map_err(|e| ArtworkError::DecodeError(e.to_string()))?;
-
     // For now, return a placeholder image
     Ok(SimpleImage {
         width: 100,
