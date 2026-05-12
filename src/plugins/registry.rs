@@ -186,7 +186,14 @@ impl PluginRegistry {
 
         // Ensure directory exists
         if !self.plugin_dir.exists() {
-            std::fs::create_dir_all(&self.plugin_dir)?;
+            let mut builder = std::fs::DirBuilder::new();
+            builder.recursive(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            builder.create(&self.plugin_dir)?;
             return Ok(());
         }
 
@@ -302,7 +309,14 @@ impl PluginRegistry {
 
         // Create plugin directory
         let plugin_dir = self.plugin_dir.join(id);
-        std::fs::create_dir_all(&plugin_dir)?;
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&plugin_dir)?;
 
         // Create manifest
         let manifest = PluginManifest {
