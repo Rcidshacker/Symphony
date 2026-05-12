@@ -473,6 +473,45 @@ mod tests {
     }
 
     #[test]
+    fn test_skip_from_working() {
+        let mut timer = PomodoroTimer::new();
+        timer.start_work();
+
+        let event = timer.skip();
+        assert_eq!(event, Some(PomodoroEvent::Started(PomodoroState::Break)));
+        assert_eq!(timer.get_state(), PomodoroState::Break);
+        assert_eq!(timer.get_sessions_completed(), 1);
+    }
+
+    #[test]
+    fn test_skip_from_break() {
+        let mut timer = PomodoroTimer::new();
+        timer.start_break();
+
+        let event = timer.skip();
+        assert_eq!(event, Some(PomodoroEvent::Started(PomodoroState::Working)));
+        assert_eq!(timer.get_state(), PomodoroState::Working);
+    }
+
+    #[test]
+    fn test_skip_from_long_break() {
+        let mut timer = PomodoroTimer::new();
+        timer.state = PomodoroState::LongBreak;
+        timer.session_start = Some(Instant::now());
+
+        let event = timer.skip();
+        assert_eq!(event, Some(PomodoroEvent::Started(PomodoroState::Working)));
+        assert_eq!(timer.get_state(), PomodoroState::Working);
+    }
+
+    #[test]
+    fn test_skip_from_idle() {
+        let mut timer = PomodoroTimer::new();
+        let event = timer.skip();
+        assert_eq!(event, None);
+    }
+
+    #[test]
     fn test_format_remaining() {
         let mut timer = PomodoroTimer::with_durations(25, 5);
         assert_eq!(timer.format_remaining(), "Ready");
