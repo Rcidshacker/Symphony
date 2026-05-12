@@ -776,10 +776,18 @@ pub struct GitIntegrationConfig {
     /// Check interval in seconds
     #[serde(default = "default_git_check_interval")]
     pub check_interval: u64,
+
+    /// Path to git executable
+    #[serde(default = "default_git_path")]
+    pub git_path: String,
 }
 
 fn default_git_check_interval() -> u64 {
     60
+}
+
+fn default_git_path() -> String {
+    "git".to_string()
 }
 
 impl Default for GitIntegrationConfig {
@@ -788,6 +796,7 @@ impl Default for GitIntegrationConfig {
             enabled: true,
             adapt_music: false,
             check_interval: default_git_check_interval(),
+            git_path: default_git_path(),
         }
     }
 }
