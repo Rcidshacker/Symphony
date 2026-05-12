@@ -52,6 +52,17 @@ impl ActivityLevel {
     }
 }
 
+impl From<&crate::config::GitIntegrationConfig> for GitMonitorConfig {
+    fn from(config: &crate::config::GitIntegrationConfig) -> Self {
+        Self {
+            git_path: config.git_path.clone(),
+            check_interval: Duration::from_secs(config.check_interval),
+            velocity_window: Duration::from_secs(3600), // 1 hour
+            auto_adapt: config.adapt_music,
+        }
+    }
+}
+
 impl std::fmt::Display for ActivityLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.label())
@@ -61,6 +72,8 @@ impl std::fmt::Display for ActivityLevel {
 /// Git monitor configuration
 #[derive(Debug, Clone)]
 pub struct GitMonitorConfig {
+    /// Path to git executable
+    pub git_path: String,
     /// How often to check for updates
     pub check_interval: Duration,
     /// Window for commit velocity calculation
@@ -72,6 +85,7 @@ pub struct GitMonitorConfig {
 impl Default for GitMonitorConfig {
     fn default() -> Self {
         Self {
+            git_path: "git".to_string(),
             check_interval: Duration::from_secs(60),
             velocity_window: Duration::from_secs(3600), // 1 hour
             auto_adapt: true,
@@ -124,6 +138,11 @@ impl GitMonitor {
         }
     }
 
+    /// Create from application configuration
+    pub fn from_config(config: &crate::config::GitIntegrationConfig) -> Self {
+        Self::with_config(GitMonitorConfig::from(config))
+    }
+
     /// Find git repository in current directory or parents
     fn find_git_repo() -> Option<PathBuf> {
         let current_dir = std::env::current_dir().ok()?;
@@ -157,7 +176,7 @@ impl GitMonitor {
             return;
         }
 
-        let Some(repo_path) = &self.repo_path else {
+        let Some(repo_path) = self.repo_path.clone() else {
             return;
         };
 
@@ -165,7 +184,7 @@ impl GitMonitor {
         // Note: This is a simplified implementation
         // In production, use the `git2` crate for full functionality
 
-        self.update_from_git_cli(repo_path);
+        self.update_from_git_cli(&repo_path);
         self.last_check = Instant::now();
     }
 
@@ -174,7 +193,7 @@ impl GitMonitor {
         use std::process::Command;
 
         // Get current branch
-        let branch_output = Command::new("git")
+        let branch_output = Command::new(&self.config.git_path)
             .args(["branch", "--show-current"])
             .current_dir(repo_path)
             .output()
@@ -182,11 +201,8 @@ impl GitMonitor {
 
         if let Some(output) = branch_output {
             if output.status.success() {
-                self.current_branch = Some(
-                    String::from_utf8_lossy(&output.stdout)
-                        .trim()
-                        .to_string(),
-                );
+                self.current_branch =
+                    Some(String::from_utf8_lossy(&output.stdout).trim().to_string());
             }
         }
 
@@ -196,14 +212,8 @@ impl GitMonitor {
             .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string());
 
         if let Some(since_str) = since {
-            let log_output = Command::new("git")
-                .args([
-                    "log",
-                    "--oneline",
-                    "--since",
-                    &since_str,
-                    "--format=%H",
-                ])
+            let log_output = Command::new(&self.config.git_path)
+                .args(["log", "--oneline", "--since", &since_str, "--format=%H"])
                 .current_dir(repo_path)
                 .output()
                 .ok();
@@ -234,7 +244,7 @@ impl GitMonitor {
         }
 
         // Get files changed in last commit
-        let diff_output = Command::new("git")
+        let diff_output = Command::new(&self.config.git_path)
             .args(["diff", "--name-only", "HEAD~1"])
             .current_dir(repo_path)
             .output()
@@ -360,5 +370,30 @@ mod tests {
         let summary = stats.format_summary();
         assert!(summary.contains("main"));
         assert!(summary.contains("Focused"));
+    }
+
+    #[test]
+    fn test_git_monitor_custom_path() {
+        let config = GitMonitorConfig {
+            git_path: "/usr/bin/git-custom".to_string(),
+            ..Default::default()
+        };
+        let monitor = GitMonitor::with_config(config);
+        assert_eq!(monitor.config.git_path, "/usr/bin/git-custom");
+    }
+
+    #[test]
+    fn test_git_monitor_from_config() {
+        let app_config = crate::config::GitIntegrationConfig {
+            enabled: true,
+            adapt_music: true,
+            check_interval: 30,
+            git_path: "/usr/local/bin/git-test".to_string(),
+        };
+
+        let monitor = GitMonitor::from_config(&app_config);
+        assert_eq!(monitor.config.git_path, "/usr/local/bin/git-test");
+        assert_eq!(monitor.config.check_interval, Duration::from_secs(30));
+        assert!(monitor.config.auto_adapt);
     }
 }

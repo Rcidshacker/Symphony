@@ -154,13 +154,7 @@ impl HostFunctions {
     }
 
     /// Set Discord Rich Presence
-    pub fn set_discord_presence(
-        &self,
-        title: &str,
-        artist: &str,
-        album: &str,
-        duration_secs: u64,
-    ) {
+    pub fn set_discord_presence(&self, title: &str, artist: &str, album: &str, duration_secs: u64) {
         (self.callbacks.set_discord_presence)(title, artist, album, duration_secs);
     }
 
@@ -180,14 +174,8 @@ impl HostFunctions {
     }
 
     /// Make an HTTP request
-    pub fn http_request(
-        &self,
-        method: &str,
-        url: &str,
-        body: &str,
-    ) -> Result<String, PluginError> {
-        (self.callbacks.http_request)(method, url, body)
-            .map_err(PluginError::HostFunctionError)
+    pub fn http_request(&self, method: &str, url: &str, body: &str) -> Result<String, PluginError> {
+        (self.callbacks.http_request)(method, url, body).map_err(PluginError::HostFunctionError)
     }
 
     /// Get a configuration value
@@ -220,7 +208,10 @@ impl PluginApi {
     /// Create a new plugin API instance
     pub fn new(manifest: PluginManifest) -> Self {
         let permissions = manifest.permissions.clone();
-        Self { manifest, permissions }
+        Self {
+            manifest,
+            permissions,
+        }
     }
 
     /// Check if plugin has a permission
@@ -320,8 +311,7 @@ mod tests {
 
     #[test]
     fn test_host_functions_custom() {
-        let host = HostFunctions::new()
-            .with_get_volume(|| 0.8);
+        let host = HostFunctions::new().with_get_volume(|| 0.8);
 
         assert_eq!(host.get_volume(), 0.8);
     }

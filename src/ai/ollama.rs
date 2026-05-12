@@ -146,7 +146,8 @@ Respond ONLY with valid JSON, no explanation:
   "tempo": null,
   "era": null,
   "duration_mins": null
-}"#.to_string()
+}"#
+        .to_string()
     }
 
     /// Build intent parsing prompt
@@ -184,8 +185,9 @@ Respond ONLY with valid JSON, no explanation:
             count: Option<usize>,
         }
 
-        let parsed: IntentJson = serde_json::from_str(json_str)
-            .map_err(|e| AIError::ParseError(format!("Failed to parse JSON: {}. Input: {}", e, json_str)))?;
+        let parsed: IntentJson = serde_json::from_str(json_str).map_err(|e| {
+            AIError::ParseError(format!("Failed to parse JSON: {}. Input: {}", e, json_str))
+        })?;
 
         match parsed.intent.to_lowercase().as_str() {
             "play" => Ok(MusicIntent::Play {
@@ -222,7 +224,8 @@ Respond ONLY with valid JSON, no explanation:
 
     /// Check if a model is available locally
     pub async fn is_model_available(&self, model_name: &str) -> Result<bool, AIError> {
-        let response = self.client
+        let response = self
+            .client
             .get(format!("{}/api/tags", self.base_url))
             .send()
             .await?;
@@ -239,7 +242,8 @@ Respond ONLY with valid JSON, no explanation:
             name: String,
         }
 
-        let _response = self.client
+        let _response = self
+            .client
             .post(format!("{}/api/pull", self.base_url))
             .json(&PullRequest {
                 name: model_name.to_string(),
@@ -273,7 +277,8 @@ impl LLMProvider for OllamaProvider {
             stream: false,
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(format!("{}/api/chat", self.base_url))
             .json(&request)
             .send()
@@ -282,7 +287,10 @@ impl LLMProvider for OllamaProvider {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(AIError::ApiError(format!("Ollama error {}: {}", status, body)));
+            return Err(AIError::ApiError(format!(
+                "Ollama error {}: {}",
+                status, body
+            )));
         }
 
         let ollama_response: OllamaChatResponse = response.json().await?;
@@ -301,14 +309,18 @@ impl LLMProvider for OllamaProvider {
             }),
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(format!("{}/api/generate", self.base_url))
             .json(&request)
             .send()
             .await?;
 
         if !response.status().is_success() {
-            return Err(AIError::ApiError(format!("Ollama error: {}", response.status())));
+            return Err(AIError::ApiError(format!(
+                "Ollama error: {}",
+                response.status()
+            )));
         }
 
         let ollama_response: OllamaGenerateResponse = response.json().await?;
@@ -338,22 +350,22 @@ Select exactly {} tracks. Respond with a JSON array of track names only:
         let response = self.generate_response(&prompt).await?;
 
         // Parse the track list from response
-        let tracks: Vec<String> = serde_json::from_str(&response)
-            .unwrap_or_else(|_| {
-                // Fallback: try to extract tracks from text
-                response
-                    .lines()
-                    .filter(|line| !line.is_empty() && !line.starts_with('[') && !line.starts_with(']'))
-                    .take(count)
-                    .map(|s| s.trim_matches('"').trim_matches(',').to_string())
-                    .collect()
-            });
+        let tracks: Vec<String> = serde_json::from_str(&response).unwrap_or_else(|_| {
+            // Fallback: try to extract tracks from text
+            response
+                .lines()
+                .filter(|line| !line.is_empty() && !line.starts_with('[') && !line.starts_with(']'))
+                .take(count)
+                .map(|s| s.trim_matches('"').trim_matches(',').to_string())
+                .collect()
+        });
 
         Ok(tracks)
     }
 
     async fn health_check(&self) -> Result<bool, AIError> {
-        let result = self.client
+        let result = self
+            .client
             .get(format!("{}/api/tags", self.base_url))
             .send()
             .await;
