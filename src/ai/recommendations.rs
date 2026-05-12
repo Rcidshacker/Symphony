@@ -209,7 +209,8 @@ impl RecommendationEngine {
 
         let mut rng = rand::thread_rng();
         let mut selected: Vec<&Track> = unplayed
-            .choose_multiple(&mut rng, limit * 2);
+            .choose_multiple(&mut rng, limit * 2)
+            .collect();
 
         selected.shuffle(&mut rng);
 

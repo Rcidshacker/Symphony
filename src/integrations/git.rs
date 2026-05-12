@@ -157,7 +157,9 @@ impl GitMonitor {
             return;
         }
 
-        let Some(repo_path) = &self.repo_path else {
+        let repo_path = if let Some(path) = &self.repo_path {
+            path.clone()
+        } else {
             return;
         };
 
@@ -165,7 +167,7 @@ impl GitMonitor {
         // Note: This is a simplified implementation
         // In production, use the `git2` crate for full functionality
 
-        self.update_from_git_cli(repo_path);
+        self.update_from_git_cli(&repo_path);
         self.last_check = Instant::now();
     }
 

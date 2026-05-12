@@ -355,14 +355,19 @@ impl StreamProvider for YouTubeProvider {
 
         info!("Downloading {} to {:?}", track_id, output_path);
 
+        let output_path_str = output_path.to_string_lossy();
         let args = vec![
             "--no-warnings",
             "--no-playlist",
-            "-f", format,
+            "-f",
+            format,
             "-x", // Extract audio
-            "--audio-format", "mp3",
-            "--audio-quality", "0",
-            "-o", &output_path.to_string_lossy(),
+            "--audio-format",
+            "mp3",
+            "--audio-quality",
+            "0",
+            "-o",
+            &output_path_str,
             &url,
         ];
 
