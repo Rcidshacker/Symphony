@@ -102,7 +102,12 @@ impl AIManager {
             AIProviderConfig::Ollama { base_url, model } => {
                 Arc::new(OllamaProvider::new(base_url.clone(), model.clone()))
             }
-            AIProviderConfig::OpenRouter { api_key, model, site_url, app_name } => {
+            AIProviderConfig::OpenRouter {
+                api_key,
+                model,
+                site_url,
+                app_name,
+            } => {
                 let mut provider = OpenRouterProvider::new(api_key.clone(), model.clone());
                 if let (Some(url), Some(name)) = (site_url, app_name) {
                     provider = provider.with_metadata(url.clone(), name.clone());
@@ -233,7 +238,8 @@ impl AIManager {
 
         let start = Instant::now();
 
-        match self.provider
+        match self
+            .provider
             .generate_playlist(description, available_tracks, count)
             .await
         {
@@ -312,7 +318,12 @@ impl AIManager {
             AIProviderConfig::Ollama { base_url, model } => {
                 Arc::new(OllamaProvider::new(base_url.clone(), model.clone()))
             }
-            AIProviderConfig::OpenRouter { api_key, model, site_url, app_name } => {
+            AIProviderConfig::OpenRouter {
+                api_key,
+                model,
+                site_url,
+                app_name,
+            } => {
                 let mut provider = OpenRouterProvider::new(api_key.clone(), model.clone());
                 if let (Some(url), Some(name)) = (site_url, app_name) {
                     provider = provider.with_metadata(url.clone(), name.clone());
@@ -423,10 +434,7 @@ mod tests {
             model: "llama3.2:3b".to_string(),
         };
 
-        let manager = AIManagerBuilder::new()
-            .config(config)
-            .build()
-            .await;
+        let manager = AIManagerBuilder::new().config(config).build().await;
 
         // Manager should be created (even if Ollama isn't running)
         assert!(manager.is_ok());

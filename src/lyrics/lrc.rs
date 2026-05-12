@@ -20,19 +20,16 @@ impl LrcParser {
         let mut metadata = LyricsMetadata::default();
 
         // Regex for timestamp: [mm:ss.xx] or [mm:ss:xx]
-        let timestamp_re = Regex::new(r"\[(\d+):(\d+)(?:[.:](\d+))?\](.*)").map_err(|e| {
-            LyricsError::ParseError(format!("Failed to compile regex: {}", e))
-        })?;
+        let timestamp_re = Regex::new(r"\[(\d+):(\d+)(?:[.:](\d+))?\](.*)")
+            .map_err(|e| LyricsError::ParseError(format!("Failed to compile regex: {}", e)))?;
 
         // Regex for metadata tags: [tag:value]
-        let metadata_re = Regex::new(r"\[([a-z]+):(.+)\]").map_err(|e| {
-            LyricsError::ParseError(format!("Failed to compile regex: {}", e))
-        })?;
+        let metadata_re = Regex::new(r"\[([a-z]+):(.+)\]")
+            .map_err(|e| LyricsError::ParseError(format!("Failed to compile regex: {}", e)))?;
 
         // Regex for enhanced LRC word timing: <mm:ss.xx>
-        let word_re = Regex::new(r"<(\d+):(\d+)(?:[.:](\d+))?([^>]*)>").map_err(|e| {
-            LyricsError::ParseError(format!("Failed to compile regex: {}", e))
-        })?;
+        let word_re = Regex::new(r"<(\d+):(\d+)(?:[.:](\d+))?([^>]*)>")
+            .map_err(|e| LyricsError::ParseError(format!("Failed to compile regex: {}", e)))?;
 
         for line in content.lines() {
             let line = line.trim();
@@ -59,7 +56,7 @@ impl LrcParser {
                     "offset" => {
                         metadata.offset_ms = value.parse().unwrap_or(0);
                     }
-                    "re" | "tool" => {} // Tool used to create
+                    "re" | "tool" => {}    // Tool used to create
                     "ve" | "version" => {} // LRC version
                     _ => debug!("Unknown metadata tag: {}", tag),
                 }
@@ -70,7 +67,8 @@ impl LrcParser {
             if let Some(captures) = timestamp_re.captures(line) {
                 let minutes: u64 = captures[1].parse().unwrap_or(0);
                 let seconds: u64 = captures[2].parse().unwrap_or(0);
-                let centiseconds: u64 = captures.get(3)
+                let centiseconds: u64 = captures
+                    .get(3)
                     .map(|m| m.as_str().parse().unwrap_or(0))
                     .unwrap_or(0);
 
@@ -154,12 +152,12 @@ fn parse_length(s: &str) -> Option<u64> {
 /// Parse word-level timestamps from enhanced LRC
 fn parse_word_timestamps(text: &str, re: &Regex) -> Result<Vec<WordTimestamp>, LyricsError> {
     let mut words = Vec::new();
-    let mut last_end_ms = 0u64;
 
     for captures in re.captures_iter(text) {
         let minutes: u64 = captures[1].parse().unwrap_or(0);
         let seconds: u64 = captures[2].parse().unwrap_or(0);
-        let centiseconds: u64 = captures.get(3)
+        let centiseconds: u64 = captures
+            .get(3)
             .map(|m| m.as_str().parse().unwrap_or(0))
             .unwrap_or(0);
 
@@ -175,7 +173,6 @@ fn parse_word_timestamps(text: &str, re: &Regex) -> Result<Vec<WordTimestamp>, L
                 start_ms,
                 end_ms,
             });
-            last_end_ms = end_ms;
         }
     }
 
@@ -265,10 +262,7 @@ mod tests {
     fn test_to_lrc() {
         let lyrics = Lyrics::new(
             "test",
-            vec![
-                LyricsLine::new(0, "First"),
-                LyricsLine::new(5000, "Second"),
-            ],
+            vec![LyricsLine::new(0, "First"), LyricsLine::new(5000, "Second")],
         );
 
         let lrc = to_lrc(&lyrics);

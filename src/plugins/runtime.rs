@@ -207,7 +207,7 @@ impl PluginRuntime {
 
     /// Unload a plugin
     pub fn unload_plugin(&mut self, name: &str) -> Result<(), PluginError> {
-        if let Some(plugin) = self.plugins.remove(name) {
+        if let Some(_plugin) = self.plugins.remove(name) {
             info!("Unloaded plugin: {}", name);
             // In production, would call plugin_shutdown() first
             Ok(())
@@ -246,24 +246,22 @@ impl PluginRuntime {
             }
         };
 
-        for (name, plugin) in &mut self.plugins {
-            if !plugin.enabled || plugin.status != PluginStatus::Active {
-                continue;
+        let plugin_names: Vec<String> = self.plugins.keys().cloned().collect();
+
+        for name in plugin_names {
+            let should_handle = if let Some(plugin) = self.plugins.get(&name) {
+                plugin.enabled
+                    && plugin.status == PluginStatus::Active
+                    && self.has_event_permission(&plugin.manifest, event)
+            } else {
+                false
+            };
+
+            if should_handle {
+                debug!("Sending event {:?} to plugin {}", event.event_type(), name);
+                // Handle built-in plugin logic directly (simplified)
+                self.handle_builtin_plugin_event(&name, event, &event_json);
             }
-
-            // Check if plugin has permission for this event type
-            if !self.has_event_permission(&plugin.manifest, event) {
-                continue;
-            }
-
-            // In production, this would:
-            // 1. Write event JSON to plugin memory
-            // 2. Call on_event(ptr, len) function
-
-            debug!("Sending event {:?} to plugin {}", event.event_type(), name);
-
-            // Handle built-in plugin logic directly (simplified)
-            self.handle_builtin_plugin_event(name, event, &event_json);
         }
     }
 

@@ -90,7 +90,10 @@ impl YouTubeProvider {
                     self.available = true;
                     Ok(())
                 } else {
-                    error!("yt-dlp check failed: {}", String::from_utf8_lossy(&output.stderr));
+                    error!(
+                        "yt-dlp check failed: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    );
                     Err(StreamError::Unavailable(
                         "yt-dlp is installed but returned an error".to_string(),
                     ))
@@ -155,7 +158,11 @@ impl YouTubeProvider {
 
         let duration = value["duration"]
             .as_i64()
-            .or_else(|| value["duration_string"].as_str().and_then(|s| parse_duration(s)))
+            .or_else(|| {
+                value["duration_string"]
+                    .as_str()
+                    .and_then(|s| parse_duration(s))
+            })
             .unwrap_or(0) as u64;
 
         let thumbnail_url = if self.config.include_thumbnails {
@@ -176,8 +183,8 @@ impl YouTubeProvider {
 
         let upload_date = value["upload_date"].as_str().map(|s| s.to_string());
 
-        let mut track = StreamTrack::new(id, title, artist, StreamSource::YouTube)
-            .with_duration(duration);
+        let mut track =
+            StreamTrack::new(id, title, artist, StreamSource::YouTube).with_duration(duration);
 
         track.thumbnail_url = thumbnail_url;
         track.view_count = view_count;
@@ -187,7 +194,11 @@ impl YouTubeProvider {
     }
 
     /// Search YouTube for videos
-    async fn search_youtube(&self, query: &str, limit: usize) -> Result<Vec<StreamTrack>, StreamError> {
+    async fn search_youtube(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<StreamTrack>, StreamError> {
         let search_query = format!("ytsearch{}:{}", limit, query);
 
         let mut args = self.build_common_args();
@@ -242,15 +253,16 @@ impl YouTubeProvider {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            
+
             // Check for specific errors
-            if stderr.contains("Video unavailable") || stderr.contains("This video is unavailable") {
+            if stderr.contains("Video unavailable") || stderr.contains("This video is unavailable")
+            {
                 return Err(StreamError::TrackNotFound(video_id.to_string()));
             }
             if stderr.contains("Sign in") || stderr.contains("age") {
                 return Err(StreamError::AgeRestricted);
             }
-            
+
             return Err(StreamError::SearchFailed(stderr.to_string()));
         }
 
@@ -259,14 +271,19 @@ impl YouTubeProvider {
     }
 
     /// Get the best audio stream URL
-    async fn extract_audio_url(&self, video_id: &str, quality: StreamQuality) -> Result<String, StreamError> {
+    async fn extract_audio_url(
+        &self,
+        video_id: &str,
+        quality: StreamQuality,
+    ) -> Result<String, StreamError> {
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
         let format = quality.yt_dlp_format();
 
         let args = vec![
             "--no-warnings",
             "--no-playlist",
-            "-f", format,
+            "-f",
+            format,
             "--get-url",
             &url,
         ];
@@ -287,9 +304,11 @@ impl YouTubeProvider {
         }
 
         let stream_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        
+
         if stream_url.is_empty() {
-            return Err(StreamError::DownloadFailed("No stream URL returned".to_string()));
+            return Err(StreamError::DownloadFailed(
+                "No stream URL returned".to_string(),
+            ));
         }
 
         Ok(stream_url)
@@ -307,11 +326,15 @@ impl StreamProvider for YouTubeProvider {
 
         info!("Searching YouTube for: {}", query);
         let tracks = self.search_youtube(query, limit).await?;
-        
+
         Ok(SearchResult::new(tracks, query, StreamSource::YouTube))
     }
 
-    async fn get_stream_url(&self, track_id: &str, quality: StreamQuality) -> Result<String, StreamError> {
+    async fn get_stream_url(
+        &self,
+        track_id: &str,
+        quality: StreamQuality,
+    ) -> Result<String, StreamError> {
         if !self.available {
             return Err(StreamError::Unavailable(
                 "YouTube provider not initialized.".to_string(),
@@ -355,14 +378,19 @@ impl StreamProvider for YouTubeProvider {
 
         info!("Downloading {} to {:?}", track_id, output_path);
 
+        let output_path_str = output_path.to_string_lossy();
         let args = vec![
             "--no-warnings",
             "--no-playlist",
-            "-f", format,
+            "-f",
+            format,
             "-x", // Extract audio
-            "--audio-format", "mp3",
-            "--audio-quality", "0",
-            "-o", &output_path.to_string_lossy(),
+            "--audio-format",
+            "mp3",
+            "--audio-quality",
+            "0",
+            "-o",
+            &output_path_str,
             &url,
         ];
 
@@ -399,7 +427,7 @@ impl StreamProvider for YouTubeProvider {
 /// Parse a duration string (e.g., "3:45", "1:23:45")
 fn parse_duration(s: &str) -> Option<i64> {
     let parts: Vec<&str> = s.split(':').collect();
-    
+
     match parts.len() {
         2 => {
             // MM:SS

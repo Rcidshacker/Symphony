@@ -4,7 +4,7 @@
 //! Supports local files, HTTP streaming, and cached streams.
 
 use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
+use std::io::{BufReader, Cursor};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicF32, AtomicU64, Ordering};
 use std::sync::Arc;

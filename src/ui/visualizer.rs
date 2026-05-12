@@ -271,7 +271,7 @@ fn render_bars(
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(theme.border()));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -319,7 +319,7 @@ fn render_bars(
     // Add beat pulse glow effect
     if state.beat_pulse > 0.5 {
         let pulse_char = "░";
-        let pulse_style = Style::default().fg(theme.accent).bg(theme.background);
+        let pulse_style = Style::default().fg(theme.accent()).bg(theme.background());
 
         for y in 0..inner.height {
             let span = Span::styled(pulse_char, pulse_style);
@@ -343,7 +343,7 @@ fn render_waveform(
     let block = Block::default()
         .title(" 〰️ WAVEFORM ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(theme.border()));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -364,7 +364,7 @@ fn render_waveform(
     let width = inner.width as usize;
 
     // Draw center line
-    let center_style = Style::default().fg(theme.text_dim);
+    let center_style = Style::default().fg(theme.text_dim());
     for x in 0..width {
         let span = Span::styled("─", center_style);
         f.render_widget(
@@ -426,7 +426,7 @@ fn render_circular(
     let block = Block::default()
         .title(" ⭕ CIRCULAR ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(theme.border()));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -499,7 +499,7 @@ fn render_circular(
     }
 
     // Draw center circle
-    let center_style = Style::default().fg(theme.accent);
+    let center_style = Style::default().fg(theme.accent());
     let center_char = if state.beat_pulse > 0.5 { "◉" } else { "●" };
     let span = Span::styled(center_char, center_style);
     f.render_widget(Paragraph::new(span), Rect::new(center_x, center_y, 1, 1));
@@ -507,7 +507,7 @@ fn render_circular(
     // Add BPM display if available
     if let Some(bpm) = spectrum.beat.estimated_bpm {
         let bpm_text = format!("{:.0}", bpm);
-        let span = Span::styled(bpm_text, Style::default().fg(theme.text_dim));
+        let span = Span::styled(bpm_text, Style::default().fg(theme.text_dim()));
         f.render_widget(
             Paragraph::new(span),
             Rect::new(center_x + 2, center_y, 4, 1),
@@ -543,7 +543,7 @@ pub fn render_mini_spectrum(f: &mut Frame, area: Rect, magnitudes: &[f32], theme
             " "
         };
 
-        let style = Style::default().fg(theme.accent);
+        let style = Style::default().fg(theme.accent());
         let span = Span::styled(char, style);
         f.render_widget(
             Paragraph::new(span),

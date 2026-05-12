@@ -11,12 +11,12 @@ use serde::{Deserialize, Serialize};
 /// Time of day categories
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TimeOfDay {
-    EarlyMorning,  // 5-8
-    Morning,       // 8-12
-    Afternoon,     // 12-17
-    Evening,       // 17-21
-    Night,         // 21-24
-    LateNight,     // 0-5
+    EarlyMorning, // 5-8
+    Morning,      // 8-12
+    Afternoon,    // 12-17
+    Evening,      // 17-21
+    Night,        // 21-24
+    LateNight,    // 0-5
 }
 
 impl TimeOfDay {
@@ -126,6 +126,8 @@ pub struct UserContext {
     pub hourly_patterns: [Option<String>; 24],
 }
 
+const EMPTY_HOURLY_PATTERNS: [Option<String>; 24] = [None; 24];
+
 impl Default for UserContext {
     fn default() -> Self {
         Self::new()
@@ -146,7 +148,7 @@ impl UserContext {
             activity: ActivityState::Unknown,
             focus_mode: false,
             recent_genres: VecDeque::with_capacity(10),
-            hourly_patterns: [None; 24],
+            hourly_patterns: EMPTY_HOURLY_PATTERNS,
         }
     }
 
@@ -192,8 +194,11 @@ impl UserContext {
     /// Get recommended genres based on context
     pub fn recommended_genres(&self) -> Vec<String> {
         if self.focus_mode {
-            return ActivityState::Focus.recommended_genres()
-                .iter().map(|s| s.to_string()).collect();
+            return ActivityState::Focus
+                .recommended_genres()
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
         }
 
         // Consider time of day and activity
@@ -214,8 +219,13 @@ impl UserContext {
     pub fn to_context_string(&self) -> String {
         let mut parts = Vec::new();
 
-        parts.push(format!("Time: {} ({})", self.time_of_day.display_name(), self.hour));
-        parts.push(format!("Day: {}{}", 
+        parts.push(format!(
+            "Time: {} ({})",
+            self.time_of_day.display_name(),
+            self.hour
+        ));
+        parts.push(format!(
+            "Day: {}{}",
             self.day_of_week,
             if self.is_weekend { " (weekend)" } else { "" }
         ));
@@ -225,7 +235,15 @@ impl UserContext {
         }
 
         if !self.recent_genres.is_empty() {
-            parts.push(format!("Recent genres: {}", self.recent_genres.iter().take(5).cloned().collect::<Vec<_>>().join(", ")));
+            parts.push(format!(
+                "Recent genres: {}",
+                self.recent_genres
+                    .iter()
+                    .take(5)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
 
         parts.push(format!("Activity: {:?}", self.activity));
@@ -309,8 +327,12 @@ impl ContextDetector {
                 // Infer activity from genre
                 self.context.activity = match most_common {
                     "ambient" | "classical" | "lo-fi" | "lofi" => ActivityState::Focus,
-                    "electronic" | "rock" | "hip-hop" if hour >= 6 && hour <= 9 => ActivityState::Exercise,
-                    "pop" | "dance" | "electronic" if hour >= 20 || hour <= 2 => ActivityState::Party,
+                    "electronic" | "rock" | "hip-hop" if hour >= 6 && hour <= 9 => {
+                        ActivityState::Exercise
+                    }
+                    "pop" | "dance" | "electronic" if hour >= 20 || hour <= 2 => {
+                        ActivityState::Party
+                    }
                     "jazz" | "chill" | "acoustic" => ActivityState::Relax,
                     _ => self.context.activity,
                 };
@@ -332,8 +354,8 @@ impl ContextDetector {
     }
 
     /// Get recommendations based on detected context
-    pub fn get_recommendations(&self) -> ContextRecommendations {
-        self.detect_activity(); // This line shouldn't compile - detect_activity takes &mut self
+    pub fn get_recommendations(&mut self) -> ContextRecommendations {
+        self.detect_activity();
 
         ContextRecommendations {
             moods: vec![self.context.recommended_mood()],

@@ -2,7 +2,7 @@
 //!
 //! Fetches lyrics from local cache and online sources.
 
-use super::{Lyrics, LyricsError, LyricsSource, LrcParser};
+use super::{LrcParser, Lyrics, LyricsError, LyricsSource};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, info, warn};
@@ -55,7 +55,10 @@ impl LyricsFetcher {
             None
         };
 
-        Self { config, http_client }
+        Self {
+            config,
+            http_client,
+        }
     }
 
     /// Create fetcher with default config
@@ -106,7 +109,7 @@ impl LyricsFetcher {
 
     /// Fetch lyrics from online sources
     async fn fetch_online(&self, title: &str, artist: &str) -> Result<Option<Lyrics>, LyricsError> {
-        let client = match &self.http_client {
+        let _client = match &self.http_client {
             Some(c) => c,
             None => return Ok(None),
         };
@@ -120,7 +123,10 @@ impl LyricsFetcher {
         // 2. Try LRCLIB (https://lrclib.net/) - free API
         // 3. Try other services as needed
 
-        debug!("Online lyrics fetch not implemented for {} - {}", artist, title);
+        debug!(
+            "Online lyrics fetch not implemented for {} - {}",
+            artist, title
+        );
         Ok(None)
     }
 
