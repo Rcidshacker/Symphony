@@ -13,8 +13,8 @@ use super::provider::{AIError, LLMProvider, MusicIntent};
 pub struct OpenRouterProvider {
     /// HTTP client
     client: Client,
-    /// Cached authorization header
-    auth_header: reqwest::header::HeaderValue,
+    /// API key
+    api_key: String,
     /// Model name (e.g., anthropic/claude-3.5-sonnet)
     model: String,
     /// Site URL for OpenRouter headers (optional)
@@ -104,13 +104,12 @@ pub const RECOMMENDED_MODELS: &[(&str, &str)] = &[
 impl OpenRouterProvider {
     /// Create a new OpenRouter provider
     pub fn new(api_key: String, model: String) -> Self {
-        let auth_header = format!("Bearer {}", api_key).parse().unwrap();
         Self {
             client: Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            auth_header,
+            api_key,
             model,
             site_url: None,
             app_name: None,
@@ -175,7 +174,7 @@ Respond ONLY with valid JSON, no explanation:
 
         headers.insert(
             "Authorization",
-            self.auth_header.clone(),
+            format!("Bearer {}", self.api_key).parse().unwrap(),
         );
         headers.insert(
             "Content-Type",
