@@ -1,0 +1,10 @@
+name = "youtube-history"
+version = "0.1.0"
+author = "Rcidshacker"
+description = "Tracks YouTube videos played via Symphony and provides play analytics"
+permissions = ["track_info", "config_read", "config_write", "notifications"]
+min_symphony_version = "2.0.0"
+
+[config]
+max_history_entries = { type = "number", default = 500, description = "Maximum history entries to retain" }
+notify_on_track = { type = "bool", default = false, description = "Show notification when a YouTube track starts" }
