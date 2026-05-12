@@ -725,4 +725,37 @@ mod tests {
 
         assert_eq!(theme.name, deserialized.name);
     }
+
+    #[test]
+    fn test_theme_file_io() {
+        use std::io::Write;
+
+        let theme = Theme::monokai();
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+
+        // Test successful save
+        theme.to_file(temp_file.path()).unwrap();
+
+        // Test successful load
+        let loaded_theme = Theme::from_file(temp_file.path()).unwrap();
+        assert_eq!(theme.name, loaded_theme.name);
+        assert_eq!(theme.author, loaded_theme.author);
+
+        // Test invalid TOML parsing error
+        let mut invalid_toml_file = tempfile::NamedTempFile::new().unwrap();
+        invalid_toml_file.write_all(b"invalid toml content = [[").unwrap();
+        let err = Theme::from_file(invalid_toml_file.path()).unwrap_err();
+        assert!(matches!(err, ThemeError::ParseError(_)));
+
+        // Test missing/empty name error
+        let mut empty_name_file = tempfile::NamedTempFile::new().unwrap();
+        empty_name_file.write_all(b"name = \"\"\nauthor = \"Test\"").unwrap();
+        let err = Theme::from_file(empty_name_file.path()).unwrap_err();
+        assert!(matches!(err, ThemeError::InvalidFormat(_)));
+
+        // Test saving to an invalid path (e.g. a directory)
+        let temp_dir = tempfile::tempdir().unwrap();
+        let err = theme.to_file(temp_dir.path()).unwrap_err();
+        assert!(matches!(err, ThemeError::ReadError(_)));
+    }
 }
