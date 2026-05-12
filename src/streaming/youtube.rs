@@ -74,8 +74,69 @@ impl YouTubeProvider {
         Self::new(YouTubeConfig::default())
     }
 
+    /// Validate yt-dlp executable path for security
+    fn is_safe_ytdlp_path(path_str: &str) -> bool {
+        let path = std::path::Path::new(path_str);
+
+        let name = match path.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => return false,
+        };
+
+        // Allowed executable names
+        if name != "yt-dlp" && name != "yt-dlp.exe" && name != "yt-dlp_macos" && name != "yt-dlp_linux" {
+            return false;
+        }
+
+        // Just the executable name (relies on system PATH, which is generally safe)
+        if path.components().count() == 1 {
+            return true;
+        }
+
+        // If it's a path, it must be absolute
+        if !path.is_absolute() {
+            return false;
+        }
+
+        // Allowed prefixes for absolute paths
+        let safe_prefixes = [
+            "/usr/bin",
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+            "/opt/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ];
+
+        // Also allow ~/.local/bin
+        let home_local_bin = dirs::home_dir().map(|h| h.join(".local/bin"));
+
+        for prefix in &safe_prefixes {
+            if path.starts_with(prefix) {
+                return true;
+            }
+        }
+
+        if let Some(home_bin) = home_local_bin {
+            if path.starts_with(home_bin) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// Initialize the provider (check if yt-dlp is available)
     pub async fn initialize(&mut self) -> Result<(), StreamError> {
+        // Security check for yt-dlp path
+        if !Self::is_safe_ytdlp_path(&self.config.ytdlp_path) {
+            error!("Insecure yt-dlp path configured: {}", self.config.ytdlp_path);
+            return Err(StreamError::Unavailable(
+                "Configured yt-dlp path is insecure. Must be a safe system path or just the executable name.".to_string(),
+            ));
+        }
+
         // Check if yt-dlp is installed
         let output = Command::new(&self.config.ytdlp_path)
             .arg("--version")
@@ -355,14 +416,15 @@ impl StreamProvider for YouTubeProvider {
 
         info!("Downloading {} to {:?}", track_id, output_path);
 
+        let output_path_str = output_path.to_string_lossy().to_string();
         let args = vec![
             "--no-warnings",
             "--no-playlist",
-            "-f", format,
+            "-f", &format,
             "-x", // Extract audio
             "--audio-format", "mp3",
             "--audio-quality", "0",
-            "-o", &output_path.to_string_lossy(),
+            "-o", &output_path_str,
             &url,
         ];
 
@@ -443,5 +505,37 @@ mod tests {
         let provider = YouTubeProvider::with_defaults();
         assert_eq!(provider.name(), "YouTube");
         assert_eq!(provider.source(), StreamSource::YouTube);
+    }
+
+    #[test]
+    fn test_is_safe_ytdlp_path() {
+        // Safe relative/executable names
+        assert!(YouTubeProvider::is_safe_ytdlp_path("yt-dlp"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("yt-dlp.exe"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("yt-dlp_macos"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("yt-dlp_linux"));
+
+        // Safe absolute paths
+        assert!(YouTubeProvider::is_safe_ytdlp_path("/usr/bin/yt-dlp"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("/usr/local/bin/yt-dlp"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("/opt/homebrew/bin/yt-dlp"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("/opt/bin/yt-dlp"));
+        assert!(YouTubeProvider::is_safe_ytdlp_path("/bin/yt-dlp"));
+
+        // Unsafe names
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("bash"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("sh"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("rm"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("my-script.sh"));
+
+        // Unsafe relative paths
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("./yt-dlp"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("../yt-dlp"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("bin/yt-dlp"));
+
+        // Unsafe absolute paths
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("/tmp/yt-dlp"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("/var/tmp/yt-dlp"));
+        assert!(!YouTubeProvider::is_safe_ytdlp_path("/home/user/downloads/yt-dlp"));
     }
 }
