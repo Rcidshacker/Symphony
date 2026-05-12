@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 use std::time::Instant;
+use serde::{Deserialize, Serialize};
 
 use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
@@ -88,7 +89,7 @@ pub enum RepeatMode {
 }
 
 /// A music track
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Track {
     /// Unique identifier
     pub id: String,
