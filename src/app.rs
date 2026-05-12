@@ -2,6 +2,7 @@
 //!
 //! This module contains the core application state and logic for Symphony.
 
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -88,7 +89,7 @@ pub enum RepeatMode {
 }
 
 /// A music track
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Track {
     /// Unique identifier
     pub id: String,
@@ -122,7 +123,7 @@ pub struct Track {
 }
 
 /// Source of the track
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TrackSource {
     /// Local file
     Local,

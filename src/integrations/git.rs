@@ -176,7 +176,7 @@ impl GitMonitor {
             return;
         }
 
-        let Some(repo_path) = &self.repo_path else {
+        let Some(repo_path) = self.repo_path.clone() else {
             return;
         };
 
@@ -184,7 +184,7 @@ impl GitMonitor {
         // Note: This is a simplified implementation
         // In production, use the `git2` crate for full functionality
 
-        self.update_from_git_cli(repo_path);
+        self.update_from_git_cli(&repo_path);
         self.last_check = Instant::now();
     }
 
@@ -201,11 +201,8 @@ impl GitMonitor {
 
         if let Some(output) = branch_output {
             if output.status.success() {
-                self.current_branch = Some(
-                    String::from_utf8_lossy(&output.stdout)
-                        .trim()
-                        .to_string(),
-                );
+                self.current_branch =
+                    Some(String::from_utf8_lossy(&output.stdout).trim().to_string());
             }
         }
 
@@ -216,13 +213,7 @@ impl GitMonitor {
 
         if let Some(since_str) = since {
             let log_output = Command::new(&self.config.git_path)
-                .args([
-                    "log",
-                    "--oneline",
-                    "--since",
-                    &since_str,
-                    "--format=%H",
-                ])
+                .args(["log", "--oneline", "--since", &since_str, "--format=%H"])
                 .current_dir(repo_path)
                 .output()
                 .ok();

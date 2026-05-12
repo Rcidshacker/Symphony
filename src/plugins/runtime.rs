@@ -246,24 +246,20 @@ impl PluginRuntime {
             }
         };
 
-        for (name, plugin) in &mut self.plugins {
-            if !plugin.enabled || plugin.status != PluginStatus::Active {
-                continue;
-            }
+        // Collect names of plugins to notify to avoid borrow checker issues
+        let plugin_names: Vec<String> = self
+            .plugins
+            .iter()
+            .filter(|(_, p)| p.enabled && p.status == PluginStatus::Active)
+            .filter(|(_, p)| self.has_event_permission(&p.manifest, event))
+            .map(|(name, _)| name.clone())
+            .collect();
 
-            // Check if plugin has permission for this event type
-            if !self.has_event_permission(&plugin.manifest, event) {
-                continue;
-            }
-
-            // In production, this would:
-            // 1. Write event JSON to plugin memory
-            // 2. Call on_event(ptr, len) function
-
+        for name in plugin_names {
             debug!("Sending event {:?} to plugin {}", event.event_type(), name);
 
             // Handle built-in plugin logic directly (simplified)
-            self.handle_builtin_plugin_event(name, event, &event_json);
+            self.handle_builtin_plugin_event(&name, event, &event_json);
         }
     }
 

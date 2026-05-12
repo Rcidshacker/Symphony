@@ -26,7 +26,7 @@
 //! # Creating a Plugin
 //! ```rust,no_run
 //! // In your plugin's lib.rs (compiled to WASM)
-//! 
+//!
 //! #[no_mangle]
 //! pub extern "C" fn plugin_init() {
 //!     log("My plugin initialized!");
@@ -83,9 +83,7 @@ pub enum PluginEvent {
         duration_played_secs: u64,
     },
     /// Seek position changed
-    SeekChanged {
-        position_secs: u64,
-    },
+    SeekChanged { position_secs: u64 },
     /// Custom event for plugin-specific data
     Custom {
         event_type: String,
@@ -344,6 +342,9 @@ pub enum PluginError {
 
     #[error("Parse error: {0}")]
     ParseError(String),
+
+    #[error("TOML error: {0}")]
+    TomlError(#[from] toml::de::Error),
 
     #[error("Permission denied: {0}")]
     PermissionDenied(String),

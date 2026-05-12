@@ -70,7 +70,9 @@ pub use manager::{
     CombinedSearchResult, DownloadStatus, DownloadTask, PlayResult, StreamManager,
     StreamManagerConfig,
 };
-pub use predictor::{Prediction, PredictionReason, PredictiveCache, PredictorConfig, PredictorStats};
+pub use predictor::{
+    Prediction, PredictionReason, PredictiveCache, PredictorConfig, PredictorStats,
+};
 pub use provider::{
     DownloadProgress, DownloadStatus as ProviderDownloadStatus, SearchResult, StreamError,
     StreamProvider, StreamQuality, StreamSource, StreamTrack,

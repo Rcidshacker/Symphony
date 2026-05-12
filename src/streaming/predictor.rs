@@ -11,7 +11,7 @@
 //! 5. **Skip/Replay Patterns**: How the user interacts with tracks
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -126,7 +126,11 @@ impl PredictionReason {
                 format!("Often played next ({:.0}% likelihood)", probability * 100.0)
             }
             PredictionReason::TimePattern { hour, probability } => {
-                format!("Often played at {}:00 ({:.0}% likelihood)", hour, probability * 100.0)
+                format!(
+                    "Often played at {}:00 ({:.0}% likelihood)",
+                    hour,
+                    probability * 100.0
+                )
             }
             PredictionReason::QueuePosition { position } => {
                 format!("Next in queue (position {})", position)
@@ -150,7 +154,11 @@ pub struct PredictiveCache {
 
 impl PredictiveCache {
     /// Create a new predictive cache
-    pub fn new(config: PredictorConfig, db_path: PathBuf, cache: Arc<SmartCache>) -> Result<Self, CacheError> {
+    pub fn new(
+        config: PredictorConfig,
+        db_path: PathBuf,
+        cache: Arc<SmartCache>,
+    ) -> Result<Self, CacheError> {
         let db = Connection::open(&db_path)?;
         Self::init_database(&db)?;
 
@@ -254,7 +262,11 @@ impl PredictiveCache {
                 track_id,
                 now,
                 if skipped { 1 } else { 0 },
-                if !completed && duration_secs < 30 { 1 } else { 0 }  // Quick replay detection
+                if !completed && duration_secs < 30 {
+                    1
+                } else {
+                    0
+                } // Quick replay detection
             ],
         )?;
 
@@ -342,7 +354,10 @@ impl PredictiveCache {
     }
 
     /// Predict based on track transitions
-    async fn predict_from_transitions(&self, current_track: &str) -> Result<Vec<Prediction>, CacheError> {
+    async fn predict_from_transitions(
+        &self,
+        current_track: &str,
+    ) -> Result<Vec<Prediction>, CacheError> {
         let db = self.db.read().await;
 
         let mut stmt = db.prepare(
@@ -351,7 +366,7 @@ impl PredictiveCache {
              FROM transitions 
              WHERE from_track = ?1 
              ORDER BY count DESC 
-             LIMIT ?2"
+             LIMIT ?2",
         )?;
 
         let limit = self.config.prefetch_count as i64;
@@ -360,7 +375,11 @@ impl PredictiveCache {
                 let to_track: String = row.get(0)?;
                 let count: i64 = row.get(1)?;
                 let total: i64 = row.get(2)?;
-                let probability = if total > 0 { count as f64 / total as f64 } else { 0.0 };
+                let probability = if total > 0 {
+                    count as f64 / total as f64
+                } else {
+                    0.0
+                };
 
                 Ok(Prediction {
                     track_id: to_track,
@@ -399,27 +418,30 @@ impl PredictiveCache {
             "SELECT track_id, count FROM time_patterns 
              WHERE hour = ?1 AND day_of_week = ?2
              ORDER BY count DESC 
-             LIMIT ?3"
+              LIMIT ?3",
         )?;
 
         let predictions: Vec<Prediction> = stmt
-            .query_map(params![hour, day_of_week, self.config.prefetch_count as i64], |row| {
-                let track_id: String = row.get(0)?;
-                let count: i64 = row.get(1)?;
-                let probability = count as f64 / total as f64;
+            .query_map(
+                params![hour, day_of_week, self.config.prefetch_count as i64],
+                |row| {
+                    let track_id: String = row.get(0)?;
+                    let count: i64 = row.get(1)?;
+                    let probability = count as f64 / total as f64;
 
-                Ok(Prediction {
-                    track_id,
-                    source: StreamSource::YouTube,
-                    title: None,
-                    artist: None,
-                    confidence: probability * self.config.time_weight,
-                    reasons: vec![PredictionReason::TimePattern {
-                        hour: hour as u8,
-                        probability,
-                    }],
-                })
-            })?
+                    Ok(Prediction {
+                        track_id,
+                        source: StreamSource::YouTube,
+                        title: None,
+                        artist: None,
+                        confidence: probability * self.config.time_weight,
+                        reasons: vec![PredictionReason::TimePattern {
+                            hour: hour as u8,
+                            probability,
+                        }],
+                    })
+                },
+            )?
             .filter_map(|r| r.ok())
             .collect();
 
@@ -511,17 +533,11 @@ impl PredictiveCache {
     pub async fn get_stats(&self) -> Result<PredictorStats, CacheError> {
         let db = self.db.read().await;
 
-        let total_transitions: i64 = db.query_row(
-            "SELECT COUNT(*) FROM transitions",
-            [],
-            |row| row.get(0),
-        )?;
+        let total_transitions: i64 =
+            db.query_row("SELECT COUNT(*) FROM transitions", [], |row| row.get(0))?;
 
-        let total_plays: i64 = db.query_row(
-            "SELECT COUNT(*) FROM play_history",
-            [],
-            |row| row.get(0),
-        )?;
+        let total_plays: i64 =
+            db.query_row("SELECT COUNT(*) FROM play_history", [], |row| row.get(0))?;
 
         let unique_tracks: i64 = db.query_row(
             "SELECT COUNT(DISTINCT track_id) FROM play_history",
@@ -529,11 +545,8 @@ impl PredictiveCache {
             |row| row.get(0),
         )?;
 
-        let time_patterns: i64 = db.query_row(
-            "SELECT COUNT(*) FROM time_patterns",
-            [],
-            |row| row.get(0),
-        )?;
+        let time_patterns: i64 =
+            db.query_row("SELECT COUNT(*) FROM time_patterns", [], |row| row.get(0))?;
 
         Ok(PredictorStats {
             total_transitions: total_transitions as u64,

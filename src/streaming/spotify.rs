@@ -193,7 +193,7 @@ impl SpotifyProvider {
 
         // Get initial access token using client credentials flow
         self.refresh_token().await?;
-        
+
         self.available = true;
         info!("Spotify provider initialized successfully");
         Ok(())
@@ -202,12 +202,11 @@ impl SpotifyProvider {
     /// Refresh the access token using client credentials flow
     async fn refresh_token(&self) -> Result<(), StreamError> {
         let url = format!("{}/api/token", SPOTIFY_ACCOUNTS_URL);
-        
-        let params = [
-            ("grant_type", "client_credentials"),
-        ];
 
-        let response = self.client
+        let params = [("grant_type", "client_credentials")];
+
+        let response = self
+            .client
             .post(&url)
             .basic_auth(&self.config.client_id, Some(&self.config.client_secret))
             .form(&params)
@@ -225,7 +224,7 @@ impl SpotifyProvider {
         }
 
         let token: TokenResponse = response.json().await?;
-        
+
         let mut cached = self.token.write().await;
         *cached = Some(CachedToken::new(token));
 
@@ -236,17 +235,17 @@ impl SpotifyProvider {
     /// Get a valid access token, refreshing if necessary
     async fn get_access_token(&self) -> Result<String, StreamError> {
         let cached = self.token.read().await;
-        
+
         if let Some(ref token) = *cached {
             if !token.is_expired() {
                 return Ok(token.access_token.clone());
             }
         }
-        
+
         // Need to refresh
         drop(cached); // Release read lock
         self.refresh_token().await?;
-        
+
         let cached = self.token.read().await;
         cached
             .as_ref()
@@ -272,13 +271,8 @@ impl SpotifyProvider {
 
         let duration_secs = item.duration_ms / 1000;
 
-        let mut track = StreamTrack::new(
-            item.id,
-            item.name,
-            artist,
-            StreamSource::Spotify,
-        )
-        .with_duration(duration_secs);
+        let mut track = StreamTrack::new(item.id, item.name, artist, StreamSource::Spotify)
+            .with_duration(duration_secs);
 
         track.album = album;
         track.thumbnail_url = thumbnail_url;
@@ -288,9 +282,13 @@ impl SpotifyProvider {
     }
 
     /// Search for tracks on Spotify
-    async fn search_tracks(&self, query: &str, limit: usize) -> Result<Vec<StreamTrack>, StreamError> {
+    async fn search_tracks(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<StreamTrack>, StreamError> {
         let token = self.get_access_token().await?;
-        
+
         let url = format!(
             "{}/search?q={}&type=track&limit={}",
             SPOTIFY_API_URL,
@@ -298,33 +296,30 @@ impl SpotifyProvider {
             limit
         );
 
-        let response = self.client
-            .get(&url)
-            .bearer_auth(&token)
-            .send()
-            .await?;
+        let response = self.client.get(&url).bearer_auth(&token).send().await?;
 
         if response.status() == 401 {
             // Token expired, refresh and retry
             debug!("Spotify token expired, refreshing...");
             self.refresh_token().await?;
             let token = self.get_access_token().await?;
-            
-            let response = self.client
-                .get(&url)
-                .bearer_auth(&token)
-                .send()
-                .await?;
-            
+
+            let response = self.client.get(&url).bearer_auth(&token).send().await?;
+
             if !response.status().is_success() {
                 return Err(StreamError::SearchFailed(format!(
                     "Spotify search failed: {}",
                     response.status()
                 )));
             }
-            
+
             let search: SearchResponse = response.json().await?;
-            return Ok(search.tracks.items.into_iter().map(|t| self.convert_track(t)).collect());
+            return Ok(search
+                .tracks
+                .items
+                .into_iter()
+                .map(|t| self.convert_track(t))
+                .collect());
         }
 
         if !response.status().is_success() {
@@ -335,21 +330,22 @@ impl SpotifyProvider {
         }
 
         let search: SearchResponse = response.json().await?;
-        
-        Ok(search.tracks.items.into_iter().map(|t| self.convert_track(t)).collect())
+
+        Ok(search
+            .tracks
+            .items
+            .into_iter()
+            .map(|t| self.convert_track(t))
+            .collect())
     }
 
     /// Get track details by ID
     async fn get_track_details(&self, track_id: &str) -> Result<StreamTrack, StreamError> {
         let token = self.get_access_token().await?;
-        
+
         let url = format!("{}/tracks/{}", SPOTIFY_API_URL, track_id);
 
-        let response = self.client
-            .get(&url)
-            .bearer_auth(&token)
-            .send()
-            .await?;
+        let response = self.client.get(&url).bearer_auth(&token).send().await?;
 
         if response.status() == 404 {
             return Err(StreamError::TrackNotFound(track_id.to_string()));
@@ -358,17 +354,13 @@ impl SpotifyProvider {
         if response.status() == 401 {
             self.refresh_token().await?;
             let token = self.get_access_token().await?;
-            
-            let response = self.client
-                .get(&url)
-                .bearer_auth(&token)
-                .send()
-                .await?;
-            
+
+            let response = self.client.get(&url).bearer_auth(&token).send().await?;
+
             if !response.status().is_success() {
                 return Err(StreamError::TrackNotFound(track_id.to_string()));
             }
-            
+
             let track: TrackDetailsResponse = response.json().await?;
             return Ok(self.convert_track_details(track));
         }
@@ -402,13 +394,8 @@ impl SpotifyProvider {
 
         let duration_secs = details.duration_ms / 1000;
 
-        let mut track = StreamTrack::new(
-            details.id,
-            details.name,
-            artist,
-            StreamSource::Spotify,
-        )
-        .with_duration(duration_secs);
+        let mut track = StreamTrack::new(details.id, details.name, artist, StreamSource::Spotify)
+            .with_duration(duration_secs);
 
         track.album = album;
         track.thumbnail_url = thumbnail_url;
@@ -429,11 +416,15 @@ impl StreamProvider for SpotifyProvider {
 
         info!("Searching Spotify for: {}", query);
         let tracks = self.search_tracks(query, limit).await?;
-        
+
         Ok(SearchResult::new(tracks, query, StreamSource::Spotify))
     }
 
-    async fn get_stream_url(&self, track_id: &str, _quality: StreamQuality) -> Result<String, StreamError> {
+    async fn get_stream_url(
+        &self,
+        track_id: &str,
+        _quality: StreamQuality,
+    ) -> Result<String, StreamError> {
         if !self.available {
             return Err(StreamError::Unavailable(
                 "Spotify provider not initialized.".to_string(),
@@ -442,7 +433,7 @@ impl StreamProvider for SpotifyProvider {
 
         // Get track info to retrieve preview URL
         let track = self.get_track_details(track_id).await?;
-        
+
         match track.stream_url {
             Some(url) => {
                 info!("Returning 30-second preview URL for Spotify track");
@@ -528,7 +519,7 @@ mod tests {
             refresh_token: None,
             scope: None,
         };
-        
+
         let cached = CachedToken::new(token);
         assert!(!cached.is_expired());
     }

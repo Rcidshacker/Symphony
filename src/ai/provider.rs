@@ -105,7 +105,14 @@ impl MusicIntent {
     /// Get a human-readable description of the intent
     pub fn description(&self) -> String {
         match self {
-            MusicIntent::Play { genre, mood, artist, tempo, era, .. } => {
+            MusicIntent::Play {
+                genre,
+                mood,
+                artist,
+                tempo,
+                era,
+                ..
+            } => {
                 let mut parts = Vec::new();
                 if let Some(a) = artist {
                     parts.push(format!("artist: {}", a));
@@ -136,7 +143,10 @@ impl MusicIntent {
                     format!("Suggest {} tracks", count)
                 }
             }
-            MusicIntent::CreatePlaylist { theme, duration_mins } => {
+            MusicIntent::CreatePlaylist {
+                theme,
+                duration_mins,
+            } => {
                 format!("Create '{}' playlist ({} mins)", theme, duration_mins)
             }
             MusicIntent::Skip { reason } => {
@@ -153,7 +163,11 @@ impl MusicIntent {
                     "Get track info".to_string()
                 }
             }
-            MusicIntent::SetState { volume, shuffle, repeat } => {
+            MusicIntent::SetState {
+                volume,
+                shuffle,
+                repeat,
+            } => {
                 let mut parts = Vec::new();
                 if let Some(v) = volume {
                     parts.push(format!("volume: {}%", v));
@@ -282,7 +296,10 @@ impl AIContext {
         }
 
         if !self.favorite_genres.is_empty() {
-            parts.push(format!("Favorite genres: {}", self.favorite_genres.join(", ")));
+            parts.push(format!(
+                "Favorite genres: {}",
+                self.favorite_genres.join(", ")
+            ));
         }
 
         if self.focus_mode {
