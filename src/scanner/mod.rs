@@ -250,4 +250,18 @@ mod tests {
         assert!(!scanner.is_music_file(Path::new("test.txt")));
         assert!(!scanner.is_music_file(Path::new("test.pdf")));
     }
+
+    #[test]
+    fn test_supported_extensions() {
+        let scanner = LibraryScanner::new();
+        let extensions = scanner.supported_extensions();
+
+        assert!(extensions.contains("mp3"));
+        assert!(extensions.contains("flac"));
+        assert!(extensions.contains("wav"));
+        assert!(extensions.contains("ogg"));
+        assert!(extensions.contains("aiff"));
+        assert!(extensions.contains("aac"));
+        assert_eq!(extensions.len(), 6);
+    }
 }
