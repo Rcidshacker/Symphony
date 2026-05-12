@@ -72,6 +72,7 @@ url = "2.5"
 
 # Regex for lyrics parsing
 regex = "1.10"
+portable-atomic = { version = "1.13.1", features = ["float"] }
 
 # Streaming (Phase 4)
 # ytdl = "0.8"

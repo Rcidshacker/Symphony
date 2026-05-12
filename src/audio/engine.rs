@@ -6,7 +6,8 @@
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicF32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use portable_atomic::AtomicF32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
