@@ -20,7 +20,7 @@ crossterm = "0.28"
 
 # Audio Processing
 rodio = { version = "0.19", default-features = false, features = ["mp3", "wav", "vorbis", "flac"] }
-symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "wav", "ogg", "vorbis"] }
+symphonia = { version = "0.6", features = ["mp3", "aac", "flac", "wav", "ogg", "vorbis"] }
 
 # FFT & Visualization
 rustfft = "6.2"
