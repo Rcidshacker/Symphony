@@ -8,13 +8,21 @@
 //!
 //! # Usage
 //! ```rust,no_run
-//! let manager = StreamManager::new(config).await?;
+//! use symphony::streaming::{StreamManager, StreamManagerConfig};
+//!
+//! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+//! let manager = StreamManager::new(StreamManagerConfig::default()).await?;
 //!
 //! // Search all sources
-//! let results = manager.search_all("pink floyd").await?;
+//! let results = manager.search_all("pink floyd", 10).await?;
 //!
 //! // Play a track (with automatic caching)
-//! let path = manager.play_track(&track).await?;
+//! if let Some(track) = results.tracks.first() {
+//!     let played = manager.play_track(track).await?;
+//!     println!("{}", played.url);
+//! }
+//! # Ok(())
+//! # }
 //! ```
 
 use std::path::PathBuf;

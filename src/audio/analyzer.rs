@@ -321,10 +321,14 @@ impl SpectrumAnalyzer {
         // Calculate magnitude spectrum (only positive frequencies)
         let half_size = size / 2;
         let mut magnitudes = Vec::with_capacity(half_size);
+        // Linear magnitudes for peak picking: the dB-normalized values below are
+        // clamped to 1.0, so a loud tone saturates many bins and hides the true peak.
+        let mut raw_magnitudes = Vec::with_capacity(half_size);
 
         for i in 0..half_size {
             let complex = self.output_buffer[i];
             let magnitude = (complex.re.powi(2) + complex.im.powi(2)).sqrt();
+            raw_magnitudes.push(magnitude);
             // Convert to dB and normalize
             let db = 20.0 * magnitude.max(1e-10).log10();
             let normalized = (db + 100.0) / 100.0; // Normalize from -100dB to 0dB
@@ -348,7 +352,7 @@ impl SpectrumAnalyzer {
         let beat = self.beat_detector.detect(&bands, rms);
 
         // Find peak frequency
-        let peak_freq = self.find_peak_frequency(&magnitudes);
+        let peak_freq = self.find_peak_frequency(&raw_magnitudes);
 
         // Increment frame count
         self.frame_count.fetch_add(1, Ordering::Relaxed);
@@ -390,6 +394,7 @@ impl SpectrumAnalyzer {
         let max_idx = magnitudes
             .iter()
             .enumerate()
+            .skip(1) // ignore the DC bin
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
             .unwrap_or(0);

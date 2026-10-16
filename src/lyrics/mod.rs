@@ -11,10 +11,12 @@
 //!
 //! # Usage
 //! ```rust,no_run
-//! use symphony::lyrics::{LyricsDisplay, LrcParser, LyricsFetcher};
+//! use symphony::lyrics::{LrcParser, LyricsDisplay};
 //!
-//! // Parse LRC file
-//! let lyrics = LrcParser::parse(lrc_content)?;
+//! # fn run(frame: &mut ratatui::Frame, area: ratatui::layout::Rect)
+//! #     -> Result<(), Box<dyn std::error::Error>> {
+//! // Parse LRC content
+//! let lyrics = LrcParser::parse("[00:01.00]Hello world")?;
 //!
 //! // Create display
 //! let mut display = LyricsDisplay::new();
@@ -24,7 +26,9 @@
 //! display.update_position(45000); // 45 seconds
 //!
 //! // Render to terminal
-//! display.render(&mut frame, area);
+//! display.render(frame, area);
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod display;

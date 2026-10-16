@@ -12,11 +12,13 @@ impl StatusLine {
     ///
     /// # Example
     /// ```
+    /// use symphony::integrations::StatusLine;
+    ///
     /// let status = StatusLine::tmux_format(
     ///     Some(("Bohemian Rhapsody", "Queen", 180, 90)),
     ///     true,
     /// );
-    /// // Returns: "🎵 Bohemian Rhapsody - Queen [01:30/03:00]"
+    /// assert_eq!(status, "🎵 ▶ Bohemian Rhapsody - Queen [01:30/03:00]");
     /// ```
     pub fn tmux_format(
         track: Option<(&str, &str, u64, u64)>,
@@ -24,8 +26,8 @@ impl StatusLine {
     ) -> String {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
-            let pos_str = format_duration(position);
-            let dur_str = format_duration(duration);
+            let pos_str = format_clock(position);
+            let dur_str = format_clock(duration);
 
             format!(
                 "🎵 {} {} - {} [{}/{}]",
@@ -155,6 +157,11 @@ impl StatusLine {
 }
 
 /// Format duration as MM:SS
+/// Zero-padded `mm:ss`, used by the tmux format
+fn format_clock(secs: u64) -> String {
+    format!("{:02}:{:02}", secs / 60, secs % 60)
+}
+
 fn format_duration(secs: u64) -> String {
     let minutes = secs / 60;
     let seconds = secs % 60;

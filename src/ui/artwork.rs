@@ -322,6 +322,9 @@ pub struct ArtworkCache {
     /// Cached artwork by track ID
     cache: std::collections::HashMap<String, AsciiArt>,
 
+    /// Track IDs in insertion order (oldest first), for eviction
+    order: std::collections::VecDeque<String>,
+
     /// Maximum cache size
     max_size: usize,
 }
@@ -331,6 +334,7 @@ impl ArtworkCache {
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: std::collections::HashMap::new(),
+            order: std::collections::VecDeque::new(),
             max_size,
         }
     }
@@ -342,20 +346,26 @@ impl ArtworkCache {
 
     /// Add artwork to cache
     pub fn insert(&mut self, track_id: String, artwork: AsciiArt) {
-        // Remove oldest entries if cache is full
-        if self.cache.len() >= self.max_size {
-            // Simple strategy: remove first entry
-            if let Some(key) = self.cache.keys().next().cloned() {
-                self.cache.remove(&key);
-            }
+        if self.cache.contains_key(&track_id) {
+            // Replacing an entry never grows the cache
+            self.cache.insert(track_id, artwork);
+            return;
         }
 
+        // Evict the oldest entries until there is room
+        while self.cache.len() >= self.max_size {
+            let Some(oldest) = self.order.pop_front() else { break };
+            self.cache.remove(&oldest);
+        }
+
+        self.order.push_back(track_id.clone());
         self.cache.insert(track_id, artwork);
     }
 
     /// Clear cache
     pub fn clear(&mut self) {
         self.cache.clear();
+        self.order.clear();
     }
 }
 
