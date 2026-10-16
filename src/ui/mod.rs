@@ -9,13 +9,20 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph},
+    text::Text,
+    widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph},
     Frame,
 };
 
 use crate::app::{App, PlaybackState, RepeatMode, Track, View};
 use crate::config::theme::Theme;
 use crate::ui::visualizer::{render_mini_spectrum, render_visualizer, VisualizerState};
+
+/// Format seconds as `m:ss`
+fn fmt_time(secs: f64) -> String {
+    let secs = secs.max(0.0) as u64;
+    format!("{}:{:02}", secs / 60, secs % 60)
+}
 
 /// Main render function
 pub fn render(f: &mut Frame, app: &App) {
@@ -28,7 +35,7 @@ pub fn render(f: &mut Frame, app: &App) {
             Constraint::Length(3),  // Header
             Constraint::Length(12), // Visualizer + Now Playing
             Constraint::Min(10),    // Library/Queue
-            Constraint::Length(3),  // Status bar
+            Constraint::Length(4),  // Status bar + key hints
         ])
         .split(f.area());
 
@@ -140,19 +147,17 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             .unwrap_or_default();
 
         format!(
-            "{}\n\n{}\n{}\n\n[{}]{}\n{:.0}:{:05.2} / {:.0}:{:05.2}",
+            "{}  [{}]{}\n{}\n{} · {} / {}",
             status,
-            track.title,
-            track.artist,
             source,
             bpm_info,
-            app.playback_state.position.floor() / 60.0,
-            app.playback_state.position % 60.0,
-            app.playback_state.duration.floor() / 60.0,
-            app.playback_state.duration % 60.0,
+            track.title,
+            track.artist,
+            fmt_time(app.playback_state.position),
+            fmt_time(app.playback_state.duration),
         )
     } else {
-        "⏹ No track loaded\n\n\n\n\n".to_string()
+        "⏹ No track loaded\nPress Enter on a track to play".to_string()
     };
 
     let track_widget = Paragraph::new(track_info)
@@ -174,9 +179,9 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     };
 
     let progress_label = format!(
-        "{:.0}:{:02.0}",
-        app.playback_state.position.floor() / 60.0,
-        app.playback_state.position % 60.0
+        "{} / {}",
+        fmt_time(app.playback_state.position),
+        fmt_time(app.playback_state.duration)
     );
 
     let progress_bar = Gauge::default()
@@ -193,7 +198,7 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     f.render_widget(progress_bar, chunks[1]);
 
     // Volume bar
-    let volume_pct = (app.playback_state.volume * 100.0) as u16;
+    let volume_pct = (app.playback_state.volume * 100.0).round() as u16;
     let volume_label = if app.playback_state.is_muted {
         "MUTED".to_string()
     } else {
@@ -231,16 +236,13 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     // Build track list items
     let items: Vec<ListItem> = tracks
         .iter()
-        .enumerate()
-        .map(|(i, track)| {
+        .map(|track| {
             let is_current = app
                 .playback_state
                 .current_track
                 .as_ref()
                 .map(|t| t.id == track.id)
                 .unwrap_or(false);
-
-            let is_selected = i == app.library.selected_index;
 
             let prefix = if is_current {
                 if app.playback_state.is_playing {
@@ -252,9 +254,6 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 "  "
             };
 
-            let duration_mins = (track.duration / 60.0).floor() as i32;
-            let duration_secs = (track.duration % 60.0).round() as i32;
-
             let source = match track.source {
                 crate::app::TrackSource::Local => "",
                 crate::app::TrackSource::YouTube => " [YT]",
@@ -264,15 +263,15 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             };
 
             let text = format!(
-                "{}{} - {} ({:02}:{:02}){}",
-                prefix, track.artist, track.title, duration_mins, duration_secs, source
+                "{}{} - {} ({}){}",
+                prefix,
+                track.artist,
+                track.title,
+                fmt_time(track.duration),
+                source
             );
 
-            let style = if is_selected {
-                Style::default()
-                    .fg(theme.accent())
-                    .add_modifier(Modifier::BOLD)
-            } else if is_current {
+            let style = if is_current {
                 Style::default().fg(theme.success())
             } else {
                 Style::default().fg(theme.foreground())
@@ -295,25 +294,46 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme.border())),
         )
-        .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+        .highlight_symbol("› ")
+        .highlight_style(
+            Style::default()
+                .fg(theme.ui.selection_fg)
+                .bg(theme.ui.selection_bg)
+                .add_modifier(Modifier::BOLD),
+        );
 
-    f.render_widget(list, area);
+    // ListState keeps the selected row in view when the library is longer than the pane
+    let mut state = ListState::default();
+    if !tracks.is_empty() {
+        state.select(Some(app.library.selected_index.min(tracks.len() - 1)));
+    }
+    f.render_stateful_widget(list, area, &mut state);
 }
 
-/// Render status bar
+/// Key hints shown on the second status line
+const KEY_HINTS: &str = "space play/pause · n/p next/prev · +/- volume · m mute · s shuffle · r repeat · / search · ? help · q quit";
+
+/// Render status bar (state + message line, key hint line)
 fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
-    let mut status_parts = Vec::new();
+    let accent = Style::default().fg(theme.accent());
+    let dim = Style::default().fg(theme.text_dim());
+    let sep = || Span::styled(" │ ", dim);
+
+    let mut parts: Vec<Span> = Vec::new();
 
     // Playback mode indicators
     if app.playback_state.shuffle {
-        status_parts.push(Span::styled("🔀 SHUF", Style::default().fg(theme.accent())));
+        parts.push(Span::styled("🔀 SHUF", accent));
+        parts.push(sep());
     }
     match app.playback_state.repeat {
         RepeatMode::All => {
-            status_parts.push(Span::styled("🔁 ALL", Style::default().fg(theme.accent())));
+            parts.push(Span::styled("🔁 ALL", accent));
+            parts.push(sep());
         }
         RepeatMode::One => {
-            status_parts.push(Span::styled("🔂 ONE", Style::default().fg(theme.accent())));
+            parts.push(Span::styled("🔂 ONE", accent));
+            parts.push(sep());
         }
         RepeatMode::Off => {}
     }
@@ -325,36 +345,33 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         visualizer::VisualizationMode::Circular => "⭕ Circle",
         visualizer::VisualizationMode::Off => "❌ Off",
     };
-    status_parts.push(Span::styled(
-        format!("| {}", viz_mode),
-        Style::default().fg(theme.text_dim()),
-    ));
+    parts.push(Span::styled(viz_mode, dim));
+    parts.push(sep());
 
     // Track count
-    status_parts.push(Span::styled(
-        format!("| 📁 {} tracks", app.library.tracks.len()),
-        Style::default().fg(theme.text_dim()),
+    parts.push(Span::styled(
+        format!("📁 {} tracks", app.library.tracks.len()),
+        dim,
     ));
 
-    // Message or key hints
-    let message = if let Some(ref msg) = app.ui_state.status_message {
-        Span::styled(format!("| {}", msg), Style::default().fg(theme.success()))
-    } else if let Some(ref err) = app.ui_state.error_message {
-        Span::styled(format!("| {}", err), Style::default().fg(theme.error()))
-    } else {
-        Span::styled(
-            "| Press ? for help | t: themes | v: visualizer",
-            Style::default().fg(theme.text_dim()),
-        )
-    };
-    status_parts.push(message);
+    // Latest message or error
+    if let Some(ref err) = app.ui_state.error_message {
+        parts.push(sep());
+        parts.push(Span::styled(err.clone(), Style::default().fg(theme.error())));
+    } else if let Some(ref msg) = app.ui_state.status_message {
+        parts.push(sep());
+        parts.push(Span::styled(msg.clone(), Style::default().fg(theme.success())));
+    }
 
-    let status_line = Line::from(status_parts);
+    let text = Text::from(vec![
+        Line::from(parts),
+        Line::from(Span::styled(KEY_HINTS, dim)),
+    ]);
 
-    let status_bar = Paragraph::new(status_line).block(
+    let status_bar = Paragraph::new(text).block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.text_dim())),
+            .border_style(dim),
     );
 
     f.render_widget(status_bar, area);

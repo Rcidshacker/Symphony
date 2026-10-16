@@ -1,0 +1,121 @@
+//! Headless checks of the player: renders the TUI into an in-memory terminal
+//! and exercises the queue/shuffle/progress logic. Skipped when there is no audio device.
+
+use std::path::PathBuf;
+use std::time::Duration;
+
+use ratatui::{backend::TestBackend, Terminal};
+use symphony::app::{App, Track, TrackSource};
+use symphony::audio::AudioEngine;
+use symphony::config::Config;
+
+fn track(n: usize, duration: f64) -> Track {
+    Track {
+        id: format!("id{n}"),
+        title: format!("Song {n}"),
+        artist: format!("Artist {n}"),
+        album: "Album".into(),
+        duration,
+        path: PathBuf::from(format!("song{n}.mp3")),
+        track_number: None,
+        genre: None,
+        year: None,
+        source: TrackSource::Local,
+    }
+}
+
+/// Build an app with `count` tracks, or `None` when no audio device exists (CI).
+fn app_with_tracks(count: usize) -> Option<App> {
+    let engine = AudioEngine::new().ok()?;
+    let mut app = App::new(Config::default(), engine);
+    app.library.tracks = (0..count).map(|n| track(n, 638.0)).collect();
+    Some(app)
+}
+
+fn render_to_string(app: &App, width: u16, height: u16) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal.draw(|f| symphony::ui::render(f, app)).unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn ui_shows_cursor_time_and_key_hints() {
+    let Some(mut app) = app_with_tracks(3) else { return };
+    app.library.selected_index = 1;
+    app.playback_state.current_track = Some(app.library.tracks[0].clone());
+    app.playback_state.is_playing = true;
+    app.playback_state.position = 65.0;
+    app.playback_state.duration = 638.0;
+
+    let screen = render_to_string(&app, 120, 32);
+    println!("{screen}");
+
+    assert!(screen.contains("1:05 / 10:38"), "elapsed / total time missing");
+    assert!(screen.contains("›   Artist 1 - Song 1"), "selection cursor missing");
+    assert!(screen.contains("▶ Artist 0 - Song 0"), "now-playing marker missing");
+    assert!(screen.contains("space play/pause"), "key hints missing");
+    assert!(screen.contains("+/- volume"), "volume hint missing");
+    assert!(screen.contains("VOL: 60%"), "volume label missing");
+}
+
+#[test]
+fn shuffle_keeps_tracks_and_restores_order() {
+    let Some(mut app) = app_with_tracks(8) else { return };
+    app.library.queue = app.library.tracks.clone();
+    app.library.queue_index = 3;
+    let current_id = app.library.queue[3].id.clone();
+
+    app.toggle_shuffle();
+    assert!(app.playback_state.shuffle);
+    assert_eq!(app.library.queue.len(), 8);
+    assert_eq!(app.library.queue[app.library.queue_index].id, current_id);
+
+    app.toggle_shuffle();
+    assert!(!app.playback_state.shuffle);
+    let ids: Vec<_> = app.library.queue.iter().map(|t| t.id.as_str()).collect();
+    let expected: Vec<_> = (0..8).map(|n| format!("id{n}")).collect();
+    assert_eq!(ids, expected.iter().map(String::as_str).collect::<Vec<_>>());
+    assert_eq!(app.library.queue[app.library.queue_index].id, current_id);
+}
+
+#[test]
+fn volume_steps_are_whole_percents_and_clamped() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+    app.playback_state.volume = 0.6;
+    app.volume_up();
+    assert_eq!(app.playback_state.volume, 0.65);
+    for _ in 0..20 {
+        app.volume_up();
+    }
+    assert_eq!(app.playback_state.volume, 1.0);
+    for _ in 0..30 {
+        app.volume_down();
+    }
+    assert_eq!(app.playback_state.volume, 0.0);
+}
+
+#[test]
+fn position_advances_while_playing_and_freezes_when_paused() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+    app.playback_state.current_track = Some(app.library.tracks[0].clone());
+    app.playback_state.duration = 638.0;
+    app.playback_state.is_playing = true;
+
+    std::thread::sleep(Duration::from_millis(60));
+    app.update();
+    assert!(app.playback_state.position >= 0.05, "position did not advance");
+
+    app.playback_state.is_playing = false;
+    let frozen = app.playback_state.position;
+    std::thread::sleep(Duration::from_millis(60));
+    app.update();
+    assert_eq!(app.playback_state.position, frozen);
+}

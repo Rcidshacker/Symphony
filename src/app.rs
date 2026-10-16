@@ -47,6 +47,9 @@ pub struct App {
 
     /// Application start time
     pub start_time: Instant,
+
+    /// Time of the previous `update()` call (drives the playback position)
+    last_tick: Instant,
 }
 
 /// Playback state
@@ -259,6 +262,7 @@ impl App {
             artwork_cache: ArtworkCache::default(),
             current_track_artwork: None,
             start_time: Instant::now(),
+            last_tick: Instant::now(),
         }
     }
 
@@ -360,16 +364,20 @@ impl App {
 
     /// Increase volume
     pub fn volume_up(&mut self) {
-        let new_volume = (self.playback_state.volume + 0.05).min(1.0);
-        self.playback_state.volume = new_volume;
-        self.audio_engine.set_volume(new_volume);
+        self.set_volume(self.playback_state.volume + 0.05);
     }
 
     /// Decrease volume
     pub fn volume_down(&mut self) {
-        let new_volume = (self.playback_state.volume - 0.05).max(0.0);
-        self.playback_state.volume = new_volume;
-        self.audio_engine.set_volume(new_volume);
+        self.set_volume(self.playback_state.volume - 0.05);
+    }
+
+    /// Set the volume (clamped to 0..=1, rounded to whole percents)
+    fn set_volume(&mut self, volume: f32) {
+        let volume = ((volume.clamp(0.0, 1.0)) * 100.0).round() / 100.0;
+        self.playback_state.volume = volume;
+        self.audio_engine.set_volume(volume);
+        self.ui_state.status_message = Some(format!("Volume: {}%", (volume * 100.0).round() as u32));
     }
 
     /// Toggle mute
@@ -383,6 +391,8 @@ impl App {
         self.playback_state.shuffle = !self.playback_state.shuffle;
         if self.playback_state.shuffle {
             self.shuffle_queue();
+        } else {
+            self.restore_queue_order();
         }
         self.ui_state.status_message = Some(if self.playback_state.shuffle {
             "Shuffle: ON".to_string()
@@ -432,6 +442,26 @@ impl App {
         }
     }
 
+    /// Put the queue back into library order, keeping the current track current
+    fn restore_queue_order(&mut self) {
+        let current_id = self
+            .library
+            .queue
+            .get(self.library.queue_index)
+            .map(|t| t.id.clone());
+
+        let tracks = &self.library.tracks;
+        self.library
+            .queue
+            .sort_by_key(|q| tracks.iter().position(|t| t.id == q.id).unwrap_or(usize::MAX));
+
+        if let Some(id) = current_id {
+            if let Some(pos) = self.library.queue.iter().position(|t| t.id == id) {
+                self.library.queue_index = pos;
+            }
+        }
+    }
+
     /// Seek to position
     fn seek_to(&mut self, _position: f64) {
         // TODO: Implement seeking in audio engine
@@ -465,11 +495,15 @@ impl App {
             &self.library.tracks
         };
 
-        if let Some(track) = tracks.get(self.library.selected_index) {
+        if tracks.get(self.library.selected_index).is_some() {
             // Set queue to all visible tracks
             self.library.queue = tracks.clone();
             self.library.queue_index = self.library.selected_index;
-            self.play_track_at_index(self.library.selected_index);
+            if self.playback_state.shuffle {
+                // Keeps the selected track first, shuffles the rest
+                self.shuffle_queue();
+            }
+            self.play_track_at_index(self.library.queue_index);
         }
     }
 
@@ -563,12 +597,26 @@ impl App {
 
     /// Update application state (called each frame)
     pub fn update(&mut self) {
-        // Update playback position
-        // This would normally query the audio engine for actual position
-        // For now, we'll estimate based on time elapsed
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_tick).as_secs_f64();
+        self.last_tick = now;
 
-        // Clear status message after some time
-        // In production, we'd track message timestamp
+        if self.playback_state.current_track.is_none() || !self.playback_state.is_playing {
+            return;
+        }
+
+        // Rodio does not report the position, so advance it by wall-clock time while playing.
+        let state = &mut self.playback_state;
+        state.position += elapsed;
+        if state.duration > 0.0 {
+            state.position = state.position.min(state.duration);
+        }
+
+        // The sink drains when the track ends: move on to the next one.
+        if self.audio_engine.is_empty() {
+            self.audio_engine.mark_completed();
+            self.next_track();
+        }
     }
 
     /// Load music library from database
