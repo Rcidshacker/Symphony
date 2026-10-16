@@ -268,6 +268,90 @@ pub struct AIContext {
     pub focus_mode: bool,
 }
 
+/// System prompt that makes a model answer with one JSON intent
+pub const INTENT_SYSTEM_PROMPT: &str = r#"You are the assistant of Symphony, a terminal music player.
+Turn the user's request into ONE JSON object and reply with nothing else.
+
+"intent" is one of:
+- "play": play music. Optional fields: "genre", "mood" (happy, sad, energetic, calm, focus, chill, party, romantic, angry, epic), "artist", "tempo" (slow, medium, fast), "era" (60s ... 2020s), "duration_mins"
+- "search": find tracks by meaning. Field: "query"
+- "suggest": recommend tracks. Optional: "based_on" (artist or track to be similar to), "count"
+- "create_playlist": build and play a playlist. Fields: "theme" (e.g. "focus session", "workout"), "duration_mins"
+- "skip": skip the current track
+- "info": about the current track. Optional: "about" (artist, album, lyrics, ...)
+- "set_state": change playback. Optional: "volume" (0-100), "shuffle" (true/false), "repeat" ("off", "all" or "one")
+- "unknown": a question or anything else. Field: "query" (the user's words)
+
+Examples:
+{"intent":"play","mood":"energetic","tempo":"fast"}
+{"intent":"suggest","based_on":"Radiohead","count":10}
+{"intent":"create_playlist","theme":"focus session","duration_mins":120}
+{"intent":"set_state","volume":30}
+{"intent":"unknown","query":"what should I listen to while debugging?"}"#;
+
+/// Parse a model's reply into an intent. Tolerates code fences and prose around the JSON.
+pub fn parse_intent_json(reply: &str) -> Result<MusicIntent, AIError> {
+    #[derive(Deserialize)]
+    struct IntentJson {
+        intent: String,
+        genre: Option<String>,
+        mood: Option<String>,
+        artist: Option<String>,
+        tempo: Option<String>,
+        era: Option<String>,
+        duration_mins: Option<u32>,
+        query: Option<String>,
+        theme: Option<String>,
+        count: Option<usize>,
+        based_on: Option<String>,
+        about: Option<String>,
+        reason: Option<String>,
+        volume: Option<u8>,
+        shuffle: Option<bool>,
+        repeat: Option<String>,
+    }
+
+    // the JSON object, whatever surrounds it
+    let json = match (reply.find('{'), reply.rfind('}')) {
+        (Some(start), Some(end)) if start < end => &reply[start..=end],
+        _ => reply.trim(),
+    };
+    let parsed: IntentJson = serde_json::from_str(json)
+        .map_err(|e| AIError::ParseError(format!("Failed to parse JSON: {e}. Input: {json}")))?;
+
+    Ok(match parsed.intent.to_lowercase().as_str() {
+        "play" => MusicIntent::Play {
+            genre: parsed.genre,
+            mood: parsed.mood,
+            artist: parsed.artist,
+            tempo: parsed.tempo,
+            era: parsed.era,
+            duration_mins: parsed.duration_mins,
+        },
+        "search" => MusicIntent::Search {
+            query: parsed.query.unwrap_or_else(|| json.to_string()),
+        },
+        "suggest" => MusicIntent::Suggest {
+            based_on: parsed.based_on.or(parsed.artist),
+            count: parsed.count.unwrap_or(10),
+        },
+        "create_playlist" => MusicIntent::CreatePlaylist {
+            theme: parsed.theme.unwrap_or_else(|| "New Playlist".to_string()),
+            duration_mins: parsed.duration_mins.unwrap_or(60),
+        },
+        "skip" => MusicIntent::Skip { reason: parsed.reason },
+        "info" => MusicIntent::Info { about: parsed.about },
+        "set_state" => MusicIntent::SetState {
+            volume: parsed.volume,
+            shuffle: parsed.shuffle,
+            repeat: parsed.repeat,
+        },
+        _ => MusicIntent::Unknown {
+            query: parsed.query.unwrap_or_else(|| json.to_string()),
+        },
+    })
+}
+
 impl AIContext {
     /// Build context string for AI prompt
     pub fn to_context_string(&self) -> String {
@@ -296,6 +380,40 @@ impl AIContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_intent_reads_every_field_the_prompt_documents() {
+        match parse_intent_json(r#"{"intent":"suggest","based_on":"Radiohead","count":5}"#).unwrap() {
+            MusicIntent::Suggest { based_on, count } => {
+                assert_eq!((based_on.as_deref(), count), (Some("Radiohead"), 5));
+            }
+            other => panic!("{other:?}"),
+        }
+        match parse_intent_json(r#"{"intent":"set_state","volume":30,"shuffle":true,"repeat":"all"}"#).unwrap() {
+            MusicIntent::SetState { volume, shuffle, repeat } => {
+                assert_eq!((volume, shuffle, repeat.as_deref()), (Some(30), Some(true), Some("all")));
+            }
+            other => panic!("{other:?}"),
+        }
+        match parse_intent_json(r#"{"intent":"info","about":"lyrics"}"#).unwrap() {
+            MusicIntent::Info { about } => assert_eq!(about.as_deref(), Some("lyrics")),
+            other => panic!("{other:?}"),
+        }
+        match parse_intent_json(r#"{"intent":"unknown","query":"what is jazz"}"#).unwrap() {
+            MusicIntent::Unknown { query } => assert_eq!(query, "what is jazz"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_intent_tolerates_fences_and_chatter() {
+        let reply = "Sure! Here you go:\n```json\n{\"intent\": \"play\", \"artist\": \"Queen\"}\n```\nEnjoy.";
+        match parse_intent_json(reply).unwrap() {
+            MusicIntent::Play { artist, .. } => assert_eq!(artist.as_deref(), Some("Queen")),
+            other => panic!("{other:?}"),
+        }
+        assert!(parse_intent_json("no json here").is_err());
+    }
 
     #[test]
     fn test_music_intent_description() {

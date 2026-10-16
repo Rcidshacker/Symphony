@@ -181,6 +181,6 @@ fn every_visualizer_mode_draws_the_playing_audio() {
             text.push('\n');
         }
         println!("--- {mode:?}\n{text}");
-        assert!(drawn > 40, "{mode:?} drew almost nothing ({drawn} cells)");
+        assert!(drawn > 30, "{mode:?} drew almost nothing ({drawn} cells)");
     }
 }

@@ -15,7 +15,6 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
-use symphony::ai::AIManager;
 use symphony::app::App;
 use symphony::audio::AudioEngine;
 use symphony::cli::{self, Command};
@@ -59,8 +58,8 @@ fn main() -> anyhow::Result<()> {
         Command::Scan(dir) => cmd_scan(&dir),
         Command::Add(spec) => cmd_add(&spec),
         Command::Stream(query) => cmd_stream(&query),
-        Command::Ask(prompt) => cmd_ask(&prompt),
-        Command::Tui => run_tui(Config::load()?),
+        Command::Ask(prompt) => run_tui(Config::load()?, Some(&prompt)),
+        Command::Tui => run_tui(Config::load()?, None),
     }
 }
 
@@ -140,28 +139,9 @@ fn cmd_stream(query: &str) -> anyhow::Result<()> {
     })
 }
 
-/// `symphony "<prompt>"`: parse a natural-language command with the AI provider.
-fn cmd_ask(prompt: &str) -> anyhow::Result<()> {
-    let config = Config::load()?;
-    if !config.ai.enabled {
-        bail!(
-            "AI is disabled; set `enabled = true` under [ai] in {}",
-            Config::default_config_path().display()
-        );
-    }
-    let provider = config.ai.get_provider_config()?;
-
-    let runtime = tokio::runtime::Runtime::new()?;
-    runtime.block_on(async {
-        let manager = AIManager::new(provider).await?;
-        let intent = manager.parse_command(prompt).await?;
-        println!("{intent:#?}");
-        Ok(())
-    })
-}
-
-/// Start the interactive player.
-fn run_tui(config: Config) -> anyhow::Result<()> {
+/// Start the interactive player, optionally running an AI prompt right away
+/// (`symphony "play something calm"`).
+fn run_tui(config: Config, prompt: Option<&str>) -> anyhow::Result<()> {
     // Fallible setup happens before raw mode so errors print normally.
     let database = open_database(&config)?;
     let audio_engine = AudioEngine::new()?;
@@ -169,6 +149,9 @@ fn run_tui(config: Config) -> anyhow::Result<()> {
     let mut app = App::new(config, audio_engine);
     app.database = Some(database);
     app.load_library()?;
+    if let Some(prompt) = prompt {
+        app.submit_prompt(prompt);
+    }
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

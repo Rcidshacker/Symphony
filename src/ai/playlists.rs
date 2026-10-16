@@ -8,8 +8,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app::Track;
+use super::mood;
 use crate::ai::provider::MusicIntent;
+use crate::app::Track;
+use crate::audio::features::AudioFeatures;
 
 /// Playlist generation error
 #[derive(Debug, thiserror::Error)]
@@ -110,7 +112,19 @@ pub enum TempoPreference {
 }
 
 impl TempoPreference {
-    fn from_str(s: &str) -> Option<Self> {
+    /// 1.0 inside the preferred range (slow < 95, medium 95..=125, fast > 125 BPM),
+    /// falling off with distance from it
+    pub fn fit(self, bpm: f32) -> f32 {
+        let (low, high) = match self {
+            Self::Slow => (0.0, 95.0),
+            Self::Medium => (95.0, 125.0),
+            Self::Fast => (125.0, f32::MAX),
+        };
+        let distance = if bpm < low { low - bpm } else if bpm > high { bpm - high } else { 0.0 };
+        (1.0 - distance / 40.0).max(0.0)
+    }
+
+    pub(crate) fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "slow" | "calm" | "chill" => Some(Self::Slow),
             "fast" | "energetic" | "upbeat" => Some(Self::Fast),
@@ -118,6 +132,14 @@ impl TempoPreference {
             _ => None,
         }
     }
+}
+
+/// Whether the track's genre tag contains `genre` (case-insensitive)
+fn genre_matches(track: &Track, genre: &str) -> bool {
+    track
+        .genre
+        .as_ref()
+        .is_some_and(|g| g.to_lowercase().contains(&genre.to_lowercase()))
 }
 
 /// Mood to genre mapping
@@ -158,6 +180,8 @@ pub struct SmartPlaylistGenerator {
     genre_weight: f32,
     mood_weight: f32,
     recency_weight: f32,
+    /// Measured features by file path (energy, tempo), when the library has been analyzed
+    features: HashMap<String, AudioFeatures>,
 }
 
 impl Default for SmartPlaylistGenerator {
@@ -166,6 +190,7 @@ impl Default for SmartPlaylistGenerator {
             genre_weight: 0.4,
             mood_weight: 0.3,
             recency_weight: 0.1,
+            features: HashMap::new(),
         }
     }
 }
@@ -176,47 +201,93 @@ impl SmartPlaylistGenerator {
         Self::default()
     }
 
+    /// Use measured audio features (by file path) to match moods and tempos
+    pub fn with_features(mut self, features: HashMap<String, AudioFeatures>) -> Self {
+        self.features = features;
+        self
+    }
+
+    fn features_of(&self, track: &Track) -> Option<&AudioFeatures> {
+        self.features.get(track.path.to_string_lossy().as_ref())
+    }
+
     /// Generate a playlist from tracks
+    ///
+    /// A genre filter only applies when some track carries a matching genre tag; libraries
+    /// without tags would otherwise never match. Moods and tempos are matched against genre
+    /// tags and, where known, measured audio features. `SmartPlaylist::notes` lists the
+    /// criteria that could not be applied.
     pub fn generate(
         &self,
         tracks: &[Track],
         criteria: &PlaylistCriteria,
     ) -> Result<SmartPlaylist, PlaylistError> {
-        // Filter tracks based on criteria
-        let mut candidates: Vec<(&Track, f32)> = tracks
+        let mut notes = Vec::new();
+
+        let genre_usable = criteria.genre.as_ref().is_some_and(|genre| {
+            tracks.iter().any(|t| genre_matches(t, genre))
+        });
+        if criteria.genre.is_some() && !genre_usable {
+            notes.push(format!(
+                "no track is tagged '{}', so the genre was ignored",
+                criteria.genre.as_deref().unwrap_or_default()
+            ));
+        }
+
+        let mood_profile = criteria.mood.as_deref().and_then(mood::mood_profile);
+        let mood_known = criteria.mood.is_none() || mood_profile.is_some();
+        let analyzed = tracks.iter().filter(|t| self.features_of(t).is_some()).count();
+        if criteria.mood.is_some() && analyzed == 0 && !self.features.is_empty() {
+            notes.push("the library has not been analyzed yet, mood matching used tags only".to_string());
+        }
+        if criteria.mood.is_some() && !mood_known {
+            notes.push(format!(
+                "'{}' is not a mood I can measure, tags only",
+                criteria.mood.as_deref().unwrap_or_default()
+            ));
+        }
+
+        let candidates: Vec<&Track> = tracks
             .iter()
-            .filter(|t| self.matches_criteria(t, criteria))
-            .map(|t| (t, self.score_track(t, criteria)))
+            .filter(|t| self.matches_criteria(t, criteria, genre_usable))
+            .collect();
+        let ranks = mood::Ranks::new(candidates.iter().filter_map(|t| self.features_of(t)));
+
+        let mut candidates: Vec<(&Track, f32)> = candidates
+            .into_iter()
+            .map(|t| (t, self.score_track(t, criteria, mood_profile, &ranks)))
             .collect();
 
         if candidates.is_empty() {
             return Err(PlaylistError::NotEnoughTracks(0, criteria.target_tracks.unwrap_or(1)));
         }
 
-        // Sort by score
+        // Best matches first (stable: equal scores keep library order)
         candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Select tracks
         let mut selected_tracks: Vec<Track> = Vec::new();
         let mut total_duration = 0.0;
         let max_duration = criteria.max_duration_mins.map(|m| m as f64 * 60.0);
-        let target_count = criteria.target_tracks.unwrap_or(20);
+        let target_count = criteria.target_tracks.unwrap_or(usize::MAX);
 
         for (track, _score) in candidates {
-            // Check duration limit
+            // Skip what would overflow the time budget, but keep looking for shorter tracks
             if let Some(max) = max_duration {
                 if total_duration + track.duration > max {
-                    break;
+                    continue;
                 }
             }
-
-            // Check track count
             if selected_tracks.len() >= target_count {
                 break;
             }
 
             total_duration += track.duration;
             selected_tracks.push(track.clone());
+        }
+
+        if selected_tracks.is_empty() {
+            return Err(PlaylistError::NotEnoughTracks(0, criteria.target_tracks.unwrap_or(1)));
         }
 
         // Create playlist
@@ -234,14 +305,15 @@ impl SmartPlaylistGenerator {
             total_duration,
             criteria: criteria.clone(),
             created_at: chrono::Utc::now(),
+            notes,
         })
     }
 
     /// Check if a track matches the criteria
-    fn matches_criteria(&self, track: &Track, criteria: &PlaylistCriteria) -> bool {
-        // Genre filter
+    fn matches_criteria(&self, track: &Track, criteria: &PlaylistCriteria, genre_usable: bool) -> bool {
+        // Genre filter (only when the library has tags to filter on)
         if let Some(ref genre) = criteria.genre {
-            if !track.genre.as_ref().map(|g| g.to_lowercase().contains(&genre.to_lowercase())).unwrap_or(false) {
+            if genre_usable && !genre_matches(track, genre) {
                 return false;
             }
         }
@@ -281,23 +353,40 @@ impl SmartPlaylistGenerator {
     }
 
     /// Score a track based on how well it matches criteria
-    fn score_track(&self, track: &Track, criteria: &PlaylistCriteria) -> f32 {
+    fn score_track(
+        &self,
+        track: &Track,
+        criteria: &PlaylistCriteria,
+        mood_profile: Option<mood::MoodProfile>,
+        ranks: &mood::Ranks,
+    ) -> f32 {
         let mut score = 0.0;
+        let features = self.features_of(track);
 
         // Genre match bonus
         if let Some(ref genre) = criteria.genre {
-            if track.genre.as_ref().map(|g| g.to_lowercase().contains(&genre.to_lowercase())).unwrap_or(false) {
+            if genre_matches(track, genre) {
                 score += self.genre_weight;
             }
         }
 
-        // Mood-based genre bonus
-        if let Some(ref mood) = criteria.mood {
-            let mood_genres = mood_to_genres(mood);
+        // Mood: genre tags and measured sound
+        if let Some(ref mood_word) = criteria.mood {
+            let mood_genres = mood_to_genres(mood_word);
             if let Some(ref track_genre) = track.genre {
                 if mood_genres.iter().any(|g| track_genre.to_lowercase().contains(&g.to_lowercase())) {
                     score += self.mood_weight;
                 }
+            }
+            if let (Some(profile), Some(features)) = (mood_profile, features) {
+                score += self.mood_weight * 2.0 * ranks.mood_fit(profile, features);
+            }
+        }
+
+        // Tempo preference from the measured tempo
+        if let (Some(tempo), Some(features)) = (criteria.tempo, features) {
+            if mood::has_tempo(features) {
+                score += self.mood_weight * tempo.fit(features.bpm);
             }
         }
 
@@ -359,6 +448,9 @@ pub struct SmartPlaylist {
     pub criteria: PlaylistCriteria,
     /// When created
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Criteria that could not be applied (for example, a genre nothing is tagged with)
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 impl SmartPlaylist {
@@ -429,6 +521,80 @@ mod tests {
         let playlist = generator.generate(&tracks, &criteria).unwrap();
 
         assert_eq!(playlist.track_count(), 2);
+    }
+
+    fn analyzed_library() -> (Vec<Track>, HashMap<String, AudioFeatures>) {
+        // untagged tracks with different sound: (quiet+slow, medium, loud+fast)
+        let specs = [("calm one", 0.15, 70.0), ("middle", 0.5, 105.0), ("banger", 0.9, 150.0)];
+        let mut tracks = Vec::new();
+        let mut features = HashMap::new();
+        for (i, (title, energy, bpm)) in specs.iter().enumerate() {
+            let mut track = create_test_track(&i.to_string(), title, "Someone", "");
+            track.genre = None;
+            track.path = PathBuf::from(format!("/music/{i}.mp3"));
+            features.insert(
+                track.path.to_string_lossy().to_string(),
+                AudioFeatures { energy: *energy, bpm: *bpm, beat_strength: 0.4 },
+            );
+            tracks.push(track);
+        }
+        (tracks, features)
+    }
+
+    #[test]
+    fn test_mood_uses_measured_audio_when_there_are_no_tags() {
+        let (tracks, features) = analyzed_library();
+        let generator = SmartPlaylistGenerator::new().with_features(features);
+        let ids = |mood: &str| -> Vec<String> {
+            let criteria = PlaylistCriteria { mood: Some(mood.into()), ..Default::default() };
+            generator.generate(&tracks, &criteria).unwrap().tracks.into_iter().map(|t| t.title).collect()
+        };
+
+        assert_eq!(ids("energetic")[0], "banger");
+        assert_eq!(ids("calm")[0], "calm one");
+        assert_eq!(ids("focus")[0], "calm one");
+    }
+
+    #[test]
+    fn test_tempo_preference_uses_the_measured_tempo() {
+        let (tracks, features) = analyzed_library();
+        let generator = SmartPlaylistGenerator::new().with_features(features);
+        let first = |tempo| {
+            let criteria = PlaylistCriteria { tempo: Some(tempo), ..Default::default() };
+            generator.generate(&tracks, &criteria).unwrap().tracks[0].title.clone()
+        };
+        assert_eq!(first(TempoPreference::Fast), "banger");
+        assert_eq!(first(TempoPreference::Slow), "calm one");
+        assert_eq!(first(TempoPreference::Medium), "middle");
+    }
+
+    #[test]
+    fn test_a_genre_nothing_is_tagged_with_is_ignored_and_reported() {
+        let (tracks, features) = analyzed_library();
+        let criteria = PlaylistCriteria {
+            genre: Some("ambient".into()),
+            mood: Some("focus".into()),
+            ..Default::default()
+        };
+        let playlist = SmartPlaylistGenerator::new().with_features(features).generate(&tracks, &criteria).unwrap();
+        assert_eq!(playlist.tracks.len(), 3, "untagged library: the genre must not empty the playlist");
+        assert!(playlist.notes.iter().any(|n| n.contains("ambient")));
+        assert_eq!(playlist.tracks[0].title, "calm one");
+    }
+
+    #[test]
+    fn test_duration_budget_skips_what_does_not_fit_but_keeps_filling() {
+        let mut tracks = vec![
+            create_test_track("1", "Long", "A", "rock"),
+            create_test_track("2", "Short", "A", "rock"),
+        ];
+        tracks[0].duration = 600.0;
+        tracks[1].duration = 120.0;
+        let criteria = PlaylistCriteria { max_duration_mins: Some(5), target_tracks: None, ..Default::default() };
+        let playlist = SmartPlaylistGenerator::new().generate(&tracks, &criteria).unwrap();
+        assert_eq!(playlist.tracks.len(), 1);
+        assert_eq!(playlist.tracks[0].title, "Short");
+        assert!(playlist.total_duration <= 300.0);
     }
 
     #[test]

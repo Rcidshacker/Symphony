@@ -5,7 +5,7 @@
 //! `symphony scan <dir>`           add a music directory to the library
 //! `symphony stream <query>`       search YouTube/Spotify
 //! `symphony add <path|source:id>` add local music (or a stream source)
-//! `symphony "<prompt>"`           natural-language command via the AI provider
+//! `symphony "<prompt>"`           start the player and run a natural-language command
 
 use std::path::PathBuf;
 
@@ -23,7 +23,7 @@ COMMANDS:
     scan <DIR>             Scan a directory and add its music to the library
     stream <QUERY>         Search YouTube/Spotify for tracks
     add <PATH>             Add a local file or directory to the library
-    \"<PROMPT>\"             Ask the AI, e.g. symphony \"play something energetic\"
+    \"<PROMPT>\"             Start the player and ask the AI, e.g. symphony \"play something energetic\"
 
 With no command the interactive player starts.
 
@@ -45,7 +45,7 @@ pub enum Command {
     Stream(String),
     /// Add a local path or `source:id` spec
     Add(String),
-    /// Natural-language prompt for the AI provider
+    /// Natural-language prompt: start the player and let the AI act on it
     Ask(String),
     /// Print help
     Help,

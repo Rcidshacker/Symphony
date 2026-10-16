@@ -136,36 +136,7 @@ impl OpenRouterProvider {
 
     /// Build the system prompt for intent parsing
     fn build_intent_system_prompt(&self) -> String {
-        r#"You are a music assistant for a terminal music player called Symphony.
-Parse the user's request into a structured JSON format.
-
-Possible intents:
-- play: Start playing music
-- search: Search for music
-- suggest: Get recommendations
-- create_playlist: Create a new playlist
-- skip: Skip current track
-- info: Get information about current track
-- set_state: Change playback settings
-
-For "play" intent, extract these if mentioned:
-- genre: rock, jazz, electronic, classical, hip-hop, pop, metal, etc.
-- mood: happy, sad, energetic, calm, focus, chill, party, romantic, angry
-- artist: specific artist name
-- tempo: slow, medium, fast
-- era: 60s, 70s, 80s, 90s, 2000s, 2010s, 2020s, recent
-- duration_mins: duration in minutes if specified
-
-Respond ONLY with valid JSON, no explanation:
-{
-  "intent": "play",
-  "genre": "rock",
-  "mood": "energetic",
-  "artist": null,
-  "tempo": null,
-  "era": null,
-  "duration_mins": null
-}"#.to_string()
+        super::provider::INTENT_SYSTEM_PROMPT.to_string()
     }
 
     /// Build headers for OpenRouter requests
@@ -194,65 +165,7 @@ Respond ONLY with valid JSON, no explanation:
 
     /// Parse JSON response into MusicIntent
     fn parse_intent_json(&self, json_str: &str) -> Result<MusicIntent, AIError> {
-        // Extract JSON from response (might have markdown code blocks)
-        let json_str = json_str
-            .trim()
-            .trim_start_matches("```json")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim();
-
-        #[derive(Deserialize)]
-        struct IntentJson {
-            intent: String,
-            genre: Option<String>,
-            mood: Option<String>,
-            artist: Option<String>,
-            tempo: Option<String>,
-            era: Option<String>,
-            duration_mins: Option<u32>,
-            #[serde(default)]
-            query: Option<String>,
-            #[serde(default)]
-            theme: Option<String>,
-            #[serde(default)]
-            count: Option<usize>,
-        }
-
-        let parsed: IntentJson = serde_json::from_str(json_str)
-            .map_err(|e| AIError::ParseError(format!("Failed to parse JSON: {}. Input: {}", e, json_str)))?;
-
-        match parsed.intent.to_lowercase().as_str() {
-            "play" => Ok(MusicIntent::Play {
-                genre: parsed.genre,
-                mood: parsed.mood,
-                artist: parsed.artist,
-                tempo: parsed.tempo,
-                era: parsed.era,
-                duration_mins: parsed.duration_mins,
-            }),
-            "search" => Ok(MusicIntent::Search {
-                query: parsed.query.unwrap_or_else(|| json_str.to_string()),
-            }),
-            "suggest" => Ok(MusicIntent::Suggest {
-                based_on: None,
-                count: parsed.count.unwrap_or(10),
-            }),
-            "create_playlist" => Ok(MusicIntent::CreatePlaylist {
-                theme: parsed.theme.unwrap_or_else(|| "New Playlist".to_string()),
-                duration_mins: parsed.duration_mins.unwrap_or(60),
-            }),
-            "skip" => Ok(MusicIntent::Skip { reason: None }),
-            "info" => Ok(MusicIntent::Info { about: None }),
-            "set_state" => Ok(MusicIntent::SetState {
-                volume: None,
-                shuffle: None,
-                repeat: None,
-            }),
-            _ => Ok(MusicIntent::Unknown {
-                query: json_str.to_string(),
-            }),
-        }
+        super::provider::parse_intent_json(json_str)
     }
 
     /// Get available models

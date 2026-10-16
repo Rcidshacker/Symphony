@@ -4,8 +4,44 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+/// Write a 16-bit mono 44.1 kHz WAV: the sum of sine tones scaled to `amplitude` (silence for no tones)
+pub fn write_wav(path: &Path, freqs: &[f32], secs: f32, amplitude: f32) {
+    let rate = 44_100u32;
+    let samples: Vec<i16> = (0..(rate as f32 * secs) as usize)
+        .map(|i| {
+            let t = i as f32 / rate as f32;
+            let sum: f32 = freqs
+                .iter()
+                .map(|f| (2.0 * std::f32::consts::PI * f * t).sin())
+                .sum();
+            let mixed = if freqs.is_empty() { 0.0 } else { sum / freqs.len() as f32 };
+            (mixed * amplitude * 32_767.0) as i16
+        })
+        .collect();
+    let data_len = (samples.len() * 2) as u32;
+
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    wav.extend_from_slice(&1u16.to_le_bytes()); // mono
+    wav.extend_from_slice(&rate.to_le_bytes());
+    wav.extend_from_slice(&(rate * 2).to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    for s in samples {
+        wav.extend_from_slice(&s.to_le_bytes());
+    }
+    std::fs::write(path, wav).unwrap();
+}
 
 /// One HTTP request seen by the mock server
 #[derive(Debug, Clone)]

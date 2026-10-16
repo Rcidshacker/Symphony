@@ -237,6 +237,10 @@ pub struct OllamaConfig {
     /// Model name
     #[serde(default = "default_ollama_model")]
     pub model: String,
+
+    /// Model used for semantic search (`ollama pull nomic-embed-text`)
+    #[serde(default = "default_embedding_model")]
+    pub embedding_model: String,
 }
 
 fn default_ollama_url() -> String {
@@ -245,12 +249,16 @@ fn default_ollama_url() -> String {
 fn default_ollama_model() -> String {
     "gemma3:4b".to_string()
 }
+fn default_embedding_model() -> String {
+    "nomic-embed-text".to_string()
+}
 
 impl Default for OllamaConfig {
     fn default() -> Self {
         Self {
             base_url: default_ollama_url(),
             model: default_ollama_model(),
+            embedding_model: default_embedding_model(),
         }
     }
 }

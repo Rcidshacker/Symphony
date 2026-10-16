@@ -3,11 +3,13 @@
 //! This module contains the core application state and logic for Symphony.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use crate::ai::{AIManager, MusicIntent};
+use crate::audio::features::AudioFeatures;
 use crate::audio::{FftSize, SpectrumAnalyzer};
 use crate::integrations::git::GitMonitorConfig;
 use crate::integrations::pomodoro::PomodoroConfig;
@@ -23,6 +25,10 @@ use crate::config::Config;
 use crate::db::Database;
 use crate::ui::artwork::{self, ArtworkCache, ArtworkConfig, AsciiArt};
 use crate::ui::visualizer::{VisualizationMode, VisualizerState};
+
+#[path = "app_assistant.rs"]
+mod assistant;
+use assistant::SearchKind;
 
 /// Main application state
 pub struct App {
@@ -65,6 +71,12 @@ pub struct App {
     /// Real-time spectrum analysis of the audio being played
     analyzer: Option<SpectrumAnalyzer>,
 
+    /// Measured loudness and tempo by file path (filled in the background)
+    pub features: HashMap<String, AudioFeatures>,
+
+    /// Tracks played this session, oldest first
+    pub history: Vec<Track>,
+
     /// Synced lyrics for the current track
     pub lyrics: LyricsDisplay,
 
@@ -97,6 +109,21 @@ enum BackgroundEvent {
     Translation {
         track_id: String,
         result: Result<Vec<Option<String>>, String>,
+    },
+    /// A semantic search finished (ids of the matching tracks, best first)
+    Semantic {
+        query: String,
+        kind: SearchKind,
+        ids: Vec<String>,
+        method: String,
+        note: Option<String>,
+    },
+    /// The AI answered a question
+    Answer(String),
+    /// A track's audio analysis finished (`None` if it could not be decoded)
+    Features {
+        path: String,
+        features: Option<AudioFeatures>,
     },
 }
 
@@ -258,6 +285,15 @@ pub struct UiState {
 
     /// An AI request is in flight
     pub ai_pending: bool,
+
+    /// The AI's answer to a question, shown in a popup until a key is pressed
+    pub ai_answer: Option<String>,
+
+    /// The list in the search view is a set of results (AI search or suggestions), not a typed query
+    pub pinned_results: bool,
+
+    /// Tracks still waiting for audio analysis
+    pub analysis_remaining: usize,
 }
 
 /// Current view
@@ -356,6 +392,9 @@ impl App {
                 ai_mode: false,
                 ai_query: String::new(),
                 ai_pending: false,
+                ai_answer: None,
+                pinned_results: false,
+                analysis_remaining: 0,
             },
             visualizer_state,
             artwork_cache: ArtworkCache::default(),
@@ -363,6 +402,8 @@ impl App {
             start_time: Instant::now(),
             last_tick: Instant::now(),
             analyzer: None,
+            features: HashMap::new(),
+            history: Vec::new(),
             lyrics,
             pomodoro,
             git_monitor,
@@ -451,6 +492,10 @@ impl App {
         }
 
         self.playback_state.current_track = Some(track.clone());
+        self.history.push(track.clone());
+        if self.history.len() > 50 {
+            self.history.remove(0);
+        }
         self.playback_state.is_playing = true;
         self.playback_state.position = 0.0;
         self.playback_state.duration = track.duration;
@@ -637,6 +682,7 @@ impl App {
 
     /// Exit search mode
     pub fn exit_search_mode(&mut self) {
+        self.ui_state.pinned_results = false;
         self.ui_state.search_mode = false;
         self.ui_state.search_query.clear();
         self.library.filtered_tracks.clear();
@@ -758,7 +804,16 @@ impl App {
         if self.ui_state.ai_mode {
             self.ui_state.ai_query.push(c);
         } else {
+            self.unpin_results();
             self.append_search_char(c);
+        }
+    }
+
+    /// Typing over a list of AI results starts an ordinary search instead
+    fn unpin_results(&mut self) {
+        if self.ui_state.pinned_results {
+            self.ui_state.pinned_results = false;
+            self.ui_state.search_query.clear();
         }
     }
 
@@ -766,6 +821,9 @@ impl App {
     pub fn remove_input_char(&mut self) {
         if self.ui_state.ai_mode {
             self.ui_state.ai_query.pop();
+        } else if self.ui_state.pinned_results {
+            self.unpin_results();
+            self.apply_search_filter();
         } else {
             self.remove_search_char();
         }
@@ -807,6 +865,17 @@ impl App {
         self.ui_state.ai_query.clear();
     }
 
+    /// Run a prompt given on the command line (`symphony "play something calm"`)
+    pub fn submit_prompt(&mut self, prompt: &str) {
+        if !self.config.ai.enabled {
+            self.ui_state.status_message =
+                Some("AI is disabled: set enabled = true under [ai] in the config".to_string());
+            return;
+        }
+        self.ui_state.ai_query = prompt.to_string();
+        self.submit_ai_query();
+    }
+
     /// Close the AI prompt without sending
     pub fn exit_ai_mode(&mut self) {
         self.ui_state.ai_mode = false;
@@ -833,6 +902,7 @@ impl App {
             return;
         };
 
+        let context = self.build_ai_context();
         let tx = self.ai_tx.clone();
         self.ui_state.ai_pending = true;
         self.ui_state.error_message = None;
@@ -840,7 +910,7 @@ impl App {
 
         runtime.spawn(async move {
             let result = async {
-                let manager = AIManager::new(provider).await?;
+                let manager = AIManager::new(provider).await?.with_context(context);
                 manager.parse_command(&query).await
             }
             .await;
@@ -870,6 +940,19 @@ impl App {
                 BackgroundEvent::Translation { track_id, result } => {
                     self.apply_translation(&track_id, result);
                 }
+                BackgroundEvent::Semantic {
+                    query,
+                    kind,
+                    ids,
+                    method,
+                    note,
+                } => self.apply_semantic(&query, kind, ids, &method, note),
+                BackgroundEvent::Answer(text) => {
+                    self.ui_state.ai_pending = false;
+                    self.ui_state.status_message = None;
+                    self.ui_state.ai_answer = Some(text);
+                }
+                BackgroundEvent::Features { path, features } => self.apply_features(path, features),
             }
         }
     }
@@ -879,76 +962,6 @@ impl App {
             .current_track
             .as_ref()
             .is_some_and(|t| t.id == track_id)
-    }
-
-    /// Act on what the AI understood
-    pub fn apply_ai_intent(&mut self, intent: MusicIntent) {
-        let description = intent.description();
-        match intent {
-            MusicIntent::Play { genre, artist, .. } => {
-                let filtered = artist.is_some() || genre.is_some();
-                let tracks = if filtered {
-                    filter_tracks(&self.library.tracks, artist.as_deref(), genre.as_deref())
-                } else {
-                    self.library.tracks.clone()
-                };
-                if tracks.is_empty() {
-                    self.ui_state.error_message =
-                        Some(format!("AI: no local tracks match: {description}"));
-                    return;
-                }
-
-                let count = tracks.len();
-                self.library.queue = tracks;
-                self.library.queue_index = 0;
-                if !filtered || self.playback_state.shuffle {
-                    self.shuffle_queue();
-                }
-                self.play_track_at_index(0);
-                if self.ui_state.error_message.is_none() {
-                    let note = if filtered {
-                        ""
-                    } else {
-                        " (mood and tempo are not matched against local files)"
-                    };
-                    self.ui_state.status_message =
-                        Some(format!("AI: {description} - {count} tracks{note}"));
-                }
-            }
-            MusicIntent::Search { query } => {
-                self.enter_search_mode();
-                self.ui_state.search_query = query;
-                self.apply_search_filter();
-            }
-            MusicIntent::Skip { .. } => self.next_track(),
-            MusicIntent::SetState {
-                volume,
-                shuffle,
-                repeat,
-            } => {
-                if let Some(volume) = volume {
-                    self.set_volume(f32::from(volume.min(100)) / 100.0);
-                }
-                if let Some(shuffle) = shuffle {
-                    if shuffle != self.playback_state.shuffle {
-                        self.toggle_shuffle();
-                    }
-                }
-                if let Some(repeat) = repeat {
-                    self.playback_state.repeat = match repeat.to_lowercase().as_str() {
-                        "all" => RepeatMode::All,
-                        "one" | "track" | "song" => RepeatMode::One,
-                        _ => RepeatMode::Off,
-                    };
-                }
-            }
-            other => {
-                self.ui_state.status_message = Some(format!(
-                    "AI understood: {} (the player cannot do this yet)",
-                    other.description()
-                ));
-            }
-        }
     }
 
     // ---- visualizer ----
@@ -1194,7 +1207,9 @@ impl App {
         if let Some(db) = &self.database {
             let tracks = db.get_all_tracks()?;
             self.library.tracks = tracks;
+            self.features = db.all_features()?;
         }
+        self.start_feature_analysis();
         Ok(())
     }
 }
@@ -1276,6 +1291,9 @@ impl Default for UiState {
             ai_mode: false,
             ai_query: String::new(),
             ai_pending: false,
+            ai_answer: None,
+            pinned_results: false,
+            analysis_remaining: 0,
         }
     }
 }

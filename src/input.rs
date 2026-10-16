@@ -21,6 +21,12 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         return Ok(false);
     }
 
+    // The AI's answer popup closes on any key
+    if app.ui_state.ai_answer.is_some() {
+        app.ui_state.ai_answer = None;
+        return Ok(true);
+    }
+
     // Search and AI prompts take every key as text, so letters bound to
     // commands (q, n, s, ...) can be typed.
     if app.is_in_text_input() {

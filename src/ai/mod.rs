@@ -15,8 +15,11 @@ pub mod provider;
 // Feature modules
 pub mod context;
 pub mod embeddings;
+pub mod mood;
 pub mod playlists;
 pub mod recommendations;
+pub mod semantic;
+pub mod suggest;
 
 // Re-exports
 pub use manager::{AIManager, AIManagerBuilder, AIState};

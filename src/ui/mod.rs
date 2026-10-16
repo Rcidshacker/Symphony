@@ -59,6 +59,24 @@ pub fn render(f: &mut Frame, app: &App) {
     if app.ui_state.show_help {
         render_help(f, theme);
     }
+
+    // The AI's answer to a question
+    if let Some(answer) = &app.ui_state.ai_answer {
+        let area = centered_rect(70, 40, f.area());
+        f.render_widget(Clear, area);
+        f.render_widget(
+            Paragraph::new(answer.as_str())
+                .wrap(ratatui::widgets::Wrap { trim: true })
+                .style(Style::default().fg(theme.foreground()))
+                .block(
+                    Block::default()
+                        .title(" 🤖 AI (any key to close) ")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(theme.accent())),
+                ),
+            area,
+        );
+    }
 }
 
 /// Render header
@@ -368,6 +386,15 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         format!("📁 {} tracks", app.library.tracks.len()),
         dim,
     ));
+
+    // Audio analysis running in the background (makes mood and tempo requests work)
+    if app.ui_state.analysis_remaining > 0 {
+        parts.push(sep());
+        parts.push(Span::styled(
+            format!("🔬 analyzing {}", app.ui_state.analysis_remaining),
+            dim,
+        ));
+    }
 
     // Pomodoro timer
     let pomodoro_state = app.pomodoro.get_state();

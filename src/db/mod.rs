@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 use crate::app::{Track, TrackSource};
+use crate::audio::features::AudioFeatures;
 
 /// Database errors
 #[derive(Debug, Error)]
@@ -103,6 +106,15 @@ impl Database {
                 FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
             );
 
+            -- Measured audio features (energy, tempo), keyed by file path
+            CREATE TABLE IF NOT EXISTS track_features (
+                path TEXT PRIMARY KEY,
+                energy REAL NOT NULL,
+                bpm REAL NOT NULL,
+                beat_strength REAL NOT NULL,
+                analyzed_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
             -- Create indexes
             CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
             CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
@@ -135,6 +147,41 @@ impl Database {
         }
 
         Ok(())
+    }
+
+    /// Store measured audio features for a file
+    pub fn upsert_features(&self, path: &str, features: &AudioFeatures) -> Result<(), DatabaseError> {
+        self.conn.execute(
+            r#"
+            INSERT INTO track_features (path, energy, bpm, beat_strength)
+            VALUES (?1, ?2, ?3, ?4)
+            ON CONFLICT(path) DO UPDATE SET
+                energy = excluded.energy,
+                bpm = excluded.bpm,
+                beat_strength = excluded.beat_strength,
+                analyzed_at = CURRENT_TIMESTAMP
+            "#,
+            (path, features.energy, features.bpm, features.beat_strength),
+        )?;
+        Ok(())
+    }
+
+    /// All stored audio features, by file path
+    pub fn all_features(&self) -> Result<HashMap<String, AudioFeatures>, DatabaseError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT path, energy, bpm, beat_strength FROM track_features")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                AudioFeatures {
+                    energy: row.get(1)?,
+                    bpm: row.get(2)?,
+                    beat_strength: row.get(3)?,
+                },
+            ))
+        })?;
+        Ok(rows.collect::<SqliteResult<HashMap<_, _>>>()?)
     }
 
     /// Insert or update a track
@@ -417,6 +464,24 @@ fn parse_track_source(s: &str) -> TrackSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_features_round_trip_and_update() {
+        let db = Database::in_memory().unwrap();
+        assert!(db.all_features().unwrap().is_empty());
+
+        let first = AudioFeatures { energy: 0.4, bpm: 120.0, beat_strength: 0.3 };
+        db.upsert_features("/music/a.mp3", &first).unwrap();
+        db.upsert_features("/music/b.mp3", &AudioFeatures { energy: 0.9, bpm: 0.0, beat_strength: 0.0 }).unwrap();
+        assert_eq!(db.all_features().unwrap().len(), 2);
+        assert_eq!(db.all_features().unwrap()["/music/a.mp3"], first);
+
+        // re-analysis replaces the row
+        let second = AudioFeatures { energy: 0.5, bpm: 90.0, beat_strength: 0.2 };
+        db.upsert_features("/music/a.mp3", &second).unwrap();
+        assert_eq!(db.all_features().unwrap()["/music/a.mp3"], second);
+        assert_eq!(db.all_features().unwrap().len(), 2);
+    }
 
     #[test]
     fn test_in_memory_database() {

@@ -3,6 +3,7 @@
 //! Contains the audio playback engine and related utilities.
 
 pub mod analyzer;
+pub mod features;
 mod engine;
 mod symphonia_source;
 pub mod tap;

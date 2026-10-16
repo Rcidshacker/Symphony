@@ -226,20 +226,24 @@ fn ai_intents_drive_the_player() {
     app.apply_ai_intent(play_intent(None, None));
     assert_eq!(app.library.queue.len(), 5);
 
-    // nothing matches
+    // nothing matches: it falls back to a search by meaning, which finds nothing either
     app.ui_state.error_message = None;
     app.apply_ai_intent(play_intent(Some("nobody"), None));
-    assert!(app
+    assert!(wait_for(&mut app, |a| a
         .ui_state
         .error_message
         .as_deref()
-        .is_some_and(|e| e.contains("no local tracks")));
+        .is_some_and(|e| e.contains("nothing in your library matches"))));
 
-    // search opens the search prompt with the query applied
-    app.apply_ai_intent(MusicIntent::Search { query: "song 3".into() });
+    // search ranks by meaning (keywords here: no embedding server) and shows the results
+    app.library.tracks[3].title = "Zebra Crossing".into();
+    app.apply_ai_intent(MusicIntent::Search { query: "zebra".into() });
+    assert!(wait_for(&mut app, |a| a.ui_state.pinned_results));
     assert!(app.ui_state.search_mode);
     assert_eq!(app.library.filtered_tracks.len(), 1);
+    assert_eq!(app.library.filtered_tracks[0].title, "Zebra Crossing");
     app.exit_search_mode();
+    assert!(!app.ui_state.pinned_results);
 
     // player state
     app.apply_ai_intent(MusicIntent::SetState {
@@ -251,13 +255,27 @@ fn ai_intents_drive_the_player() {
     assert!(app.playback_state.shuffle);
     assert_eq!(app.playback_state.repeat, symphony::app::RepeatMode::All);
 
-    // unsupported intents are reported, not silently dropped
-    app.apply_ai_intent(MusicIntent::Unknown { query: "dance".into() });
-    assert!(app
+    // a question goes to the AI; with no server the failure is reported, not dropped
+    app.ui_state.error_message = None;
+    app.apply_ai_intent(MusicIntent::Unknown { query: "what is jazz".into() });
+    assert!(wait_for(&mut app, |a| a
         .ui_state
-        .status_message
+        .error_message
         .as_deref()
-        .is_some_and(|s| s.contains("understood")));
+        .is_some_and(|e| e.starts_with("AI:"))));
+}
+
+/// Pump the app until `done`, up to 20 s
+fn wait_for(app: &mut App, mut done: impl FnMut(&App) -> bool) -> bool {
+    let start = std::time::Instant::now();
+    while start.elapsed() < Duration::from_secs(20) {
+        app.update();
+        if done(app) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(15));
+    }
+    false
 }
 
 #[test]
