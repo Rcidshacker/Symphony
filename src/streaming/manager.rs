@@ -28,13 +28,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 use super::cache::{CacheConfig, CacheStats, SmartCache};
 use super::predictor::{Prediction, PredictiveCache, PredictorConfig, PredictorStats};
 use super::provider::{
-    DownloadProgress, SearchResult, StreamError, StreamProvider, StreamQuality, StreamSource,
-    StreamTrack,
+    SearchResult, StreamError, StreamProvider, StreamQuality, StreamSource, StreamTrack,
 };
 use super::spotify::{SpotifyConfig, SpotifyProvider};
 use super::youtube::{YouTubeConfig, YouTubeProvider};

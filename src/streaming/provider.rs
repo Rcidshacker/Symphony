@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::Path;
 use thiserror::Error;
 
 /// Stream source type
@@ -50,12 +50,13 @@ impl std::fmt::Display for StreamSource {
 }
 
 /// Stream quality settings
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum StreamQuality {
     /// Low quality (~64kbps) - minimal bandwidth
     Low,
     /// Medium quality (~128kbps) - balanced
+    #[default]
     Medium,
     /// High quality (~256kbps) - good experience
     High,
@@ -82,12 +83,6 @@ impl StreamQuality {
             StreamQuality::High => "bestaudio[ext=m4a][abr<=256]/bestaudio[ext=m4a]/bestaudio",
             StreamQuality::Best => "bestaudio[ext=m4a]/bestaudio",
         }
-    }
-}
-
-impl Default for StreamQuality {
-    fn default() -> Self {
-        StreamQuality::Medium
     }
 }
 
@@ -347,6 +342,7 @@ pub enum DownloadStatus {
 /// All streaming providers (YouTube, Spotify, etc.) implement this trait
 /// to provide a unified interface for searching and playing content.
 #[async_trait]
+#[allow(clippy::double_must_use)] // from async_trait's expansion
 pub trait StreamProvider: Send + Sync {
     /// Search for tracks
     async fn search(&self, query: &str, limit: usize) -> Result<SearchResult, StreamError>;
@@ -366,7 +362,7 @@ pub trait StreamProvider: Send + Sync {
         &self,
         track_id: &str,
         quality: StreamQuality,
-        output_path: &PathBuf,
+        output_path: &Path,
     ) -> Result<(), StreamError>;
 
     /// Check if the provider is available

@@ -4,15 +4,15 @@
 //! Supports local files, HTTP streaming, and cached streams.
 
 use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
+use std::io::{BufReader, Cursor};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 use super::symphonia_source::SymphoniaSource;
 use super::tap::{AudioTap, TapSource};

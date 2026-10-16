@@ -26,7 +26,7 @@ pub enum ConfigError {
 }
 
 /// Main configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// General settings
     #[serde(default)]
@@ -86,7 +86,7 @@ pub struct GeneralConfig {
 
 impl Default for GeneralConfig {
     fn default() -> Self {
-        let config_dir = dirs::config_dir()
+        let _config_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("symphony");
 
@@ -775,7 +775,7 @@ impl Default for LyricsConfig {
 }
 
 /// Integrations configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IntegrationsConfig {
     /// Git integration settings
     #[serde(default)]
@@ -897,16 +897,6 @@ impl Default for StatusLineConfig {
     }
 }
 
-impl Default for IntegrationsConfig {
-    fn default() -> Self {
-        Self {
-            git: GitIntegrationConfig::default(),
-            pomodoro: PomodoroConfig::default(),
-            statusline: StatusLineConfig::default(),
-        }
-    }
-}
-
 /// Keybindings configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeybindingsConfig {
@@ -1001,22 +991,6 @@ impl Config {
             .unwrap_or_else(|| PathBuf::from("."))
             .join("symphony")
             .join("config.toml")
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            general: GeneralConfig::default(),
-            audio: AudioConfig::default(),
-            visualizer: VisualizerConfig::default(),
-            ai: AiConfig::default(),
-            streaming: StreamingConfig::default(),
-            plugins: PluginsConfig::default(),
-            lyrics: LyricsConfig::default(),
-            integrations: IntegrationsConfig::default(),
-            keybindings: KeybindingsConfig::default(),
-        }
     }
 }
 

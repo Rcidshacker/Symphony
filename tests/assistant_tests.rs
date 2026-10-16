@@ -343,8 +343,7 @@ fn the_model_is_told_about_the_moment() {
     let last = ollama
         .requests()
         .into_iter()
-        .filter(|r| r.target.starts_with("/api/chat"))
-        .last()
+        .rfind(|r| r.target.starts_with("/api/chat"))
         .unwrap()
         .body;
     assert!(last.contains("Currently playing: Gym Anthem"), "{last}");

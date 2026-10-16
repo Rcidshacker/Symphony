@@ -8,7 +8,7 @@
 use super::{Lyrics, LyricsError, LyricsLine, LyricsMetadata, LyricsSource, WordTimestamp};
 use regex::Regex;
 use std::path::Path;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// LRC file parser
 pub struct LrcParser;

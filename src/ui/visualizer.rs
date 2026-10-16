@@ -11,7 +11,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::audio::analyzer::{FrequencyBand, SpectrumResult};
+use crate::audio::analyzer::SpectrumResult;
 use crate::config::theme::Theme;
 
 /// Visualization mode
@@ -281,7 +281,7 @@ fn render_bars(
     }
 
     let bar_width = area.width as usize / num_bars;
-    let max_height = area.height.saturating_sub(2) as usize;
+    let _max_height = area.height.saturating_sub(2) as usize;
 
     // Create block with title
     let title = format!(

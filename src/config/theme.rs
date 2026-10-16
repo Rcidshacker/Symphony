@@ -592,7 +592,7 @@ impl Theme {
 
 mod color_serde {
     use ratatui::style::Color;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S>(color: &Color, serializer: S) -> Result<S::Ok, S::Error>
     where

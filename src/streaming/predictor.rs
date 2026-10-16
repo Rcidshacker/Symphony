@@ -17,9 +17,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
-use super::cache::{CacheError, PrefetchItem, SmartCache};
+use super::cache::{CacheError, SmartCache};
 use super::provider::{StreamSource, StreamTrack};
 
 /// Predictor configuration

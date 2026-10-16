@@ -18,11 +18,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use super::provider::{StreamQuality, StreamSource, StreamTrack};
 
@@ -537,78 +536,6 @@ impl SmartCache {
         )?;
 
         info!("Demoted track {} to {} tier", track_id, new_tier);
-        Ok(())
-    }
-
-    /// Get the tier's current size
-    async fn get_tier_size(&self, tier: CacheTier) -> Result<u64, CacheError> {
-        let db = self.db.lock().await;
-        let size: i64 = db.query_row(
-            "SELECT COALESCE(SUM(size_bytes), 0) FROM cached_tracks WHERE tier = ?1",
-            params![tier.to_string().to_lowercase()],
-            |row| row.get(0),
-        )?;
-        Ok(size as u64)
-    }
-
-    /// Evict tracks using LRU policy until we have enough space
-    async fn evict_for_space(&self, tier: CacheTier, needed_bytes: u64) -> Result<(), CacheError> {
-        let max_size = match tier {
-            CacheTier::Hot => self.config.max_hot_size,
-            CacheTier::Warm => self.config.max_warm_size,
-            CacheTier::Cold => self.config.max_cold_size,
-        };
-
-        let current_size = self.get_tier_size(tier).await?;
-
-        if current_size + needed_bytes <= max_size {
-            return Ok(()); // No eviction needed
-        }
-
-        let bytes_to_free = current_size + needed_bytes - max_size;
-        info!(
-            "Need to free {} bytes from {} tier",
-            format_bytes(bytes_to_free),
-            tier
-        );
-
-        let db = self.db.lock().await;
-
-        // Get tracks ordered by eviction score (highest first)
-        let tracks: Vec<(String, String, i64)> = db
-            .prepare(
-                "SELECT track_id, file_path, size_bytes FROM cached_tracks 
-                 WHERE tier = ?1 
-                 ORDER BY last_played ASC, play_count ASC, cached_at ASC",
-            )?
-            .query_map(params![tier.to_string().to_lowercase()], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        let mut freed = 0u64;
-
-        for (track_id, file_path, size) in tracks {
-            if freed >= bytes_to_free {
-                break;
-            }
-
-            // Delete file
-            if let Err(e) = fs::remove_file(&file_path).await {
-                warn!("Failed to delete cached file {}: {}", file_path, e);
-            }
-
-            // Remove from database
-            db.execute(
-                "DELETE FROM cached_tracks WHERE track_id = ?1",
-                params![track_id],
-            )?;
-
-            freed += size as u64;
-            info!("Evicted track {} from {} tier", track_id, tier);
-        }
-
         Ok(())
     }
 

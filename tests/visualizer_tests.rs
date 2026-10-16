@@ -17,13 +17,6 @@ mod tests {
             .collect()
     }
 
-    /// Generate white noise for testing
-    fn generate_white_noise(num_samples: usize) -> Vec<f32> {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        (0..num_samples).map(|_| rng.gen_range(-1.0..1.0)).collect()
-    }
-
     #[test]
     fn test_fft_size_calculations() {
         use symphony::audio::FftSize;

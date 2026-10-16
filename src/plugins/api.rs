@@ -16,6 +16,7 @@ pub struct HostFunctions {
 }
 
 /// Host function callbacks
+#[allow(clippy::type_complexity)] // callback signatures, one per host function
 struct HostCallbacks {
     /// Log a message
     log: Arc<dyn Fn(&str) + Send + Sync>,

@@ -187,6 +187,7 @@ impl MusicIntent {
 
 /// LLM provider trait
 #[async_trait]
+#[allow(clippy::double_must_use)] // from async_trait's expansion
 pub trait LLMProvider: Send + Sync {
     /// Parse natural language command into structured intent
     async fn parse_command(&self, query: &str, context: &str) -> Result<MusicIntent, AIError>;

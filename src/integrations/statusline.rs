@@ -2,7 +2,7 @@
 //!
 //! Output formatted status for tmux, zsh, and other shell integrations.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};

@@ -14,9 +14,8 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, PlaybackState, RepeatMode, Track, View};
+use crate::app::{App, RepeatMode};
 use crate::config::theme::Theme;
-use crate::ui::visualizer::{render_mini_spectrum, render_visualizer, VisualizerState};
 
 /// Format seconds as `m:ss`
 fn fmt_time(secs: f64) -> String {

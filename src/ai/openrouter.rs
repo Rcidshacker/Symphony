@@ -5,7 +5,6 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 use super::provider::{AIError, LLMProvider, MusicIntent};
 
@@ -45,6 +44,7 @@ struct OpenRouterMessage {
 
 /// OpenRouter chat response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OpenRouterResponse {
     choices: Vec<OpenRouterChoice>,
     #[serde(default)]
@@ -53,6 +53,7 @@ struct OpenRouterResponse {
 
 /// OpenRouter choice
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OpenRouterChoice {
     message: OpenRouterMessage,
     #[serde(default)]
@@ -61,6 +62,7 @@ struct OpenRouterChoice {
 
 /// OpenRouter token usage
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OpenRouterUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
@@ -75,6 +77,7 @@ struct OpenRouterModelsResponse {
 
 /// OpenRouter model info
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OpenRouterModel {
     id: String,
     name: String,
@@ -84,6 +87,7 @@ struct OpenRouterModel {
 
 /// OpenRouter model pricing
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OpenRouterPricing {
     prompt: String,
     completion: String,

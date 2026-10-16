@@ -5,9 +5,8 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
-use super::provider::{AIError, AIResponse, LLMProvider, MusicIntent};
+use super::provider::{AIError, LLMProvider, MusicIntent};
 
 /// Ollama API provider
 pub struct OllamaProvider {
@@ -42,6 +41,7 @@ struct OllamaOptions {
 
 /// Ollama generate response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OllamaGenerateResponse {
     response: String,
     #[serde(default)]
@@ -69,6 +69,7 @@ struct OllamaMessage {
 
 /// Ollama chat response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OllamaChatResponse {
     message: OllamaMessage,
     #[serde(default)]
@@ -85,6 +86,7 @@ struct OllamaModelsResponse {
 
 /// Ollama model info
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OllamaModel {
     name: String,
     #[serde(default)]

@@ -3,7 +3,6 @@
 //! Benchmark all critical paths in Symphony.
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::hint::black_box as bb;
 
 // ============================================================================
 // Helper Functions
@@ -17,15 +16,6 @@ fn generate_sine_wave(frequency: f32, sample_rate: u32, num_samples: usize) -> V
             let t = i as f32 / sample_rate as f32;
             (2.0 * PI * frequency * t).sin()
         })
-        .collect()
-}
-
-/// Generate noise
-fn generate_noise(num_samples: usize) -> Vec<f32> {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    (0..num_samples)
-        .map(|_| rng.gen::<f32>() * 2.0 - 1.0)
         .collect()
 }
 
@@ -290,7 +280,7 @@ fn bench_allocations(c: &mut Criterion) {
 fn bench_command_parsing(c: &mut Criterion) {
     let mut group = c.benchmark_group("CommandParsing");
 
-    let commands = vec![
+    let commands = [
         "play",
         "pause",
         "next",

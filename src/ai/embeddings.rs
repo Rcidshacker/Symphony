@@ -4,7 +4,6 @@
 //! Uses local embedding models for privacy.
 
 use std::collections::HashMap;
-use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

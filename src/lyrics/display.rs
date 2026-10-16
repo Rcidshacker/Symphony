@@ -254,7 +254,7 @@ impl LyricsDisplay {
         is_current: bool,
         idx: usize,
         current_idx: Option<usize>,
-    ) -> Line {
+    ) -> Line<'_> {
         let style = if is_current {
             if self.config.karaoke_mode {
                 Style::default()
@@ -416,7 +416,7 @@ impl MiniLyricsDisplay {
     }
 
     /// Render as a single line
-    pub fn render(&self) -> Line {
+    pub fn render(&self) -> Line<'_> {
         let text = self.get_current_text(60);
         if text.is_empty() {
             Line::raw("")

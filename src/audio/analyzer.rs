@@ -10,23 +10,18 @@ use std::sync::Arc;
 
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
-use rustfft::{FftDirection, FftPlanner};
+use rustfft::FftPlanner;
 
 /// FFT window size options
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum FftSize {
     /// 2048 samples - faster, less resolution
     Size2048 = 2048,
     /// 4096 samples - balanced (default)
+    #[default]
     Size4096 = 4096,
     /// 8192 samples - slower, more resolution
     Size8192 = 8192,
-}
-
-impl Default for FftSize {
-    fn default() -> Self {
-        Self::Size4096
-    }
 }
 
 impl FftSize {
@@ -48,9 +43,10 @@ impl FftSize {
 }
 
 /// Window function type for FFT
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum WindowFunction {
     /// Hanning window (default, good for most cases)
+    #[default]
     Hanning,
     /// Hamming window (better for speech)
     Hamming,
@@ -58,12 +54,6 @@ pub enum WindowFunction {
     Blackman,
     /// Rectangular (no window)
     Rectangular,
-}
-
-impl Default for WindowFunction {
-    fn default() -> Self {
-        Self::Hanning
-    }
 }
 
 /// Frequency band for spectrum analysis
@@ -164,6 +154,7 @@ pub const WAVEFORM_POINTS: usize = 256;
 const FLOOR_DB: f32 = 70.0;
 
 /// Real-time FFT Spectrum Analyzer
+#[allow(dead_code)]
 pub struct SpectrumAnalyzer {
     /// FFT size
     fft_size: FftSize,
@@ -348,9 +339,8 @@ impl SpectrumAnalyzer {
         }
 
         // Apply smoothing
-        for i in 0..half_size {
-            magnitudes[i] =
-                self.smoothing * self.previous_spectrum[i] + (1.0 - self.smoothing) * magnitudes[i];
+        for (m, prev) in magnitudes.iter_mut().zip(&self.previous_spectrum) {
+            *m = self.smoothing * prev + (1.0 - self.smoothing) * *m;
         }
         self.previous_spectrum.copy_from_slice(&magnitudes);
 
@@ -465,6 +455,7 @@ impl SpectrumAnalyzer {
 
 /// Beat detection algorithm
 #[derive(Debug)]
+#[allow(dead_code)]
 struct BeatDetector {
     /// Energy history for beat detection
     energy_history: VecDeque<f32>,
@@ -502,7 +493,7 @@ impl BeatDetector {
     }
 
     /// Detect beat from frequency bands and RMS
-    fn detect(&mut self, bands: &[FrequencyBand], rms: f32) -> BeatResult {
+    fn detect(&mut self, bands: &[FrequencyBand], _rms: f32) -> BeatResult {
         // Calculate bass energy (primary beat indicator)
         let bass_energy = bands
             .iter()
@@ -573,12 +564,6 @@ impl BeatDetector {
         }
     }
 
-    /// Set sensitivity (0.0 to 1.0)
-    fn set_sensitivity(&mut self, sensitivity: f32) {
-        self.sensitivity = sensitivity.clamp(0.0, 1.0);
-        self.threshold_mult = 1.0 + (1.0 - self.sensitivity) * 2.0;
-    }
-
     /// Reset beat detector
     fn reset(&mut self) {
         self.energy_history.clear();
@@ -614,7 +599,7 @@ mod tests {
         let resolution = fft_size.frequency_resolution(44100);
 
         // At 44100 Hz with 4096 samples, resolution should be ~10.77 Hz
-        assert!((resolution - 10.7666016).abs() < 0.01);
+        assert!((resolution - 10.7666).abs() < 0.01);
     }
 
     #[test]

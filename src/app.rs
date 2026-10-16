@@ -116,6 +116,7 @@ pub struct App {
 }
 
 /// Result of background work, handed back to the UI thread over a channel
+#[allow(clippy::large_enum_variant)] // short-lived channel messages, boxing buys nothing
 enum BackgroundEvent {
     /// The AI understood a prompt
     Intent(MusicIntent),
@@ -1311,29 +1312,6 @@ fn fft_size_from(size: usize) -> FftSize {
         2049..=4096 => FftSize::Size4096,
         _ => FftSize::Size8192,
     }
-}
-
-/// Tracks whose artist/title contains `artist` and whose genre contains `genre`
-/// (case-insensitive; a missing filter matches everything)
-fn filter_tracks(tracks: &[Track], artist: Option<&str>, genre: Option<&str>) -> Vec<Track> {
-    let artist = artist.map(str::to_lowercase);
-    let genre = genre.map(str::to_lowercase);
-
-    tracks
-        .iter()
-        .filter(|t| {
-            let artist_ok = artist.as_ref().is_none_or(|a| {
-                t.artist.to_lowercase().contains(a) || t.title.to_lowercase().contains(a)
-            });
-            let genre_ok = genre.as_ref().is_none_or(|g| {
-                t.genre
-                    .as_ref()
-                    .is_some_and(|tg| tg.to_lowercase().contains(g))
-            });
-            artist_ok && genre_ok
-        })
-        .cloned()
-        .collect()
 }
 
 impl Default for PlaybackState {

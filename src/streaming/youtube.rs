@@ -11,14 +11,13 @@
 //! ```
 
 use async_trait::async_trait;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
 use tracing::{debug, error, info, warn};
 
 use super::provider::{
-    DownloadProgress, DownloadStatus, SearchResult, StreamError, StreamProvider, StreamQuality,
-    StreamSource, StreamTrack,
+    SearchResult, StreamError, StreamProvider, StreamQuality, StreamSource, StreamTrack,
 };
 
 /// YouTube provider configuration
@@ -158,11 +157,7 @@ impl YouTubeProvider {
 
         let duration = value["duration"]
             .as_i64()
-            .or_else(|| {
-                value["duration_string"]
-                    .as_str()
-                    .and_then(|s| parse_duration(s))
-            })
+            .or_else(|| value["duration_string"].as_str().and_then(parse_duration))
             .unwrap_or(0) as u64;
 
         let thumbnail_url = if self.config.include_thumbnails {
@@ -360,7 +355,7 @@ impl StreamProvider for YouTubeProvider {
         &self,
         track_id: &str,
         quality: StreamQuality,
-        output_path: &PathBuf,
+        output_path: &Path,
     ) -> Result<(), StreamError> {
         if !self.available {
             return Err(StreamError::Unavailable(

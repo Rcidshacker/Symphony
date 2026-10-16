@@ -2,9 +2,6 @@
 //!
 //! Tests for the streaming infrastructure including providers, cache, and predictions.
 
-use std::path::PathBuf;
-use tempfile::tempdir;
-
 // Note: These tests require the streaming module to be properly set up.
 // Some tests may require network access or external dependencies (yt-dlp).
 
@@ -45,7 +42,7 @@ fn test_stream_quality_bitrate() {
 /// Test stream track creation
 #[test]
 fn test_stream_track() {
-    use symphony::streaming::{StreamQuality, StreamSource, StreamTrack};
+    use symphony::streaming::{StreamSource, StreamTrack};
 
     let track = StreamTrack::new("test123", "Test Song", "Test Artist", StreamSource::YouTube)
         .with_duration(180)
@@ -150,7 +147,7 @@ fn test_combined_search_result() {
     let track_yt = StreamTrack::new("yt1", "Song", "Artist", StreamSource::YouTube);
     let track_sp = StreamTrack::new("sp1", "Song", "Artist", StreamSource::Spotify);
 
-    let mut result = CombinedSearchResult {
+    let result = CombinedSearchResult {
         youtube: None,
         spotify: None,
         tracks: vec![track_yt, track_sp],

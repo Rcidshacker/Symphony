@@ -3,7 +3,6 @@
 //! AI-generated playlists based on various criteria.
 
 use std::collections::HashMap;
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -187,6 +186,7 @@ pub fn era_to_years(era: &str) -> Option<(u32, u32)> {
 }
 
 /// Smart playlist generator
+#[allow(dead_code)]
 pub struct SmartPlaylistGenerator {
     /// Weight factors for scoring
     genre_weight: f32,

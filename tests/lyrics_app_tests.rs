@@ -38,7 +38,7 @@ fn write_wav(path: &Path) {
     wav.extend_from_slice(&16u16.to_le_bytes());
     wav.extend_from_slice(b"data");
     wav.extend_from_slice(&data_len.to_le_bytes());
-    wav.extend(std::iter::repeat(0u8).take(data_len as usize));
+    wav.extend(std::iter::repeat_n(0u8, data_len as usize));
     std::fs::write(path, wav).unwrap();
 }
 

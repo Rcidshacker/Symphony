@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 
 use super::ollama::OllamaProvider;
 use super::openrouter::OpenRouterProvider;
-use super::provider::{AIContext, AIError, AIProviderConfig, AIResponse, LLMProvider, MusicIntent};
+use super::provider::{AIContext, AIError, AIProviderConfig, LLMProvider, MusicIntent};
 
 /// AI Manager state
 #[derive(Debug, Clone)]

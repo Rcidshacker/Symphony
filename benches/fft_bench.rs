@@ -77,7 +77,7 @@ fn visualizer_rendering_benchmark(c: &mut Criterion) {
     analyzer.add_samples(&samples);
     let spectrum = analyzer.analyze().unwrap();
 
-    let mut state = VisualizerState::new(32);
+    let state = VisualizerState::new(32);
 
     group.bench_function("update_state", |b| {
         b.iter(|| {

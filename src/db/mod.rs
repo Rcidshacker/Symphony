@@ -3,7 +3,6 @@
 //! SQLite database for music library storage.
 
 use rusqlite::{Connection, OptionalExtension, Result as SqliteResult};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 

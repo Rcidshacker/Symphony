@@ -58,6 +58,7 @@ pub struct RecommendationEngine {
 
 /// Weights for recommendation signals
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct RecommendationWeights {
     artist_similarity: f32,
     genre_similarity: f32,
@@ -181,7 +182,7 @@ impl RecommendationEngine {
                 let reason = if artist_score > 0.0 {
                     format!("You've listened to {} before", t.artist)
                 } else if genre_score > 0.0 {
-                    format!("Matches your preferred genre")
+                    "Matches your preferred genre".to_string()
                 } else {
                     "Based on your history".to_string()
                 };

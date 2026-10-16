@@ -185,19 +185,19 @@ impl AsciiArt {
             ascii_height: height,
         }
     }
+}
 
-    /// Render to string (without colors)
-    pub fn to_string(&self) -> String {
-        self.chars
-            .iter()
-            .map(|row| row.iter().collect::<String>())
-            .collect::<Vec<_>>()
-            .join("\n")
+/// Renders as plain text (without colors)
+impl std::fmt::Display for AsciiArt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let rows: Vec<String> = self.chars.iter().map(|row| row.iter().collect()).collect();
+        f.write_str(&rows.join("\n"))
     }
 }
 
 /// Simple pixel representation
 #[derive(Clone)]
+#[allow(dead_code)]
 struct Pixel {
     r: u8,
     g: u8,
@@ -209,34 +209,6 @@ impl Pixel {
     fn grayscale(&self) -> f32 {
         // Luminosity method
         (0.299 * self.r as f32 + 0.587 * self.g as f32 + 0.114 * self.b as f32) / 255.0
-    }
-
-    fn average_color(&self) -> Color {
-        // Simplified color quantization to terminal colors
-        let r = self.r;
-        let g = self.g;
-        let b = self.b;
-
-        // Determine dominant channel
-        if r > 200 && g > 200 && b > 200 {
-            Color::White
-        } else if r > 200 && g > 100 && b < 100 {
-            Color::LightRed
-        } else if r > 200 && g > 200 && b < 100 {
-            Color::LightYellow
-        } else if r < 100 && g > 200 && b < 100 {
-            Color::LightGreen
-        } else if r < 100 && g > 200 && b > 200 {
-            Color::LightCyan
-        } else if r < 100 && g < 100 && b > 200 {
-            Color::LightBlue
-        } else if r > 200 && g < 100 && b > 200 {
-            Color::LightMagenta
-        } else if r < 50 && g < 50 && b < 50 {
-            Color::Black
-        } else {
-            Color::Gray
-        }
     }
 
     fn to_rgb_color(&self) -> Color {
@@ -304,9 +276,9 @@ impl ArtworkCache {
 
     /// Add artwork to cache
     pub fn insert(&mut self, track_id: String, artwork: AsciiArt) {
-        if self.cache.contains_key(&track_id) {
+        if let Some(slot) = self.cache.get_mut(&track_id) {
             // Replacing an entry never grows the cache
-            self.cache.insert(track_id, artwork);
+            *slot = artwork;
             return;
         }
 

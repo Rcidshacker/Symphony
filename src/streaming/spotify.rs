@@ -16,15 +16,14 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use super::provider::{
-    DownloadProgress, DownloadStatus, SearchResult, StreamError, StreamProvider, StreamQuality,
-    StreamSource, StreamTrack,
+    SearchResult, StreamError, StreamProvider, StreamQuality, StreamSource, StreamTrack,
 };
 
 /// Spotify API base URL
@@ -101,12 +100,14 @@ struct SearchResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TracksResponse {
     items: Vec<TrackItem>,
     total: u32,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TrackItem {
     id: String,
     name: String,
@@ -118,12 +119,14 @@ struct TrackItem {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ArtistItem {
     id: String,
     name: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct AlbumItem {
     id: String,
     name: String,
@@ -131,6 +134,7 @@ struct AlbumItem {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ImageItem {
     url: String,
     height: u32,
@@ -138,12 +142,14 @@ struct ImageItem {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ExternalUrls {
     spotify: String,
 }
 
 /// Track details response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TrackDetailsResponse {
     id: String,
     name: String,
@@ -509,9 +515,9 @@ impl StreamProvider for SpotifyProvider {
 
     async fn download_track(
         &self,
-        track_id: &str,
+        _track_id: &str,
         _quality: StreamQuality,
-        _output_path: &PathBuf,
+        _output_path: &Path,
     ) -> Result<(), StreamError> {
         // Spotify doesn't allow direct downloads via API
         // Preview URLs could be downloaded, but that's limited to 30 seconds

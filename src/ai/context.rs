@@ -325,7 +325,7 @@ impl ContextDetector {
                 // Infer activity from genre
                 self.context.activity = match most_common {
                     "ambient" | "classical" | "lo-fi" | "lofi" => ActivityState::Focus,
-                    "electronic" | "rock" | "hip-hop" if hour >= 6 && hour <= 9 => {
+                    "electronic" | "rock" | "hip-hop" if (6..=9).contains(&hour) => {
                         ActivityState::Exercise
                     }
                     "pop" | "dance" | "electronic" if hour >= 20 || hour <= 2 => {

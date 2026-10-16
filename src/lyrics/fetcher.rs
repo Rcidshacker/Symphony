@@ -3,9 +3,9 @@
 //! Fetches lyrics from local cache and online sources.
 
 use super::{LrcParser, Lyrics, LyricsError, LyricsSource};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Lyrics fetcher configuration
 #[derive(Debug, Clone)]

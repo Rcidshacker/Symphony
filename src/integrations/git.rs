@@ -4,8 +4,8 @@
 //! Can detect "coding sessions" and suggest appropriate music.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime};
-use tracing::{debug, info, warn};
+use std::time::{Duration, Instant};
+use tracing::debug;
 
 /// Git activity level
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,8 +101,6 @@ pub struct GitMonitor {
     commit_velocity: f32,
     /// Current activity level
     activity_level: ActivityLevel,
-    /// Recent commit timestamps
-    recent_commits: Vec<SystemTime>,
     /// Current branch name
     current_branch: Option<String>,
     /// Files changed in last commit
@@ -120,7 +118,6 @@ impl GitMonitor {
                 .unwrap_or_else(Instant::now),
             commit_velocity: 0.0,
             activity_level: ActivityLevel::Idle,
-            recent_commits: Vec::new(),
             current_branch: None,
             files_changed: 0,
         }
@@ -346,7 +343,7 @@ mod tests {
 
     #[test]
     fn test_git_monitor_creation() {
-        let monitor = GitMonitor::new();
+        let _monitor = GitMonitor::new();
         // May or may not be in a repo, depends on test environment
     }
 
