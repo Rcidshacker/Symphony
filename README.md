@@ -1,310 +1,171 @@
-# 🎵 Symphony v2.0
+# 🎵 Symphony
 
 <p align="center">
-  <strong>The AI-Powered Terminal Music Player for Developers</strong>
-</p>
-
-<p align="center">
-  <em>"Your AI-Powered Terminal Concert Hall"</em>
+  <strong>A terminal music player with an AI assistant, streaming, synced lyrics and a real spectrum analyzer.</strong>
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
-  <a href="#documentation">Documentation</a> •
+  <a href="#what-is-not-done-or-not-verified">Limits</a> •
   <a href="#contributing">Contributing</a>
 </p>
 
 <p align="center">
-  <a href="https://www.rust-lang.org/">
-    <img src="https://img.shields.io/badge/rust-1.75%2B-orange.svg?style=flat-square" alt="Rust Version">
-  </a>
-  <a href="https://github.com/Rcidshacker/Symphony/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License">
-  </a>
-  <a href="https://github.com/Rcidshacker/Symphony/stargazers">
-    <img src="https://img.shields.io/github/stars/Rcidshacker/Symphony?style=flat-square" alt="GitHub Stars">
-  </a>
-  <a href="https://github.com/Rcidshacker/Symphony/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/Rcidshacker/Symphony/ci.yml?style=flat-square" alt="CI Status">
-  </a>
-  <a href="https://codecov.io/gh/Rcidshacker/Symphony">
-    <img src="https://img.shields.io/codecov/c/github/Rcidshacker/Symphony?style=flat-square" alt="Coverage">
-  </a>
+  <img src="https://img.shields.io/badge/rust-1.82%2B-orange.svg?style=flat-square" alt="Rust 1.82+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
+  <a href="https://github.com/Rcidshacker/Symphony/actions"><img src="https://img.shields.io/github/actions/workflow/status/Rcidshacker/Symphony/ci.yml?style=flat-square" alt="CI Status"></a>
 </p>
-
----
-
-## Preview
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│  🎵 NOW PLAYING                        │  📊 SPECTRUM ANALYZER          │
-│                                         │                                 │
-│  Radiohead - Paranoid Android          │  ████████████░░░░░░░░          │
-│  Album: OK Computer                     │  ████████████████░░░░          │
-│  ━━━━━━━━━━━━●────────── 3:42/6:23     │  ████████████████████          │
-│                                         │  ████████████████░░░░          │
-│  🔊 Volume: ▓▓▓▓▓▓░░░░ 60%             │  ████████████░░░░░░░░          │
-├─────────────────────────────────────────┴────────────────────────────────┤
-│  📚 LIBRARY                                                               │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │ > Radiohead - Paranoid Android           6:23  [LOCAL]            │  │
-│  │   The Smiths - This Charming Man          2:43  [SPOTIFY]         │  │
-│  │   Arcade Fire - Wake Up                   5:39  [YOUTUBE]         │  │
-│  │   Pixies - Where Is My Mind?              3:53  [LOCAL]           │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-│  🎯 AI: "Try The National - Fake Empire"                                 │
-└──────────────────────────────────────────────────────────────────────────┘
-│  ⌨️ Space:Play  n:Next  /:Search  a:AI  v:Visualizer  h:Help            │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Why Symphony?
-
-**The Problem**: Existing terminal music players are basic. They play music, but don't understand you or your workflow.
-
-**The Solution**: Symphony is the first terminal music player with native AI integration, hybrid streaming, and developer-focused features—all while being lightning fast and privacy-respecting.
-
-### Key Differentiators
-
-| Feature | Symphony | Spotify CLI | cmus | moc |
-|---------|----------|-------------|------|-----|
-| AI-Powered Control | ✅ | ❌ | ❌ | ❌ |
-| YouTube Streaming | ✅ | ❌ | ❌ | ❌ |
-| Spotify Integration | ✅ | ✅ | ❌ | ❌ |
-| Real-time Visualizer | ✅ | ❌ | ❌ | ❌ |
-| Plugin System | ✅ | ❌ | ❌ | ❌ |
-| Synced Lyrics | ✅ | ❌ | ❌ | ❌ |
-| Git Integration | ✅ | ❌ | ❌ | ❌ |
-| Pomodoro Timer | ✅ | ❌ | ❌ | ❌ |
-| Local AI (Private) | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
 ## Features
 
-### 🤖 AI-Powered Music Intelligence
+Every feature below is wired into the player and covered by automated tests. How each was
+verified (mock servers, fake `yt-dlp`, or the real thing) is in [What is not done or not verified](#what-is-not-done-or-not-verified).
 
-Natural language control powered by local LLMs:
+### 🎧 Playback
+
+- MP3, FLAC, OGG/Vorbis, WAV, AAC and M4A, with tags, duration, progress bar, volume, mute, shuffle and repeat
+- Album art from embedded covers or `cover.jpg`/`folder.png` next to the file (JPEG/PNG, drawn with block characters)
+- Library kept in SQLite (`symphony scan <dir>`), plus search (`/`)
+
+### 🤖 AI assistant
+
+Press `a` in the player, or pass a prompt on the command line. It needs a running
+[Ollama](https://ollama.com) or an OpenRouter key.
 
 ```bash
-# Control with natural language
-symphony "play something energetic for coding"
-symphony "find songs like Radiohead but jazzier"
+symphony "play something calm"
 symphony "create a 2-hour focus session"
-
-# AI understands context
+symphony "more like Gym Anthem"
 symphony "what should I listen to while debugging?"
 ```
 
-**AI Features**:
-- Natural language commands
-- Smart playlist generation
-- Context-aware recommendations
-- Semantic search across your library
-- Mood-based music selection
+- **Play by mood**: mood and tempo are matched against what Symphony measured from your audio (loudness and tempo per track, analysed in the background), not against file names
+- **Playlists**: time-boxed playlists, saved in the library database
+- **Suggestions** based on a track, **semantic search** by meaning (embeddings via Ollama, lexical fallback), and **questions** answered with your library as context
 
-### 🌐 Hybrid Playback
+### 🌐 YouTube and Spotify
 
-All your music sources in one interface:
-
-- **Local Library**: MP3, FLAC, AAC, OGG, WAV support
-- **YouTube**: Stream any video as audio
-- **Spotify**: Access your playlists and liked songs
-- **Smart Caching**: Predictive downloads for offline access
+Requires [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) on your `PATH` (or set `streaming.youtube.ytdlp_path`).
 
 ```bash
-# Play from YouTube
-symphony stream "lofi hip hop radio"
-
-# Mix sources seamlessly
-symphony add youtube:https://youtube.com/watch?v=...
-symphony add spotify:playlist:37i9dQZF1DXcBWIGoYBM5M
+symphony stream "lofi hip hop"                 # search and play the best match
+symphony add youtube:https://youtube.com/watch?v=...   # save to the library
+symphony add spotify:playlist:37i9dQZF1DXcBWIGoYBM5M   # public playlists
 ```
 
-### 🎨 Stunning Visualizations
+- Stream tracks are downloaded to a local cache (as M4A) and played from there, so replays and the prefetched next track start instantly and work offline
+- **Spotify** needs a client id and secret in the config. It only reads metadata and public playlists; audio is the closest-length YouTube match. Liked songs and private playlists are not supported
 
-Real-time FFT spectrum analyzer with multiple modes:
+### 🎨 Visualizer
 
-- **Spectrum Bars**: Classic frequency visualization
-- **Waveform**: Audio waveform display
-- **Circular**: Circular frequency visualization
-- **Minimal**: Simple visual indicators
+Live FFT spectrum of the audio actually being played: bars, waveform, circular and minimal modes (`v` cycles, `1`–`5` select). Five themes (`t`): Monokai, Gruvbox, Nord, Dracula, Solarized.
 
-All running at 60 FPS with customizable themes.
+### 🎤 Lyrics
 
-### 🔌 Extensible Plugin System
+- Synced `.lrc` files next to the audio, with word-level highlighting for enhanced LRC
+- Online lookup on [LRCLIB](https://lrclib.net) when no `.lrc` exists
+- Translation of the current lyrics through your local model (`x`, target language in `lyrics.translate_to`)
 
-WASM-based plugins for unlimited extensibility:
+### 🔌 Plugins, Discord, Last.fm
 
-- **Discord Rich Presence**: Show what you're listening to
-- **Last.fm Scrobbler**: Track your listening history
-- **Custom Plugins**: Create your own in Rust, C, or AssemblyScript
+- **WASM plugins** run in a sandbox ([`wasmi`](https://github.com/wasmi-labs/wasmi)): metered execution (runaway plugins are stopped), 16 MB memory cap, and host functions gated by the permissions in the plugin's `plugin.toml`. See [Plugin Development](docs/PLUGIN_DEVELOPMENT.md)
+- **Discord Rich Presence** (`[plugins.discord]`): create an application at the Discord developer portal and set its Application ID as `client_id`
+- **Last.fm scrobbling** (`[plugins.lastfm]`): set `api_key` and `api_secret`, then run `symphony lastfm-login`
 
-### 🎤 Synced Lyrics
+### 💻 Developer touches
 
-Karaoke-style lyrics display:
-
-- LRC file support with synced timestamps
-- Auto-fetch lyrics from online sources
-- Translation support
-- Word-level highlighting
-
-### 💻 Developer-Focused
-
-Built by developers, for developers:
-
-- **Git Integration**: Music adapts to commit velocity
-- **Pomodoro Timer**: Built-in focus sessions
-- **Status Line**: Tmux and zsh integration
-- **SSH-Friendly**: Works perfectly over remote connections
+- **Status line**: `symphony status [tmux|zsh|json|waybar|i3blocks|polybar|minimal]` prints what the running player is playing. In tmux: `set -g status-right '#(symphony status tmux)'`
+- **Git-adaptive music**: with `integrations.git.adapt_music = true`, the queue switches to calmer or more energetic music at the next track change as your commits per hour change
+- **Pomodoro timer** (`w`) and git activity in the status bar
 
 ---
 
 ## Installation
 
-### Prerequisites
+Symphony is built from source. There is no crates.io package, Homebrew tap or AUR package.
 
-**System Dependencies**:
-
-Linux (Ubuntu/Debian):
-```bash
-sudo apt install -y libasound2-dev libpulse-dev pkg-config build-essential
-```
-
-macOS:
-```bash
-brew install portaudio pkg-config
-```
-
-**Optional Dependencies**:
-```bash
-# For YouTube streaming
-pip install yt-dlp
-
-# For FFmpeg support
-brew install ffmpeg  # macOS
-sudo apt install ffmpeg  # Linux
-```
-
-### From Source (Recommended)
+**Requirements**: Rust 1.82+. On Linux: `sudo apt install -y libasound2-dev pkg-config build-essential`.
 
 ```bash
-# Clone the repository
 git clone https://github.com/Rcidshacker/Symphony.git
-cd symphony
-
-# Build in release mode
+cd Symphony
 cargo build --release
-
-# Run
 ./target/release/symphony
 ```
 
-### Via Cargo
-
-```bash
-cargo install symphony-player
-```
-
-### Via Homebrew (macOS/Linux)
-
-```bash
-brew tap symphony-player/tap
-brew install symphony
-```
-
-### Via AUR (Arch Linux)
-
-```bash
-yay -S symphony-bin
-```
+Optional: `yt-dlp` for YouTube/Spotify playback, [Ollama](https://ollama.com) for the AI assistant.
 
 ---
 
 ## Quick Start
 
-### 1. Initialize
-
 ```bash
-symphony init
+symphony init            # create the config and database
+symphony scan ~/Music    # add your music
+symphony                 # open the player
 ```
-
-Creates configuration files at `~/.config/symphony/`.
-
-### 2. Scan Your Library
-
-```bash
-symphony scan ~/Music
-```
-
-### 3. Start Playing
-
-```bash
-# Interactive mode
-symphony
-
-# Or with AI
-symphony "play some indie rock"
-```
-
-### 4. Essential Keybindings
 
 | Key | Action |
 |-----|--------|
 | `Space` | Play/Pause |
-| `n` / `]` | Next track |
-| `p` / `[` | Previous track |
-| `+` / `-` | Volume up/down |
+| `n` / `]`, `p` / `[` | Next / previous track |
+| `+` / `-`, `m` | Volume up/down, mute |
+| `s`, `r` | Shuffle, repeat |
+| `j` / `k`, `Enter` | Move, play |
 | `/` | Search |
-| `a` | AI command |
-| `v` | Cycle visualizer |
-| `l` | Toggle lyrics |
-| `h` | Help |
+| `a` | AI assistant |
+| `l`, `x` | Lyrics, translate lyrics |
+| `v`, `1`–`5`, `t` | Visualizer mode, theme |
+| `w` | Pomodoro |
+| `h` / `?` | Help |
 | `q` | Quit |
 
----
+The config lives at `~/.config/symphony/config.toml` (on Windows: `%APPDATA%\symphony\config.toml`). `symphony --help` lists all commands.
 
-## AI Setup
-
-### Local AI (Ollama) - Recommended
+### AI setup
 
 ```bash
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Start Ollama
-ollama serve
-
-# Download a model
 ollama pull gemma3:4b
 ```
 
-Configure Symphony (`~/.config/symphony/config.toml`):
 ```toml
 [ai]
 enabled = true
-provider = "ollama"
+provider = "ollama"          # or "openrouter"
 
 [ai.ollama]
 model = "gemma3:4b"
+embedding_model = "nomic-embed-text"   # optional, for semantic search
 ```
 
-### Cloud AI (OpenRouter)
+---
 
-```toml
-[ai]
-enabled = true
-provider = "openrouter"
+## Performance
 
-[ai.openrouter]
-api_key = "your-api-key"
-model = "anthropic/claude-3.5-sonnet"
-```
+Measured on the author's Windows 11 laptop with a release build, playing an MP3 and rendering the full UI at 60 fps into an in-memory terminal (`cargo run --release --example perf_probe`). Single runs, not a benchmark suite.
+
+| Metric | Measured |
+|--------|----------|
+| Binary size | 11.6 MB |
+| Start to first rendered frame | 77–93 ms |
+| Memory while playing | 16–24 MB |
+| CPU while playing | about 3.6% of one core |
+| Frame time (update + render) | 0.5 ms average, one 130–155 ms frame at track start |
+
+Not measured: Linux and macOS, long sessions, large libraries.
+
+---
+
+## What is not done or not verified
+
+- **Live services**: the AI assistant, LRCLIB lyrics, YouTube and Spotify were tested against mock servers and a fake `yt-dlp`; only LRCLIB was also run against the real service. Ollama, OpenRouter, real `yt-dlp`, the Spotify API, Discord and Last.fm have not been run live by the author. Please report what breaks
+- **Missing**: seeking inside a track, crossfade, gapless playback, loudness normalization, Spotify user login (liked songs, private playlists), a plugin marketplace
+- **Platforms**: developed and tested on Windows. Linux and macOS should work (CI is set up to build on both) but are not verified by hand
+- **Plugin toolchain**: the runtime is tested with hand-written WebAssembly; no Rust/C plugin SDK is provided yet
 
 ---
 
@@ -312,142 +173,30 @@ model = "anthropic/claude-3.5-sonnet"
 
 | Document | Description |
 |----------|-------------|
-| [User Guide](docs/USER_GUIDE.md) | Complete user documentation |
+| [User Guide](docs/USER_GUIDE.md) | User documentation |
 | [Configuration](docs/CONFIGURATION.md) | Configuration reference |
-| [API Reference](docs/API.md) | Plugin API documentation |
 | [Plugin Development](docs/PLUGIN_DEVELOPMENT.md) | Creating plugins |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [API Reference](docs/API.md) | Plugin API |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
 
----
-
-## Project Structure
-
-```
-symphony/
-├── src/
-│   ├── main.rs           # Entry point
-│   ├── app.rs            # Application state
-│   ├── audio/            # Audio playback engine
-│   │   ├── engine.rs     # Core playback
-│   │   └── analyzer.rs   # FFT analysis
-│   ├── ui/               # Terminal UI
-│   │   ├── visualizer.rs # Visualizations
-│   │   └── artwork.rs    # Album art
-│   ├── ai/               # AI integration
-│   │   ├── ollama.rs     # Local LLM
-│   │   ├── openrouter.rs # Cloud AI
-│   │   └── recommendations.rs
-│   ├── streaming/        # Streaming sources
-│   │   ├── youtube.rs
-│   │   ├── spotify.rs
-│   │   └── cache.rs
-│   ├── plugins/          # Plugin system
-│   │   ├── runtime.rs    # WASM runtime
-│   │   └── api.rs        # Host functions
-│   ├── lyrics/           # Lyrics system
-│   ├── integrations/     # Developer features
-│   │   ├── git.rs
-│   │   └── pomodoro.rs
-│   ├── config/           # Configuration
-│   └── db/               # Database
-├── themes/               # Color themes
-├── config/               # Default config
-├── tests/                # Test suites
-└── benches/              # Benchmarks
-```
-
----
-
-## Performance
-
-Symphony is optimized for performance:
-
-| Metric | Target | Actual |
-|--------|--------|--------|
-| Startup time | < 1s | ~500ms |
-| Memory (idle) | < 50MB | ~35MB |
-| Memory (playing) | < 200MB | ~120MB |
-| CPU (playback) | < 5% | ~2-3% |
-| FFT latency | < 5ms | ~2ms |
-| Binary size | < 15MB | ~12MB |
-
----
-
-## Development Status
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| Phase 1: Foundation | ✅ Complete | Core playback + UI |
-| Phase 2: Visuals | ✅ Complete | FFT analyzer + Themes |
-| Phase 3: AI | ✅ Complete | LLM + Embeddings |
-| Phase 4: Streaming | ✅ Complete | YouTube + Spotify |
-| Phase 5: Advanced | ✅ Complete | Plugins + Lyrics |
-| Phase 6: Polish | ✅ Complete | Docs + Release |
+The files in `docs/` were written before the audit that produced this README and may still describe features that do not exist. When they disagree with this page, this page wins.
 
 ---
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-### Development
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-# Clone and build
-git clone https://github.com/Rcidshacker/Symphony.git
-cd symphony
-cargo build
-
-# Run tests
-cargo test
-
-# Run with debug logging
-cargo run -- --verbose
-
-# Format code
-cargo fmt
-
-# Lint
-cargo clippy
+cargo test                                                  # unit + integration tests
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
 ```
-
-### Roadmap
-
-- [ ] Mobile companion app
-- [ ] Collaborative listening sessions
-- [ ] Music quiz game mode
-- [ ] Built-in equalizer
-- [ ] MIDI controller support
-- [ ] Voice control
-
----
 
 ## License
 
-Symphony is licensed under the [MIT License](LICENSE).
+MIT, see [LICENSE](LICENSE).
 
----
+## Built with
 
-## Acknowledgments
-
-Built with amazing open-source projects:
-
-- [Ratatui](https://github.com/ratatui-org/ratatui) - Terminal UI framework
-- [Rodio](https://github.com/RustAudio/rodio) - Audio playback
-- [RustFFT](https://github.com/ejmahler/RustFFT) - FFT implementation
-- [Ollama](https://ollama.ai) - Local LLM runtime
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloader
-
----
-
-## Community
-
-- **GitHub**: https://github.com/Rcidshacker/Symphony
-- **Discord**: https://discord.gg/symphony-player
-- **Twitter**: @symphony_player
-
----
-
-<p align="center">
-  <strong>Built with ❤️ for developers who love music</strong>
-</p>
+[Ratatui](https://github.com/ratatui-org/ratatui), [Rodio](https://github.com/RustAudio/rodio), [Symphonia](https://github.com/pdeljanov/Symphonia), [RustFFT](https://github.com/ejmahler/RustFFT), [wasmi](https://github.com/wasmi-labs/wasmi), [Ollama](https://ollama.com), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [LRCLIB](https://lrclib.net).
