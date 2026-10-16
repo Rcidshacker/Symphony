@@ -3,6 +3,7 @@
 pub mod ai;
 pub mod app;
 pub mod audio;
+pub mod cli;
 pub mod config;
 pub mod db;
 pub mod integrations;
