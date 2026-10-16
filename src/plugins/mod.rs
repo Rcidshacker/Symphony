@@ -1,51 +1,18 @@
-//! Plugin system (Phase 5)
+//! Plugin system
 //!
-//! WASM-based plugin system for extensibility. Plugins run in a sandboxed
-//! environment and can respond to events, access track info, and integrate
-//! with external services.
+//! Plugins are WebAssembly modules run by the `wasmi` interpreter, each in its own sandbox.
+//! They receive playback events as JSON, can call a small set of host functions, and need the
+//! permissions listed in their `plugin.toml` for each of them. See [`runtime`] for the ABI.
 //!
-//! # Architecture
+//! Discord Rich Presence and Last.fm scrobbling are built into the player (see
+//! `integrations::discord` and `integrations::lastfm`); plugins can use them through the
+//! `discord_presence` and `scrobble` host functions.
+//!
+//! # Plugin folder
 //! ```text
-//! ┌─────────────────────────────────────────────────┐
-//! │          Plugin Runtime                         │
-//! ├─────────────────────────────────────────────────┤
-//! │  Engine (Wasmtime)                              │
-//! │    └── Compiles and runs WASM modules           │
-//! │                                                  │
-//! │  Linker (Host Functions)                        │
-//! │    ├── host_log()                               │
-//! │    ├── host_get_track()                         │
-//! │    ├── host_set_discord_presence()              │
-//! │    └── host_scrobble()                          │
-//! │                                                  │
-//! │  Plugin Registry                                │
-//! │    └── Manages loaded plugins                   │
-//! └─────────────────────────────────────────────────┘
-//! ```
-//!
-//! # Creating a Plugin
-//! ```rust,ignore
-//! // Guest code: built as a separate crate for the wasm32 target, not compiled here
-//! // In your plugin's lib.rs (compiled to WASM)
-//! 
-//! #[no_mangle]
-//! pub extern "C" fn plugin_init() {
-//!     log("My plugin initialized!");
-//! }
-//!
-//! #[no_mangle]
-//! pub extern "C" fn on_event(event_ptr: i32) {
-//!     // Handle event
-//! }
-//! ```
-//!
-//! # Plugin Manifest (plugin.toml)
-//! ```toml
-//! name = "my-plugin"
-//! version = "1.0.0"
-//! author = "Your Name"
-//! description = "My awesome plugin"
-//! permissions = ["track_info", "discord"]
+//! <plugin_dir>/my-plugin/
+//!   plugin.toml   name, version, author, description, permissions = ["track_info", ...]
+//!   plugin.wasm   exports `memory`, `alloc`, `on_event`, optional `plugin_init`/`plugin_shutdown`
 //! ```
 
 pub mod api;

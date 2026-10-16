@@ -602,10 +602,6 @@ pub struct PluginsConfig {
     /// Last.fm plugin settings
     #[serde(default)]
     pub lastfm: LastfmPluginConfig,
-
-    /// Notifications plugin settings
-    #[serde(default)]
-    pub notifications: NotificationsPluginConfig,
 }
 
 fn default_plugin_dir() -> PathBuf {
@@ -622,21 +618,22 @@ pub struct DiscordPluginConfig {
     #[serde(default)]
     pub enabled: bool,
 
-    /// Show timestamp
+    /// Application ID of your Discord application
+    /// (<https://discord.com/developers/applications>)
+    #[serde(default)]
+    pub client_id: String,
+
+    /// Show the elapsed-time counter
     #[serde(default = "default_true")]
     pub show_timestamp: bool,
-
-    /// Show album art
-    #[serde(default = "default_true")]
-    pub show_album_art: bool,
 }
 
 impl Default for DiscordPluginConfig {
     fn default() -> Self {
         Self {
             enabled: false,
+            client_id: String::new(),
             show_timestamp: true,
-            show_album_art: true,
         }
     }
 }
@@ -656,9 +653,17 @@ pub struct LastfmPluginConfig {
     #[serde(default)]
     pub api_secret: String,
 
-    /// Username
+    /// Username (filled in by `symphony lastfm-login`)
     #[serde(default)]
     pub username: String,
+
+    /// Session key (filled in by `symphony lastfm-login`)
+    #[serde(default)]
+    pub session_key: String,
+
+    /// Web API endpoint (change only to point at a test server)
+    #[serde(default = "default_lastfm_api_url")]
+    pub api_url: String,
 
     /// Scrobble threshold (percentage)
     #[serde(default = "default_scrobble_threshold")]
@@ -669,6 +674,10 @@ fn default_scrobble_threshold() -> u8 {
     50
 }
 
+fn default_lastfm_api_url() -> String {
+    crate::integrations::lastfm::DEFAULT_API_URL.to_string()
+}
+
 impl Default for LastfmPluginConfig {
     fn default() -> Self {
         Self {
@@ -676,33 +685,9 @@ impl Default for LastfmPluginConfig {
             api_key: String::new(),
             api_secret: String::new(),
             username: String::new(),
+            session_key: String::new(),
+            api_url: default_lastfm_api_url(),
             scrobble_threshold: default_scrobble_threshold(),
-        }
-    }
-}
-
-/// Notifications plugin configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NotificationsPluginConfig {
-    /// Enable notifications
-    #[serde(default)]
-    pub enabled: bool,
-
-    /// Notify on track change
-    #[serde(default = "default_true")]
-    pub on_track_change: bool,
-
-    /// Notify on playlist end
-    #[serde(default = "default_true")]
-    pub on_playlist_end: bool,
-}
-
-impl Default for NotificationsPluginConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            on_track_change: true,
-            on_playlist_end: true,
         }
     }
 }
@@ -715,7 +700,6 @@ impl Default for PluginsConfig {
             auto_load: Vec::new(),
             discord: DiscordPluginConfig::default(),
             lastfm: LastfmPluginConfig::default(),
-            notifications: NotificationsPluginConfig::default(),
         }
     }
 }

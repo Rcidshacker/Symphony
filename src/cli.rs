@@ -5,6 +5,7 @@
 //! `symphony scan <dir>`           add a music directory to the library
 //! `symphony stream <query>`       search YouTube/Spotify and play the best match
 //! `symphony add <path|source:id>` add local music (or a stream source)
+//! `symphony lastfm-login`         authorize Last.fm scrobbling
 //! `symphony "<prompt>"`           start the player and run a natural-language command
 
 use std::path::PathBuf;
@@ -23,6 +24,7 @@ COMMANDS:
     scan <DIR>             Scan a directory and add its music to the library
     stream <QUERY>         Search YouTube/Spotify and play the best match
     add <SOURCE>           Add a local path, youtube:<id|url> or spotify:<track|playlist>:<id>
+    lastfm-login           Authorize Last.fm scrobbling (needs api_key/api_secret in the config)
     \"<PROMPT>\"             Start the player and ask the AI, e.g. symphony \"play something energetic\"
 
 With no command the interactive player starts.
@@ -47,6 +49,8 @@ pub enum Command {
     Add(String),
     /// Natural-language prompt: start the player and let the AI act on it
     Ask(String),
+    /// Authorize Last.fm and store the session key
+    LastfmLogin,
     /// Print help
     Help,
     /// Print version
@@ -119,6 +123,7 @@ fn command_from(positional: Vec<String>) -> Result<Command, CliError> {
 
     match first.as_str() {
         "init" => Ok(Command::Init),
+        "lastfm-login" => Ok(Command::LastfmLogin),
         "scan" if rest.is_empty() => Err(CliError::MissingArgument {
             command: "scan",
             what: "a directory",
@@ -154,6 +159,7 @@ mod tests {
     #[test]
     fn subcommands() {
         assert_eq!(p(&["init"]).unwrap().command, Command::Init);
+        assert_eq!(p(&["lastfm-login"]).unwrap().command, Command::LastfmLogin);
         assert_eq!(
             p(&["scan", "/music"]).unwrap().command,
             Command::Scan(PathBuf::from("/music"))

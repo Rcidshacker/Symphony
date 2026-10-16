@@ -20,6 +20,7 @@ use symphony::audio::AudioEngine;
 use symphony::cli::{self, Command};
 use symphony::config::Config;
 use symphony::db::Database;
+use symphony::integrations::lastfm::LastFm;
 use symphony::input::handle_key_event;
 use symphony::scanner::LibraryScanner;
 use symphony::streaming::{StreamManager, StreamManagerConfig};
@@ -55,6 +56,7 @@ fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Command::Init => cmd_init(),
+        Command::LastfmLogin => cmd_lastfm_login(),
         Command::Scan(dir) => cmd_scan(&dir),
         Command::Add(spec) => cmd_add(&spec),
         Command::Stream(query) => run_tui(Config::load()?, Startup::Stream(&query)),
@@ -83,6 +85,34 @@ fn cmd_init() -> anyhow::Result<()> {
     println!("Database: {}", config.general.database_path.display());
     println!("Cache:    {}", config.general.cache_directory.display());
     println!("Next: symphony scan <music-dir>");
+    Ok(())
+}
+
+/// `symphony lastfm-login`: authorize in the browser, then store the session key in the config.
+fn cmd_lastfm_login() -> anyhow::Result<()> {
+    let mut config = Config::load()?;
+    let settings = &config.plugins.lastfm;
+    if settings.api_key.is_empty() || settings.api_secret.is_empty() {
+        bail!(
+            "set api_key and api_secret under [plugins.lastfm] in {} first (create them at https://www.last.fm/api/account/create)",
+            Config::default_config_path().display()
+        );
+    }
+    let client = LastFm::new(&settings.api_key, &settings.api_secret, "", &settings.api_url);
+
+    let runtime = tokio::runtime::Runtime::new()?;
+    let (name, key) = runtime.block_on(async {
+        let token = client.request_token().await.map_err(|e| anyhow::anyhow!(e))?;
+        println!("Open this page, click \"Yes, allow access\", then press Enter here:\n\n  {}\n", client.auth_url(&token));
+        io::stdin().read_line(&mut String::new())?;
+        client.request_session(&token).await.map_err(|e| anyhow::anyhow!(e))
+    })?;
+
+    config.plugins.lastfm.username = name.clone();
+    config.plugins.lastfm.session_key = key;
+    config.plugins.lastfm.enabled = true;
+    config.save()?;
+    println!("Logged in to Last.fm as {name}. Scrobbling is on.");
     Ok(())
 }
 
@@ -153,6 +183,7 @@ fn run_tui(config: Config, startup: Startup) -> anyhow::Result<()> {
     let mut app = App::new(config, audio_engine);
     app.database = Some(database);
     app.load_library()?;
+    app.start_integrations();
     match startup {
         Startup::Nothing => {}
         Startup::Prompt(prompt) => app.submit_prompt(prompt),
@@ -167,6 +198,7 @@ fn run_tui(config: Config, startup: Startup) -> anyhow::Result<()> {
 
     let res = run_event_loop(&mut terminal, &mut app);
 
+    app.stop_integrations();
     restore_terminal(&mut terminal)?;
 
     if let Err(err) = res {

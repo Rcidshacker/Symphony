@@ -76,16 +76,16 @@ url = "2.5"
 # Regex for lyrics parsing
 regex = "1.10"
 
-# Streaming (Phase 4)
-# ytdl = "0.8"
-# rspotify = "0.13"
+# WASM plugin runtime (pure Rust interpreter, metered)
+wasmi = "2.0.0"
 
-# Plugins (Phase 5)
-# wasmtime = "25.0"
+# Last.fm request signatures
+md5 = "0.8.1"
 
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.12"
+wat = "1.262.0"
 
 [[bench]]
 name = "fft_bench"

@@ -5,7 +5,9 @@
 //! - Pomodoro timer
 //! - Status line output
 
+pub mod discord;
 pub mod git;
+pub mod lastfm;
 pub mod pomodoro;
 pub mod statusline;
 

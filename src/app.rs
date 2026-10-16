@@ -31,6 +31,9 @@ use crate::ui::visualizer::{VisualizationMode, VisualizerState};
 mod assistant;
 use assistant::SearchKind;
 
+#[path = "app_plugins.rs"]
+mod hooks;
+
 #[path = "app_stream.rs"]
 mod stream;
 pub use stream::{import_stream_spec, track_from_stream};
@@ -93,6 +96,9 @@ pub struct App {
 
     /// Runtime for async work such as AI requests
     runtime: Option<tokio::runtime::Runtime>,
+
+    /// Plugins, Discord and Last.fm (idle until `start_integrations`)
+    integrations: hooks::Integrations,
 
     /// Stream manager, created on first use
     stream: stream::SharedManager,
@@ -428,6 +434,7 @@ impl App {
             pomodoro,
             git_monitor,
             runtime,
+            integrations: Default::default(),
             stream: Default::default(),
             stream_pending: None,
             ai_tx,
@@ -444,6 +451,7 @@ impl App {
             self.audio_engine.play();
             self.playback_state.is_playing = true;
         }
+        self.playback_changed();
     }
 
     /// Skip to next track
@@ -507,6 +515,7 @@ impl App {
         }
 
         let track = self.library.queue[index].clone();
+        self.track_finished();
         self.stream_pending = None;
         if stream::is_stream(&track) {
             self.start_stream(track);
@@ -531,6 +540,7 @@ impl App {
         self.playback_state.is_playing = true;
         self.playback_state.position = 0.0;
         self.playback_state.duration = track.duration;
+        self.track_started(track);
 
         // Update status message
         self.ui_state.status_message = Some(format!("Playing: {} - {}", track.artist, track.title));
@@ -551,9 +561,11 @@ impl App {
 
     /// Stop playback completely
     fn stop_playback(&mut self) {
+        self.track_finished();
         self.audio_engine.stop();
         self.playback_state.is_playing = false;
         self.playback_state.current_track = None;
+        self.playback_stopped();
     }
 
     /// Increase volume
@@ -572,6 +584,7 @@ impl App {
         self.playback_state.volume = volume;
         self.audio_engine.set_volume(volume);
         self.ui_state.status_message = Some(format!("Volume: {}%", (volume * 100.0).round() as u32));
+        self.volume_changed();
     }
 
     /// Toggle mute
@@ -798,6 +811,7 @@ impl App {
 
         self.poll_background();
         self.poll_integrations();
+        self.poll_plugin_notifications();
         self.update_visualizer();
 
         if self.playback_state.current_track.is_none() || !self.playback_state.is_playing {

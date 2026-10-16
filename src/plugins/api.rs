@@ -50,7 +50,7 @@ impl HostFunctions {
     pub fn new() -> Self {
         Self {
             callbacks: HostCallbacks {
-                log: Arc::new(|msg| println!("[Plugin] {}", msg)),
+                log: Arc::new(|msg| tracing::info!("[plugin] {msg}")),
                 get_track: Arc::new(|| None),
                 get_volume: Arc::new(|| 0.6),
                 set_discord_presence: Arc::new(|_, _, _, _| {}),
@@ -237,34 +237,6 @@ impl PluginApi {
     pub fn version(&self) -> &str {
         &self.manifest.version
     }
-}
-
-/// WASM plugin API macros
-///
-/// These macros help plugin authors define the required exports.
-#[macro_export]
-macro_rules! declare_plugin {
-    ($name:literal, $init:expr, $on_event:expr) => {
-        #[no_mangle]
-        pub extern "C" fn plugin_init() {
-            $init();
-        }
-
-        #[no_mangle]
-        pub extern "C" fn on_event(event_ptr: i32, event_len: i32) {
-            $on_event(event_ptr, event_len);
-        }
-
-        #[no_mangle]
-        pub extern "C" fn plugin_name() -> *const u8 {
-            $name.as_ptr()
-        }
-
-        #[no_mangle]
-        pub extern "C" fn plugin_name_len() -> i32 {
-            $name.len() as i32
-        }
-    };
 }
 
 /// Plugin configuration stored per-plugin

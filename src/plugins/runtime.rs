@@ -1,62 +1,78 @@
-//! WASM Plugin Runtime
+//! WASM plugin runtime
 //!
-//! Manages the lifecycle of WASM plugins using Wasmtime.
+//! Every plugin is a WebAssembly module run by the `wasmi` interpreter, one sandboxed instance
+//! per plugin. A plugin can only touch the outside world through the host functions below, each
+//! of which checks the permissions declared in its `plugin.toml`. Calls are metered (a plugin
+//! stuck in a loop is stopped and marked as failed) and memory is capped.
+//!
+//! # Plugin ABI (v1)
+//!
+//! Exports the plugin provides:
+//! - `memory` (required)
+//! - `alloc(len: i32) -> i32` (required for `on_event`): returns a buffer in `memory` for the host to fill
+//! - `on_event(ptr: i32, len: i32)`: receives one event as JSON (see [`PluginEvent`])
+//! - `plugin_init()` / `plugin_shutdown()`: optional lifecycle hooks
+//!
+//! Host functions in the `symphony` import module (strings are `ptr, len` pairs in plugin memory;
+//! functions returning `i32` give `0` on success and `-1` when the permission is missing):
+//! - `log(ptr, len)`
+//! - `get_track(buf_ptr, buf_cap) -> i32`: current track as JSON, returns its length (`track_info`; 0 = nothing playing, -2 = buffer too small)
+//! - `get_volume() -> f32`: volume 0.0-1.0, or -1.0 without permission (`playback_state`)
+//! - `notify(title_ptr, title_len, body_ptr, body_len) -> i32` (`notifications`)
+//! - `discord_presence(title_ptr, title_len, artist_ptr, artist_len) -> i32` (`discord`)
+//! - `scrobble(title_ptr, title_len, artist_ptr, artist_len) -> i32` (`lastfm`)
 
-use super::{PluginError, PluginEvent, PluginManifest, PluginStatus, TrackInfo};
+use super::{HostFunctions, Permission, PluginError, PluginEvent, PluginManifest, PluginStatus};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use wasmi::{Caller, Config, Engine, Extern, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder};
 
-// Note: The actual wasmtime implementation would require the wasmtime crate.
-// This is a simplified version that demonstrates the architecture.
-// In production, uncomment the wasmtime dependency in Cargo.toml.
+/// Instructions a plugin may run per call before it is stopped
+const FUEL_PER_CALL: u64 = 20_000_000;
+/// Linear memory a plugin may use
+const MAX_MEMORY_BYTES: usize = 16 * 1024 * 1024;
+/// Longest string a plugin may pass to the host
+const MAX_STRING_BYTES: i32 = 64 * 1024;
 
-/// Plugin runtime state
-#[derive(Debug, Default)]
-struct PluginState {
-    /// Plugin name
-    name: String,
-    /// Shared track info
-    current_track: Option<TrackInfo>,
-    /// Shared volume
-    volume: f32,
-    /// Memory buffer for passing data
-    memory_buffer: Vec<u8>,
+/// What host functions see of the calling plugin
+struct HostState {
+    permissions: Vec<Permission>,
+    host: Arc<HostFunctions>,
+    /// Host calls refused for lack of a permission
+    denied: u32,
+    limits: StoreLimits,
+}
+
+/// A plugin's wasm instance
+struct Guest {
+    store: Store<HostState>,
+    instance: Instance,
+    memory: Memory,
+    has_on_event: bool,
 }
 
 /// A loaded plugin
-#[derive(Debug)]
 struct LoadedPlugin {
-    /// Plugin manifest
     manifest: PluginManifest,
-    /// Plugin status
     status: PluginStatus,
-    /// Path to plugin WASM file
     wasm_path: PathBuf,
-    /// Whether the plugin is enabled
     enabled: bool,
-    /// Plugin state data
-    state: PluginState,
-    /// Last error (if any)
+    guest: Guest,
     last_error: Option<String>,
 }
 
 /// Plugin runtime - manages WASM plugin lifecycle
 pub struct PluginRuntime {
-    /// Loaded plugins indexed by name
     plugins: HashMap<String, LoadedPlugin>,
-    /// Plugin directory
     plugin_dir: PathBuf,
-    /// Whether plugins are enabled globally
     enabled: bool,
-    /// Host callback for Discord presence
-    discord_callback: Option<Arc<dyn Fn(&str, &str, &str) + Send + Sync>>,
-    /// Host callback for Last.fm scrobble
-    lastfm_callback: Option<Arc<dyn Fn(&str, &str, &str) + Send + Sync>>,
-    /// Host callback for notifications
-    notify_callback: Option<Arc<dyn Fn(&str, &str) + Send + Sync>>,
+    /// Load only these plugins from the directory (all when empty)
+    auto_load: Vec<String>,
+    engine: Engine,
+    linker: Linker<HostState>,
+    host: Arc<HostFunctions>,
 }
 
 impl std::fmt::Debug for PluginRuntime {
@@ -72,18 +88,24 @@ impl std::fmt::Debug for PluginRuntime {
 impl PluginRuntime {
     /// Create a new plugin runtime
     pub fn new(plugin_dir: PathBuf) -> Result<Self, PluginError> {
-        // Ensure plugin directory exists
         if !plugin_dir.exists() {
             std::fs::create_dir_all(&plugin_dir)?;
         }
+
+        let mut config = Config::default();
+        config.consume_fuel(true);
+        let engine = Engine::new(&config);
+        let mut linker = Linker::new(&engine);
+        define_host_functions(&mut linker)?;
 
         Ok(Self {
             plugins: HashMap::new(),
             plugin_dir,
             enabled: true,
-            discord_callback: None,
-            lastfm_callback: None,
-            notify_callback: None,
+            auto_load: Vec::new(),
+            engine,
+            linker,
+            host: Arc::new(HostFunctions::new()),
         })
     }
 
@@ -97,37 +119,42 @@ impl PluginRuntime {
         Self::new(plugin_dir)
     }
 
+    /// Connect plugins to the application (affects plugins loaded afterwards)
+    pub fn set_host(&mut self, host: HostFunctions) {
+        self.host = Arc::new(host);
+    }
+
+    /// Only load the named plugins from the directory (all when empty)
+    pub fn set_auto_load(&mut self, names: Vec<String>) {
+        self.auto_load = names;
+    }
+
     /// Enable or disable plugins globally
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
 
-    /// Scan plugin directory and load all plugins
+    /// Load every plugin folder (`plugin.toml` + `plugin.wasm`) in the plugin directory.
+    /// A plugin that fails to load is skipped with a warning.
     pub async fn load_all_plugins(&mut self) -> Result<Vec<String>, PluginError> {
         let mut loaded = Vec::new();
-
         if !self.plugin_dir.exists() {
             return Ok(loaded);
         }
 
-        let entries = std::fs::read_dir(&self.plugin_dir)?;
-        for entry in entries.filter_map(|e| e.ok()) {
+        for entry in std::fs::read_dir(&self.plugin_dir)?.filter_map(|e| e.ok()) {
             let path = entry.path();
-            if path.is_dir() {
-                // Look for plugin.toml
-                let manifest_path = path.join("plugin.toml");
-                let wasm_path = path.join("plugin.wasm");
-
-                if manifest_path.exists() {
-                    match self.load_plugin(&manifest_path, &wasm_path).await {
-                        Ok(name) => {
-                            loaded.push(name);
-                        }
-                        Err(e) => {
-                            warn!("Failed to load plugin from {:?}: {}", path, e);
-                        }
-                    }
-                }
+            let manifest_path = path.join("plugin.toml");
+            if !path.is_dir() || !manifest_path.exists() {
+                continue;
+            }
+            let folder = entry.file_name().to_string_lossy().to_string();
+            if !self.auto_load.is_empty() && !self.auto_load.contains(&folder) {
+                continue;
+            }
+            match self.load_plugin(&manifest_path, &path.join("plugin.wasm")).await {
+                Ok(name) => loaded.push(name),
+                Err(e) => warn!("Failed to load plugin from {:?}: {}", path, e),
             }
         }
 
@@ -135,85 +162,102 @@ impl PluginRuntime {
         Ok(loaded)
     }
 
-    /// Load a plugin from manifest and WASM file
+    /// Load a plugin from its manifest and WASM file
     pub async fn load_plugin(
         &mut self,
         manifest_path: &Path,
         wasm_path: &Path,
     ) -> Result<String, PluginError> {
-        // Read and parse manifest
         let manifest_content = std::fs::read_to_string(manifest_path)?;
         let manifest: PluginManifest = toml::from_str(&manifest_content)
             .map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
-
         let name = manifest.name.clone();
 
-        // Check if already loaded
         if self.plugins.contains_key(&name) {
-            return Err(PluginError::InitFailed(format!(
-                "Plugin {} already loaded",
-                name
-            )));
+            return Err(PluginError::InitFailed(format!("Plugin {name} already loaded")));
         }
-
         info!("Loading plugin: {} v{}", name, manifest.version);
 
-        // Verify WASM file exists
-        if !wasm_path.exists() {
-            // Create placeholder for built-in plugins that don't have WASM yet
-            let plugin = LoadedPlugin {
-                manifest,
-                status: PluginStatus::Active,
-                wasm_path: wasm_path.to_path_buf(),
-                enabled: true,
-                state: PluginState {
-                    name: name.clone(),
-                    ..Default::default()
-                },
-                last_error: None,
-            };
+        let bytes = std::fs::read(wasm_path)?;
+        let guest = self.instantiate(&manifest, &bytes)?;
 
-            self.plugins.insert(name.clone(), plugin);
-            return Ok(name);
+        let enabled = manifest.enabled;
+        self.plugins.insert(
+            name.clone(),
+            LoadedPlugin {
+                manifest,
+                status: if enabled { PluginStatus::Active } else { PluginStatus::Disabled },
+                wasm_path: wasm_path.to_path_buf(),
+                enabled,
+                guest,
+                last_error: None,
+            },
+        );
+
+        // plugin_init runs once; a plugin whose init traps is kept but marked failed
+        if let Some(plugin) = self.plugins.get_mut(&name) {
+            if let Err(e) = call_hook(&mut plugin.guest, "plugin_init") {
+                plugin.status = PluginStatus::Error;
+                plugin.last_error = Some(e);
+            }
         }
 
-        // In production, this would:
-        // 1. Read WASM bytes
-        // 2. Compile module with wasmtime
-        // 3. Create linker with host functions
-        // 4. Instantiate module
-        // 5. Call plugin_init()
-
-        let plugin = LoadedPlugin {
-            manifest,
-            status: PluginStatus::Active,
-            wasm_path: wasm_path.to_path_buf(),
-            enabled: true,
-            state: PluginState {
-                name: name.clone(),
-                ..Default::default()
-            },
-            last_error: None,
-        };
-
-        self.plugins.insert(name.clone(), plugin);
-
-        // Call plugin init
-        self.call_plugin_init(&name)?;
-
-        info!("Plugin {} loaded successfully", name);
+        info!("Plugin {} loaded", name);
         Ok(name)
     }
 
-    /// Unload a plugin
-    pub fn unload_plugin(&mut self, name: &str) -> Result<(), PluginError> {
-        if let Some(plugin) = self.plugins.remove(name) {
-            info!("Unloaded plugin: {}", name);
-            // In production, would call plugin_shutdown() first
-            Ok(())
-        } else {
-            Err(PluginError::PluginNotFound(name.to_string()))
+    /// Compile and instantiate a plugin's module
+    fn instantiate(&self, manifest: &PluginManifest, bytes: &[u8]) -> Result<Guest, PluginError> {
+        let wasm_err = |e: &dyn std::fmt::Display| PluginError::WasmError(e.to_string());
+
+        let module = Module::new(&self.engine, bytes).map_err(|e| wasm_err(&e))?;
+        let mut store = Store::new(
+            &self.engine,
+            HostState {
+                permissions: manifest.permissions.clone(),
+                host: self.host.clone(),
+                denied: 0,
+                limits: StoreLimitsBuilder::new()
+                    .memory_size(MAX_MEMORY_BYTES)
+                    .instances(1)
+                    .build(),
+            },
+        );
+        store.limiter(|state| &mut state.limits);
+        store.set_fuel(FUEL_PER_CALL).map_err(|e| wasm_err(&e))?;
+
+        let instance = self
+            .linker
+            .instantiate_and_start(&mut store, &module)
+            .map_err(|e| wasm_err(&e))?;
+        let memory = instance
+            .get_export(&store, "memory")
+            .and_then(Extern::into_memory)
+            .ok_or_else(|| PluginError::WasmError("plugin must export `memory`".to_string()))?;
+
+        let has_on_event = instance.get_export(&store, "on_event").is_some();
+        if has_on_event && instance.get_typed_func::<i32, i32>(&store, "alloc").is_err() {
+            return Err(PluginError::WasmError(
+                "plugins with `on_event` must export `alloc(i32) -> i32`".to_string(),
+            ));
         }
+
+        Ok(Guest { store, instance, memory, has_on_event })
+    }
+
+    /// Unload a plugin, giving it a chance to clean up
+    pub fn unload_plugin(&mut self, name: &str) -> Result<(), PluginError> {
+        let mut plugin = self
+            .plugins
+            .remove(name)
+            .ok_or_else(|| PluginError::PluginNotFound(name.to_string()))?;
+        if plugin.status == PluginStatus::Active {
+            if let Err(e) = call_hook(&mut plugin.guest, "plugin_shutdown") {
+                warn!("plugin_shutdown of {name} failed: {e}");
+            }
+        }
+        info!("Unloaded plugin: {}", name);
+        Ok(())
     }
 
     /// Reload a plugin (useful for development)
@@ -222,23 +266,21 @@ impl PluginRuntime {
             .plugins
             .get(name)
             .ok_or_else(|| PluginError::PluginNotFound(name.to_string()))?;
-
-        let manifest_path = plugin.wasm_path.parent().unwrap().join("plugin.toml");
         let wasm_path = plugin.wasm_path.clone();
+        let manifest_path = wasm_path.with_file_name("plugin.toml");
 
         self.unload_plugin(name)?;
         self.load_plugin(&manifest_path, &wasm_path).await?;
-
         Ok(())
     }
 
-    /// Trigger an event for all plugins
+    /// Send an event to every enabled plugin that has the permission for it.
+    /// A plugin that traps or runs out of fuel is marked failed and gets no more events.
     pub fn trigger_event(&mut self, event: &PluginEvent) {
         if !self.enabled {
             return;
         }
-
-        let event_json = match event.to_json() {
+        let json = match event.to_json() {
             Ok(json) => json,
             Err(e) => {
                 error!("Failed to serialize event: {}", e);
@@ -246,107 +288,46 @@ impl PluginRuntime {
             }
         };
 
-        let targets: Vec<String> = self
-            .plugins
-            .iter()
-            .filter(|(_, p)| {
-                p.enabled
-                    && p.status == PluginStatus::Active
-                    && self.has_event_permission(&p.manifest, event)
-            })
-            .map(|(n, _)| n.clone())
-            .collect();
-
-        for name in targets {
-
-            // In production, this would:
-            // 1. Write event JSON to plugin memory
-            // 2. Call on_event(ptr, len) function
-
+        for (name, plugin) in self.plugins.iter_mut() {
+            if !plugin.enabled
+                || plugin.status != PluginStatus::Active
+                || !plugin.guest.has_on_event
+                || !has_event_permission(&plugin.manifest, event)
+            {
+                continue;
+            }
             debug!("Sending event {:?} to plugin {}", event.event_type(), name);
-
-            // Handle built-in plugin logic directly (simplified)
-            self.handle_builtin_plugin_event(&name, event, &event_json);
+            if let Err(e) = deliver(&mut plugin.guest, &json) {
+                warn!("Plugin {name} failed on {}: {e}", event.event_type());
+                plugin.status = PluginStatus::Error;
+                plugin.last_error = Some(e);
+            }
         }
-    }
-
-    /// Check if plugin has permission for event
-    fn has_event_permission(&self, manifest: &PluginManifest, event: &PluginEvent) -> bool {
-        use super::Permission;
-
-        let required_permission = match event {
-            PluginEvent::TrackChanged(_) => Permission::TrackInfo,
-            PluginEvent::PlaybackStateChanged(_) => Permission::PlaybackState,
-            PluginEvent::VolumeChanged(_) => Permission::PlaybackState,
-            PluginEvent::PlaylistChanged { .. } => Permission::Playlists,
-            PluginEvent::TrackCompleted { .. } => Permission::TrackInfo,
-            PluginEvent::SeekChanged { .. } => Permission::PlaybackState,
-            PluginEvent::AppStarted | PluginEvent::AppStopped => return true,
-            PluginEvent::Custom { .. } => return true,
-        };
-
-        manifest.has_permission(&required_permission)
-    }
-
-    /// Handle events for built-in plugins (simplified implementation)
-    fn handle_builtin_plugin_event(&mut self, name: &str, event: &PluginEvent, _event_json: &str) {
-        match name {
-            "discord" => {
-                if let PluginEvent::TrackChanged(track) = event {
-                    if let Some(callback) = &self.discord_callback {
-                        let album = track.album.as_deref().unwrap_or("");
-                        callback(&track.title, &track.artist, album);
-                    }
-                }
-            }
-            "lastfm" => {
-                if let PluginEvent::TrackCompleted { track, .. } = event {
-                    if let Some(callback) = &self.lastfm_callback {
-                        let album = track.album.as_deref().unwrap_or("");
-                        callback(&track.title, &track.artist, album);
-                    }
-                }
-            }
-            "notifications" => {
-                if let PluginEvent::TrackChanged(track) = event {
-                    if let Some(callback) = &self.notify_callback {
-                        callback(&track.title, &track.artist);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Call plugin initialization function
-    fn call_plugin_init(&mut self, name: &str) -> Result<(), PluginError> {
-        // In production, would call the plugin_init() exported function
-        debug!("Initializing plugin: {}", name);
-        Ok(())
     }
 
     /// Enable a plugin
     pub fn enable_plugin(&mut self, name: &str) -> Result<(), PluginError> {
-        if let Some(plugin) = self.plugins.get_mut(name) {
-            plugin.enabled = true;
-            plugin.status = PluginStatus::Active;
-            info!("Enabled plugin: {}", name);
-            Ok(())
-        } else {
-            Err(PluginError::PluginNotFound(name.to_string()))
-        }
+        let plugin = self
+            .plugins
+            .get_mut(name)
+            .ok_or_else(|| PluginError::PluginNotFound(name.to_string()))?;
+        plugin.enabled = true;
+        plugin.status = PluginStatus::Active;
+        plugin.last_error = None;
+        info!("Enabled plugin: {}", name);
+        Ok(())
     }
 
     /// Disable a plugin
     pub fn disable_plugin(&mut self, name: &str) -> Result<(), PluginError> {
-        if let Some(plugin) = self.plugins.get_mut(name) {
-            plugin.enabled = false;
-            plugin.status = PluginStatus::Disabled;
-            info!("Disabled plugin: {}", name);
-            Ok(())
-        } else {
-            Err(PluginError::PluginNotFound(name.to_string()))
-        }
+        let plugin = self
+            .plugins
+            .get_mut(name)
+            .ok_or_else(|| PluginError::PluginNotFound(name.to_string()))?;
+        plugin.enabled = false;
+        plugin.status = PluginStatus::Disabled;
+        info!("Disabled plugin: {}", name);
+        Ok(())
     }
 
     /// Get list of loaded plugins
@@ -362,6 +343,16 @@ impl PluginRuntime {
         self.plugins.get(name).map(|p| p.status)
     }
 
+    /// Why a plugin was stopped, if it was
+    pub fn plugin_error(&self, name: &str) -> Option<&str> {
+        self.plugins.get(name).and_then(|p| p.last_error.as_deref())
+    }
+
+    /// How many host calls the plugin made without having the permission
+    pub fn denied_calls(&self, name: &str) -> u32 {
+        self.plugins.get(name).map_or(0, |p| p.guest.store.data().denied)
+    }
+
     /// Check if a plugin is enabled
     pub fn is_plugin_enabled(&self, name: &str) -> bool {
         self.plugins
@@ -374,50 +365,185 @@ impl PluginRuntime {
     pub fn get_plugin_manifest(&self, name: &str) -> Option<&PluginManifest> {
         self.plugins.get(name).map(|p| &p.manifest)
     }
+}
 
-    /// Set Discord presence callback
-    pub fn set_discord_callback<F>(&mut self, callback: F)
-    where
-        F: Fn(&str, &str, &str) + Send + Sync + 'static,
-    {
-        self.discord_callback = Some(Arc::new(callback));
-    }
-
-    /// Set Last.fm scrobble callback
-    pub fn set_lastfm_callback<F>(&mut self, callback: F)
-    where
-        F: Fn(&str, &str, &str) + Send + Sync + 'static,
-    {
-        self.lastfm_callback = Some(Arc::new(callback));
-    }
-
-    /// Set notification callback
-    pub fn set_notify_callback<F>(&mut self, callback: F)
-    where
-        F: Fn(&str, &str) + Send + Sync + 'static,
-    {
-        self.notify_callback = Some(Arc::new(callback));
-    }
-
-    /// Update shared track info (called by host)
-    pub fn update_track_info(&mut self, track: TrackInfo) {
+impl Drop for PluginRuntime {
+    fn drop(&mut self) {
         for plugin in self.plugins.values_mut() {
-            plugin.state.current_track = Some(track.clone());
-        }
-    }
-
-    /// Update shared volume (called by host)
-    pub fn update_volume(&mut self, volume: f32) {
-        for plugin in self.plugins.values_mut() {
-            plugin.state.volume = volume;
+            if plugin.status == PluginStatus::Active {
+                // a plugin that cannot shut down cleanly is dropped regardless
+                let _ = call_hook(&mut plugin.guest, "plugin_shutdown");
+            }
         }
     }
 }
 
-impl Default for PluginRuntime {
-    fn default() -> Self {
-        Self::with_defaults().expect("Failed to create default plugin runtime")
+/// Permission an event needs
+fn has_event_permission(manifest: &PluginManifest, event: &PluginEvent) -> bool {
+    let required = match event {
+        PluginEvent::TrackChanged(_) | PluginEvent::TrackCompleted { .. } => Permission::TrackInfo,
+        PluginEvent::PlaybackStateChanged(_)
+        | PluginEvent::VolumeChanged(_)
+        | PluginEvent::SeekChanged { .. } => Permission::PlaybackState,
+        PluginEvent::PlaylistChanged { .. } => Permission::Playlists,
+        PluginEvent::AppStarted | PluginEvent::AppStopped | PluginEvent::Custom { .. } => return true,
+    };
+    manifest.has_permission(&required)
+}
+
+/// Call an optional exported `fn()` hook; a missing hook is fine
+fn call_hook(guest: &mut Guest, name: &str) -> Result<(), String> {
+    let Ok(hook) = guest.instance.get_typed_func::<(), ()>(&guest.store, name) else {
+        return Ok(());
+    };
+    guest.store.set_fuel(FUEL_PER_CALL).map_err(|e| e.to_string())?;
+    hook.call(&mut guest.store, ()).map_err(|e| e.to_string())
+}
+
+/// Copy an event into plugin memory and call `on_event`
+fn deliver(guest: &mut Guest, json: &str) -> Result<(), String> {
+    let len = i32::try_from(json.len()).map_err(|_| "event too large".to_string())?;
+    let alloc = guest
+        .instance
+        .get_typed_func::<i32, i32>(&guest.store, "alloc")
+        .map_err(|e| e.to_string())?;
+    let on_event = guest
+        .instance
+        .get_typed_func::<(i32, i32), ()>(&guest.store, "on_event")
+        .map_err(|e| e.to_string())?;
+
+    guest.store.set_fuel(FUEL_PER_CALL).map_err(|e| e.to_string())?;
+    let ptr = alloc.call(&mut guest.store, len).map_err(|e| e.to_string())?;
+    let offset = usize::try_from(ptr).map_err(|_| "alloc returned a negative pointer".to_string())?;
+    guest
+        .memory
+        .write(&mut guest.store, offset, json.as_bytes())
+        .map_err(|e| format!("alloc returned a bad buffer: {e}"))?;
+    on_event.call(&mut guest.store, (ptr, len)).map_err(|e| e.to_string())
+}
+
+/// The calling plugin's memory
+fn memory_of(caller: &Caller<'_, HostState>) -> Option<Memory> {
+    caller.get_export("memory").and_then(Extern::into_memory)
+}
+
+/// A string from plugin memory (bounded, lossy UTF-8)
+fn read_str(caller: &Caller<'_, HostState>, ptr: i32, len: i32) -> Option<String> {
+    if ptr < 0 || !(0..=MAX_STRING_BYTES).contains(&len) {
+        return None;
     }
+    let mut buf = vec![0u8; len as usize];
+    memory_of(caller)?.read(caller, ptr as usize, &mut buf).ok()?;
+    Some(String::from_utf8_lossy(&buf).into_owned())
+}
+
+/// Whether the plugin holds `permission`; a refusal is counted and logged
+fn allowed(caller: &mut Caller<'_, HostState>, permission: Permission) -> bool {
+    if caller.data().permissions.contains(&permission) {
+        return true;
+    }
+    caller.data_mut().denied += 1;
+    warn!("plugin tried to use a host function without the `{permission}` permission");
+    false
+}
+
+fn define_host_functions(linker: &mut Linker<HostState>) -> Result<(), PluginError> {
+    let link_err = |e: wasmi::errors::LinkerError| PluginError::WasmError(e.to_string());
+
+    linker
+        .func_wrap("symphony", "log", |caller: Caller<'_, HostState>, ptr: i32, len: i32| {
+            if let Some(message) = read_str(&caller, ptr, len) {
+                caller.data().host.log(&message);
+            }
+        })
+        .map_err(link_err)?;
+
+    linker
+        .func_wrap(
+            "symphony",
+            "get_track",
+            |mut caller: Caller<'_, HostState>, buf: i32, cap: i32| -> i32 {
+                if !allowed(&mut caller, Permission::TrackInfo) {
+                    return -1;
+                }
+                let Some(track) = caller.data().host.get_track() else {
+                    return 0;
+                };
+                let Ok(json) = serde_json::to_vec(&track) else {
+                    return 0;
+                };
+                if buf < 0 || cap < 0 || json.len() > cap as usize {
+                    return -2;
+                }
+                let Some(memory) = memory_of(&caller) else {
+                    return -2;
+                };
+                match memory.write(&mut caller, buf as usize, &json) {
+                    Ok(()) => json.len() as i32,
+                    Err(_) => -2,
+                }
+            },
+        )
+        .map_err(link_err)?;
+
+    linker
+        .func_wrap("symphony", "get_volume", |mut caller: Caller<'_, HostState>| -> f32 {
+            if !allowed(&mut caller, Permission::PlaybackState) {
+                return -1.0;
+            }
+            caller.data().host.get_volume()
+        })
+        .map_err(link_err)?;
+
+    linker
+        .func_wrap(
+            "symphony",
+            "notify",
+            |mut caller: Caller<'_, HostState>, tp: i32, tl: i32, bp: i32, bl: i32| -> i32 {
+                if !allowed(&mut caller, Permission::Notifications) {
+                    return -1;
+                }
+                if let (Some(title), Some(body)) = (read_str(&caller, tp, tl), read_str(&caller, bp, bl)) {
+                    caller.data().host.show_notification(&title, &body);
+                }
+                0
+            },
+        )
+        .map_err(link_err)?;
+
+    linker
+        .func_wrap(
+            "symphony",
+            "discord_presence",
+            |mut caller: Caller<'_, HostState>, tp: i32, tl: i32, ap: i32, al: i32| -> i32 {
+                if !allowed(&mut caller, Permission::Discord) {
+                    return -1;
+                }
+                if let (Some(title), Some(artist)) = (read_str(&caller, tp, tl), read_str(&caller, ap, al)) {
+                    caller.data().host.set_discord_presence(&title, &artist, "", 0);
+                }
+                0
+            },
+        )
+        .map_err(link_err)?;
+
+    linker
+        .func_wrap(
+            "symphony",
+            "scrobble",
+            |mut caller: Caller<'_, HostState>, tp: i32, tl: i32, ap: i32, al: i32| -> i32 {
+                if !allowed(&mut caller, Permission::Lastfm) {
+                    return -1;
+                }
+                if let (Some(title), Some(artist)) = (read_str(&caller, tp, tl), read_str(&caller, ap, al)) {
+                    caller.data().host.scrobble(&title, &artist, "");
+                }
+                0
+            },
+        )
+        .map_err(link_err)?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -427,44 +553,6 @@ mod tests {
     #[test]
     fn test_plugin_runtime_creation() {
         let dir = tempfile::tempdir().unwrap();
-        let runtime = PluginRuntime::new(dir.path().to_path_buf());
-        assert!(runtime.is_ok());
-    }
-
-    #[test]
-    fn test_plugin_enable_disable() {
-        let mut runtime = PluginRuntime::with_defaults().unwrap();
-
-        // Create a test plugin
-        let manifest = PluginManifest {
-            name: "test".to_string(),
-            version: "1.0".to_string(),
-            author: "test".to_string(),
-            description: "test".to_string(),
-            permissions: vec![],
-            homepage: None,
-            min_symphony_version: None,
-            enabled: true,
-        };
-
-        runtime.plugins.insert(
-            "test".to_string(),
-            LoadedPlugin {
-                manifest,
-                status: PluginStatus::Active,
-                wasm_path: PathBuf::from("test.wasm"),
-                enabled: true,
-                state: PluginState::default(),
-                last_error: None,
-            },
-        );
-
-        assert!(runtime.is_plugin_enabled("test"));
-
-        runtime.disable_plugin("test").unwrap();
-        assert!(!runtime.is_plugin_enabled("test"));
-
-        runtime.enable_plugin("test").unwrap();
-        assert!(runtime.is_plugin_enabled("test"));
+        assert!(PluginRuntime::new(dir.path().to_path_buf()).is_ok());
     }
 }
