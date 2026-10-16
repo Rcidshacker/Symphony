@@ -4,6 +4,8 @@
 
 pub mod analyzer;
 mod engine;
+mod symphonia_source;
+pub mod tap;
 
 pub use analyzer::{
     get_frequency_bands, FftSize, FrequencyBand, SpectrumAnalyzer, SpectrumResult, WindowFunction,

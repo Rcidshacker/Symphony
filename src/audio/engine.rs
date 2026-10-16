@@ -14,6 +14,8 @@ use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
 
+use super::symphonia_source::SymphoniaSource;
+use super::tap::{AudioTap, TapSource};
 use crate::streaming::{StreamSource, StreamTrack};
 
 /// Audio engine errors
@@ -111,6 +113,9 @@ pub struct AudioEngine {
 
     /// HTTP client for streaming
     http_client: Option<reqwest::Client>,
+
+    /// Copy of the audio being played, for the visualizer
+    tap: Arc<AudioTap>,
 }
 
 impl AudioEngine {
@@ -135,6 +140,7 @@ impl AudioEngine {
             playback_start: None,
             playback_state: PlaybackState::default(),
             http_client,
+            tap: Arc::new(AudioTap::new()),
         })
     }
 
@@ -166,16 +172,25 @@ impl AudioEngine {
         let file = File::open(path)
             .map_err(|e| AudioError::FileOpen(format!("{}: {}", path.display(), e)))?;
 
-        let reader = BufReader::new(file);
-
-        let source = Decoder::new(reader).map_err(|e| AudioError::DecodeError(e.to_string()))?;
-
         // Apply volume
         let volume = f32::from_bits(self.volume.load(Ordering::SeqCst));
         sink.set_volume(volume);
 
-        // Append source
-        sink.append(source);
+        // Append source (mirrored into the tap for the visualizer)
+        self.tap.clear();
+        let is_mp4 = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| matches!(e.to_lowercase().as_str(), "m4a" | "mp4"));
+        if is_mp4 {
+            // rodio's own MP4 decoder panics on init (0.19), see symphonia_source.rs
+            let source = SymphoniaSource::open(path).map_err(AudioError::DecodeError)?;
+            sink.append(TapSource::new(source, self.tap.clone()));
+        } else {
+            let source = Decoder::new(BufReader::new(file))
+                .map_err(|e| AudioError::DecodeError(e.to_string()))?;
+            sink.append(TapSource::new(source, self.tap.clone()));
+        }
 
         // Store sink and update state
         self.sink = Some(sink);
@@ -244,8 +259,9 @@ impl AudioEngine {
         let volume = f32::from_bits(self.volume.load(Ordering::SeqCst));
         sink.set_volume(volume);
 
-        // Append source
-        sink.append(source);
+        // Append source (mirrored into the tap for the visualizer)
+        self.tap.clear();
+        sink.append(TapSource::new(source, self.tap.clone()));
 
         // Store sink and update state
         self.sink = Some(sink);
@@ -434,9 +450,19 @@ impl AudioEngine {
         ))
     }
 
+    /// Mono samples played since the last call (for the visualizer)
+    pub fn drain_samples(&self) -> Vec<f32> {
+        self.tap.drain()
+    }
+
+    /// Sample rate of the track being played
+    pub fn sample_rate(&self) -> u32 {
+        self.tap.sample_rate()
+    }
+
     /// Get supported file extensions
     pub fn supported_extensions() -> &'static [&'static str] {
-        &["mp3", "wav", "ogg", "flac", "aiff", "aac"]
+        &["mp3", "wav", "ogg", "flac", "aac", "m4a"]
     }
 
     /// Check if a file extension is supported

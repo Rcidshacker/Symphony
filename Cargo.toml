@@ -19,8 +19,8 @@ ratatui = "0.28"
 crossterm = "0.28"
 
 # Audio Processing
-rodio = { version = "0.19", default-features = false, features = ["mp3", "wav", "vorbis", "flac"] }
-symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "wav", "ogg", "vorbis"] }
+rodio = { version = "0.19", default-features = false, features = ["mp3", "wav", "vorbis", "flac", "symphonia-aac"] }
+symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "wav", "ogg", "vorbis", "isomp4"] }
 
 # FFT & Visualization
 rustfft = "6.2"
@@ -66,6 +66,9 @@ walkdir = "2.5"
 # AI/ML (Phase 3)
 async-trait = "0.1"
 reqwest = { version = "0.12", features = ["json"] }
+
+# Album art decoding (embedded covers are JPEG or PNG)
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 
 # URL parsing
 url = "2.5"

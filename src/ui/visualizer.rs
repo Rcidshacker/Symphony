@@ -24,7 +24,9 @@ pub enum VisualizationMode {
     Waveform,
     /// Circular radial visualization
     Circular,
-    /// Minimal mode (off)
+    /// Minimal: one small level meter per frequency band
+    Minimal,
+    /// Visualizer hidden
     Off,
 }
 
@@ -35,6 +37,7 @@ impl VisualizationMode {
             VisualizationMode::Bars,
             VisualizationMode::Waveform,
             VisualizationMode::Circular,
+            VisualizationMode::Minimal,
             VisualizationMode::Off,
         ]
     }
@@ -45,6 +48,7 @@ impl VisualizationMode {
             VisualizationMode::Bars => "Bars",
             VisualizationMode::Waveform => "Waveform",
             VisualizationMode::Circular => "Circular",
+            VisualizationMode::Minimal => "Minimal",
             VisualizationMode::Off => "Off",
         }
     }
@@ -54,7 +58,8 @@ impl VisualizationMode {
         match self {
             VisualizationMode::Bars => VisualizationMode::Waveform,
             VisualizationMode::Waveform => VisualizationMode::Circular,
-            VisualizationMode::Circular => VisualizationMode::Off,
+            VisualizationMode::Circular => VisualizationMode::Minimal,
+            VisualizationMode::Minimal => VisualizationMode::Off,
             VisualizationMode::Off => VisualizationMode::Bars,
         }
     }
@@ -179,34 +184,53 @@ impl VisualizerState {
     }
 
     /// Update bar heights from spectrum
+    ///
+    /// Bars are log-spaced between 40 Hz and 16 kHz (the way pitch is heard); each bar shows
+    /// the loudest bin in its range. Bars rise quickly and fall slowly.
     fn update_bar_heights(&mut self, spectrum: &SpectrumResult) {
-        let num_bars = self.num_bars;
+        let num_bars = self.num_bars.max(1);
         let magnitudes = &spectrum.magnitudes;
 
-        // Resize if needed
         if self.bar_heights.len() != num_bars {
             self.bar_heights = vec![0.0; num_bars];
             self.target_heights = vec![0.0; num_bars];
         }
-
-        // Calculate target heights by averaging magnitudes into bars
-        let samples_per_bar = magnitudes.len() / num_bars;
-
-        for i in 0..num_bars {
-            let start = i * samples_per_bar;
-            let end = ((i + 1) * samples_per_bar).min(magnitudes.len());
-
-            if start < magnitudes.len() {
-                let sum: f32 = magnitudes[start..end].iter().sum();
-                self.target_heights[i] = sum / (end - start) as f32;
-            }
+        if magnitudes.is_empty() || spectrum.bin_hz <= 0.0 {
+            return;
         }
 
-        // Smooth animation towards target
-        let smoothing = 0.3;
+        let nyquist = spectrum.bin_hz * magnitudes.len() as f32;
+        let f_lo = 40.0_f32;
+        let f_hi = 16_000.0_f32.min(nyquist * 0.95).max(f_lo * 2.0);
+        let edge = |i: usize| f_lo * (f_hi / f_lo).powf(i as f32 / num_bars as f32);
+
         for i in 0..num_bars {
-            self.bar_heights[i] =
-                smoothing * self.target_heights[i] + (1.0 - smoothing) * self.bar_heights[i];
+            let start = ((edge(i) / spectrum.bin_hz) as usize).min(magnitudes.len() - 1);
+            let end = ((edge(i + 1) / spectrum.bin_hz).ceil() as usize)
+                .clamp(start + 1, magnitudes.len());
+            self.target_heights[i] = magnitudes[start..end]
+                .iter()
+                .cloned()
+                .fold(0.0_f32, f32::max);
+        }
+
+        for i in 0..num_bars {
+            let target = self.target_heights[i];
+            let current = self.bar_heights[i];
+            let rate = if target > current { 0.6 } else { 0.2 };
+            self.bar_heights[i] = current + (target - current) * rate;
+        }
+    }
+
+    /// Fade out when no audio is playing (paused or stopped)
+    pub fn decay(&mut self) {
+        self.beat_pulse *= 0.9;
+        for h in &mut self.bar_heights {
+            *h *= 0.85;
+        }
+        if self.bar_heights.iter().all(|h| *h < 0.01) {
+            self.bar_heights.iter_mut().for_each(|h| *h = 0.0);
+            self.spectrum = None;
         }
     }
 
@@ -238,6 +262,7 @@ pub fn render_visualizer(f: &mut Frame, area: Rect, state: &VisualizerState, the
         VisualizationMode::Bars => render_bars(f, area, state, &colors, theme),
         VisualizationMode::Waveform => render_waveform(f, area, state, &colors, theme),
         VisualizationMode::Circular => render_circular(f, area, state, &colors, theme),
+        VisualizationMode::Minimal => render_minimal(f, area, state, &colors, theme),
         VisualizationMode::Off => {}
     }
 }
@@ -352,8 +377,6 @@ fn render_waveform(
         return;
     }
 
-    // Use spectrum data to create pseudo-waveform display
-    // (In a real implementation, we'd use raw time-domain samples)
     let spectrum = match &state.spectrum {
         Some(s) => s,
         None => return,
@@ -373,45 +396,82 @@ fn render_waveform(
         );
     }
 
-    // Draw waveform based on magnitudes
-    let samples = 64.min(width);
-    let samples_per_pixel = spectrum.magnitudes.len() / samples;
+    // Real time-domain samples: one column per point, mirrored around the center line
+    let wave = &spectrum.waveform;
+    if wave.is_empty() {
+        return;
+    }
+    let half_height = inner.height as f32 / 2.0;
+    for i in 0..width {
+        let sample = wave[i * wave.len() / width];
+        let half = ((sample.abs() * 1.5).min(1.0) * half_height) as u16;
+        if half == 0 {
+            continue;
+        }
+        let style = Style::default().fg(colors.get_color((i * 7) / width));
+        let x = center_x + i as u16;
+        let buf = f.buffer_mut();
+        for dy in 1..=half {
+            if mid_y >= inner.y + dy {
+                buf.set_string(x, mid_y - dy, "█", style);
+            }
+            if mid_y + dy < inner.y + inner.height {
+                buf.set_string(x, mid_y + dy, "█", style);
+            }
+        }
+    }
+}
 
-    for i in 0..samples {
-        let start = i * samples_per_pixel;
-        let end = ((i + 1) * samples_per_pixel).min(spectrum.magnitudes.len());
+/// Render minimal visualization: one small level meter per frequency band
+fn render_minimal(
+    f: &mut Frame,
+    area: Rect,
+    state: &VisualizerState,
+    colors: &BandColors,
+    theme: &Theme,
+) {
+    let beat = if state.beat_pulse > 0.5 { "●" } else { "○" };
+    let block = Block::default()
+        .title(format!(" ▪ LEVELS {beat} "))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border()));
 
-        if start >= spectrum.magnitudes.len() {
-            break;
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let Some(spectrum) = &state.spectrum else {
+        return;
+    };
+    const LABEL: usize = 9;
+    if inner.width as usize <= LABEL + 2 || inner.height == 0 {
+        return;
+    }
+
+    // Partial blocks give eighths of a cell
+    const EIGHTHS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
+    let meter_width = inner.width as usize - LABEL - 1;
+
+    for (row, band) in spectrum.bands.iter().take(inner.height as usize).enumerate() {
+        let y = inner.y + row as u16;
+        let filled_eighths = (band.magnitude.clamp(0.0, 1.0) * meter_width as f32 * 8.0) as usize;
+        let mut meter = "█".repeat(filled_eighths / 8);
+        if filled_eighths % 8 > 0 {
+            meter.push_str(EIGHTHS[filled_eighths % 8 - 1]);
         }
 
-        let avg: f32 = spectrum.magnitudes[start..end].iter().sum::<f32>() / (end - start) as f32;
-
-        // Map to vertical position
-        let amplitude = avg * inner.height as f32 / 2.0;
-        let top_offset = amplitude as u16;
-
-        // Draw waveform above and below center
-        let color = colors.get_color((i * 7) / samples);
-        let style = Style::default().fg(color);
-
-        // Upper part
-        if top_offset > 0 && mid_y >= top_offset {
-            let span = Span::styled("█", style);
-            f.render_widget(
-                Paragraph::new(span),
-                Rect::new(center_x + i as u16, mid_y - top_offset, 1, top_offset),
-            );
-        }
-
-        // Lower part
-        if top_offset > 0 {
-            let span = Span::styled("█", style);
-            f.render_widget(
-                Paragraph::new(span),
-                Rect::new(center_x + i as u16, mid_y + 1, 1, top_offset),
-            );
-        }
+        let buf = f.buffer_mut();
+        buf.set_string(
+            inner.x,
+            y,
+            format!("{:<width$}", band.name, width = LABEL),
+            Style::default().fg(theme.text_dim()),
+        );
+        buf.set_string(
+            inner.x + LABEL as u16,
+            y,
+            meter,
+            Style::default().fg(colors.get_color(row)),
+        );
     }
 }
 
@@ -440,77 +500,52 @@ fn render_circular(
         None => return,
     };
 
-    // Calculate center and radius
-    let center_x = inner.x + inner.width / 2;
-    let center_y = inner.y + inner.height / 2;
-    let max_radius = (inner.width.min(inner.height * 2) / 2) as f32;
+    // Terminal cells are about twice as tall as wide: squash the y axis
+    let center_x = inner.x as f32 + inner.width as f32 / 2.0;
+    let center_y = inner.y as f32 + inner.height as f32 / 2.0;
+    let max_radius = (inner.width as f32 / 2.0).min(inner.height as f32) - 0.5;
     let min_radius = max_radius * 0.3;
 
-    // Use bands for circular visualization
-    let bands = &spectrum.bands;
-    let num_segments = bands.len();
+    // One spoke per bar, starting at 12 o'clock, drawn as a trail of dots from the hub outwards
+    let num_spokes = state.bar_heights.len().max(1);
+    for (i, height) in state.bar_heights.iter().enumerate() {
+        let angle = (i as f32 / num_spokes as f32) * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+        let length = height.clamp(0.0, 1.0) * (max_radius - min_radius);
+        let style = Style::default().fg(colors.get_color((i * 7) / num_spokes));
 
-    // Draw circular bars for each frequency band
-    for (i, band) in bands.iter().enumerate() {
-        let angle_start = (i as f32 / num_segments as f32) * 360.0;
-        let angle_end = ((i + 1) as f32 / num_segments as f32) * 360.0;
-        let angle_mid = (angle_start + angle_end) / 2.0;
-
-        // Calculate bar length based on magnitude
-        let magnitude = band.magnitude;
-        let bar_length = min_radius + magnitude * (max_radius - min_radius);
-
-        // Convert polar to cartesian
-        let angle_rad = angle_mid.to_radians();
-
-        // Inner point
-        let inner_x = center_x as f32 + min_radius * angle_rad.cos();
-        let inner_y = center_y as f32 + min_radius * angle_rad.sin() * 0.5; // Adjust for terminal aspect ratio
-
-        // Outer point
-        let outer_x = center_x as f32 + bar_length * angle_rad.cos();
-        let outer_y = center_y as f32 + bar_length * angle_rad.sin() * 0.5;
-
-        // Get color for this band
-        let color = colors.get_color(i);
-        let style = Style::default().fg(color);
-
-        // Draw line from inner to outer (simplified - just draw endpoints)
-        let outer_char = if magnitude > 0.7 {
-            "●"
-        } else if magnitude > 0.4 {
-            "◉"
-        } else {
-            "○"
-        };
-
-        // Draw outer point
-        let outer_px = outer_x as u16;
-        let outer_py = outer_y as u16;
-
-        if outer_px >= inner.x
-            && outer_px < inner.x + inner.width
-            && outer_py >= inner.y
-            && outer_py < inner.y + inner.height
-        {
-            let span = Span::styled(outer_char, style);
-            f.render_widget(Paragraph::new(span), Rect::new(outer_px, outer_py, 1, 1));
+        let steps = (length * 2.0).ceil().max(1.0) as usize;
+        for s in 0..=steps {
+            let r = min_radius + length * s as f32 / steps as f32;
+            let x = center_x + r * angle.cos();
+            let y = center_y + r * angle.sin() * 0.5;
+            if x >= inner.x as f32
+                && y >= inner.y as f32
+                && x < (inner.x + inner.width) as f32
+                && y < (inner.y + inner.height) as f32
+            {
+                let tip = s == steps && length > 0.5;
+                f.buffer_mut()
+                    .set_string(x as u16, y as u16, if tip { "●" } else { "•" }, style);
+            }
         }
     }
 
-    // Draw center circle
-    let center_style = Style::default().fg(theme.accent());
-    let center_char = if state.beat_pulse > 0.5 { "◉" } else { "●" };
-    let span = Span::styled(center_char, center_style);
-    f.render_widget(Paragraph::new(span), Rect::new(center_x, center_y, 1, 1));
+    // Hub pulses with the beat
+    let hub = if state.beat_pulse > 0.5 { "◉" } else { "●" };
+    f.buffer_mut().set_string(
+        center_x as u16,
+        center_y as u16,
+        hub,
+        Style::default().fg(theme.accent()),
+    );
 
-    // Add BPM display if available
+    // Tempo in the corner when known
     if let Some(bpm) = spectrum.beat.estimated_bpm {
-        let bpm_text = format!("{:.0}", bpm);
-        let span = Span::styled(bpm_text, Style::default().fg(theme.text_dim()));
-        f.render_widget(
-            Paragraph::new(span),
-            Rect::new(center_x + 2, center_y, 4, 1),
+        f.buffer_mut().set_string(
+            inner.x + 1,
+            inner.y + inner.height - 1,
+            format!("{bpm:.0} BPM"),
+            Style::default().fg(theme.text_dim()),
         );
     }
 }
@@ -564,7 +599,8 @@ mod tests {
             VisualizationMode::Waveform.next(),
             VisualizationMode::Circular
         );
-        assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Off);
+        assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Minimal);
+        assert_eq!(VisualizationMode::Minimal.next(), VisualizationMode::Off);
         assert_eq!(VisualizationMode::Off.next(), VisualizationMode::Bars);
     }
 

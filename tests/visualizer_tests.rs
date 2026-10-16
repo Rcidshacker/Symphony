@@ -92,7 +92,8 @@ mod tests {
             VisualizationMode::Waveform.next(),
             VisualizationMode::Circular
         );
-        assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Off);
+        assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Minimal);
+        assert_eq!(VisualizationMode::Minimal.next(), VisualizationMode::Off);
         assert_eq!(VisualizationMode::Off.next(), VisualizationMode::Bars);
     }
 

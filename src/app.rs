@@ -8,6 +8,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use crate::ai::{AIManager, MusicIntent};
+use crate::audio::{FftSize, SpectrumAnalyzer};
 use crate::integrations::git::GitMonitorConfig;
 use crate::integrations::pomodoro::PomodoroConfig;
 use crate::integrations::{GitMonitor, PomodoroEvent, PomodoroState, PomodoroTimer};
@@ -18,8 +19,8 @@ use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
 use crate::config::Config;
 use crate::db::Database;
-use crate::ui::artwork::{ArtworkCache, AsciiArt};
-use crate::ui::visualizer::VisualizerState;
+use crate::ui::artwork::{self, ArtworkCache, ArtworkConfig, AsciiArt};
+use crate::ui::visualizer::{VisualizationMode, VisualizerState};
 
 /// Main application state
 pub struct App {
@@ -58,6 +59,9 @@ pub struct App {
 
     /// Time of the previous `update()` call (drives the playback position)
     last_tick: Instant,
+
+    /// Real-time spectrum analysis of the audio being played
+    analyzer: Option<SpectrumAnalyzer>,
 
     /// Synced lyrics for the current track
     pub lyrics: LyricsDisplay,
@@ -268,6 +272,8 @@ impl App {
             let _ = theme_manager.set_theme("monokai");
         }
 
+        let visualizer_state = initial_visualizer(&config);
+
         let lyrics = LyricsDisplay::with_config(LyricsDisplayConfig {
             karaoke_mode: config.lyrics.karaoke_mode,
             show_translation: config.lyrics.show_translation,
@@ -337,11 +343,12 @@ impl App {
                 ai_query: String::new(),
                 ai_pending: false,
             },
-            visualizer_state: VisualizerState::new(32),
+            visualizer_state,
             artwork_cache: ArtworkCache::default(),
             current_track_artwork: None,
             start_time: Instant::now(),
             last_tick: Instant::now(),
+            analyzer: None,
             lyrics,
             pomodoro,
             git_monitor,
@@ -441,6 +448,13 @@ impl App {
         self.ui_state.error_message = None;
 
         self.load_lyrics_for(&track_path);
+        let track_id = self.playback_state.current_track.as_ref().map(|t| t.id.clone());
+        if let Some(id) = track_id {
+            self.load_artwork(&id, &track_path);
+        }
+        if let Some(analyzer) = &mut self.analyzer {
+            analyzer.reset();
+        }
     }
 
     /// Stop playback completely
@@ -671,12 +685,12 @@ impl App {
 
     /// Set visualization mode by number (1-4)
     pub fn set_visualization_mode(&mut self, mode: u8) {
-        use crate::ui::visualizer::VisualizationMode;
         let viz_mode = match mode {
             1 => VisualizationMode::Bars,
             2 => VisualizationMode::Waveform,
             3 => VisualizationMode::Circular,
-            4 => VisualizationMode::Off,
+            4 => VisualizationMode::Minimal,
+            5 => VisualizationMode::Off,
             _ => return,
         };
         self.visualizer_state.set_mode(viz_mode);
@@ -691,6 +705,7 @@ impl App {
 
         self.poll_ai();
         self.poll_integrations();
+        self.update_visualizer();
 
         if self.playback_state.current_track.is_none() || !self.playback_state.is_playing {
             return;
@@ -899,6 +914,56 @@ impl App {
         }
     }
 
+    // ---- visualizer ----
+
+    /// Feed the visualizer with the audio that was just played, or fade it out
+    fn update_visualizer(&mut self) {
+        // always drain so the tap buffer never holds stale audio
+        let samples = self.audio_engine.drain_samples();
+        if !self.config.visualizer.enabled || self.visualizer_state.mode == VisualizationMode::Off {
+            return;
+        }
+        if samples.is_empty() {
+            self.visualizer_state.decay();
+            return;
+        }
+
+        let rate = self.audio_engine.sample_rate();
+        if self.analyzer.as_ref().map(|a| a.sample_rate()) != Some(rate) {
+            let mut analyzer =
+                SpectrumAnalyzer::new(fft_size_from(self.config.visualizer.fft_size), rate);
+            analyzer.set_smoothing(self.config.visualizer.smoothing);
+            self.analyzer = Some(analyzer);
+        }
+        if let Some(analyzer) = &mut self.analyzer {
+            analyzer.add_samples(&samples);
+            if let Some(result) = analyzer.analyze() {
+                self.visualizer_state.update(result);
+            }
+        }
+    }
+
+    // ---- album art ----
+
+    /// Album art of the track that just started (embedded cover or cover file), cached by track
+    pub fn load_artwork(&mut self, track_id: &str, audio_path: &Path) {
+        if let Some(art) = self.artwork_cache.get(track_id) {
+            self.current_track_artwork = Some(art.clone());
+            return;
+        }
+
+        let config = ArtworkConfig {
+            max_width: artwork::ART_COLS,
+            max_height: artwork::ART_ROWS,
+            ..ArtworkConfig::default()
+        };
+        self.current_track_artwork = artwork::extract_album_art(audio_path)
+            .and_then(|bytes| AsciiArt::from_image(&bytes, &config).ok());
+        if let Some(art) = &self.current_track_artwork {
+            self.artwork_cache.insert(track_id.to_string(), art.clone());
+        }
+    }
+
     // ---- lyrics ----
 
     /// Show or hide the lyrics panel (`l`)
@@ -975,6 +1040,32 @@ impl App {
             self.library.tracks = tracks;
         }
         Ok(())
+    }
+}
+
+/// Visualizer state from the `[visualizer]` config section
+fn initial_visualizer(config: &Config) -> VisualizerState {
+    let mut state = VisualizerState::new(32);
+    state.mode = if !config.visualizer.enabled {
+        VisualizationMode::Off
+    } else {
+        match config.visualizer.mode.to_lowercase().as_str() {
+            "waveform" => VisualizationMode::Waveform,
+            "circular" | "circle" => VisualizationMode::Circular,
+            "minimal" => VisualizationMode::Minimal,
+            "off" | "none" => VisualizationMode::Off,
+            _ => VisualizationMode::Bars, // "spectrum", "bars"
+        }
+    };
+    state
+}
+
+/// Closest supported FFT size for the configured value
+fn fft_size_from(size: usize) -> FftSize {
+    match size {
+        0..=2048 => FftSize::Size2048,
+        2049..=4096 => FftSize::Size4096,
+        _ => FftSize::Size8192,
     }
 }
 

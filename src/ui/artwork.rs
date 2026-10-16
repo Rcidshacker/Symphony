@@ -98,11 +98,8 @@ impl AsciiArt {
         }
     }
 
-    /// Create from image data
+    /// Create from image data (JPEG or PNG bytes, e.g. embedded cover art)
     pub fn from_image(image_data: &[u8], config: &ArtworkConfig) -> Result<Self, ArtworkError> {
-        // This is a simplified ASCII art conversion
-        // In production, use the `image` crate for proper image processing
-
         let img = decode_image(image_data)?;
 
         let (width, height) = img.dimensions();
@@ -110,35 +107,33 @@ impl AsciiArt {
             return Err(ArtworkError::TooSmall);
         }
 
-        // Calculate output dimensions maintaining aspect ratio
-        // Terminal characters are roughly 2x taller than wide
-        let aspect_ratio = (width as f64) / (height as f64) * 0.5;
-        let target_width = config.max_width.min(width as usize);
-        let target_height =
-            (target_width as f64 / aspect_ratio).min(config.max_height as f64) as usize;
+        // Fit inside max_width x max_height cells, keeping the image's shape.
+        // A terminal cell is about twice as tall as it is wide.
+        let width_at_max_height = config.max_height as f64 * 2.0 * width as f64 / height as f64;
+        let target_width = (config.max_width as f64).min(width_at_max_height).max(1.0) as usize;
+        let target_height = ((target_width as f64 * height as f64 / width as f64) * 0.5)
+            .round()
+            .clamp(1.0, config.max_height as f64) as usize;
 
-        // Resize and convert to ASCII
+        // Smooth downscale, then map each remaining pixel to a character
+        let small = image::imageops::resize(
+            &img,
+            target_width as u32,
+            target_height as u32,
+            image::imageops::FilterType::Triangle,
+        );
+
         let mut chars = Vec::with_capacity(target_height);
         let mut colors = Vec::with_capacity(target_height);
-
         for y in 0..target_height {
             let mut row = Vec::with_capacity(target_width);
             let mut color_row = Vec::with_capacity(target_width);
-
             for x in 0..target_width {
-                let src_x = (x as f64 * width as f64 / target_width as f64) as u32;
-                let src_y = (y as f64 * height as f64 / target_height as f64) as u32;
-
-                if let Some(pixel) = img.get_pixel_checked(src_x, src_y) {
-                    let (char, color) = pixel_to_ascii(pixel, config);
-                    row.push(char);
-                    color_row.push(color);
-                } else {
-                    row.push(' ');
-                    color_row.push(None);
-                }
+                let [r, g, b, a] = small.get_pixel(x as u32, y as u32).0;
+                let (char, color) = pixel_to_ascii(&Pixel { r, g, b, a }, config);
+                row.push(char);
+                color_row.push(color);
             }
-
             chars.push(row);
             colors.push(color_row);
         }
@@ -201,27 +196,6 @@ impl AsciiArt {
     }
 }
 
-/// Simple image representation
-struct SimpleImage {
-    width: u32,
-    height: u32,
-    pixels: Vec<Pixel>,
-}
-
-impl SimpleImage {
-    fn dimensions(&self) -> (u32, u32) {
-        (self.width, self.height)
-    }
-
-    fn get_pixel_checked(&self, x: u32, y: u32) -> Option<&Pixel> {
-        if x < self.width && y < self.height {
-            self.pixels.get((y * self.width + x) as usize)
-        } else {
-            None
-        }
-    }
-}
-
 /// Simple pixel representation
 #[derive(Clone)]
 struct Pixel {
@@ -270,27 +244,11 @@ impl Pixel {
     }
 }
 
-/// Decode image from bytes (simplified)
-fn decode_image(data: &[u8]) -> Result<SimpleImage, ArtworkError> {
-    // This is a placeholder implementation
-    // In production, use the `image` crate:
-    // let img = image::load_from_memory(data)
-    //     .map_err(|e| ArtworkError::DecodeError(e.to_string()))?;
-
-    // For now, return a placeholder image
-    Ok(SimpleImage {
-        width: 100,
-        height: 100,
-        pixels: vec![
-            Pixel {
-                r: 50,
-                g: 50,
-                b: 50,
-                a: 255
-            };
-            100 * 100
-        ],
-    })
+/// Decode JPEG/PNG bytes to RGBA pixels
+fn decode_image(data: &[u8]) -> Result<image::RgbaImage, ArtworkError> {
+    image::load_from_memory(data)
+        .map(|img| img.to_rgba8())
+        .map_err(|e| ArtworkError::DecodeError(e.to_string()))
 }
 
 /// Convert pixel to ASCII character
@@ -440,11 +398,57 @@ fn render_ascii_art(f: &mut Frame, area: Rect, art: &AsciiArt, theme: &Theme) {
     }
 }
 
-/// Extract album art from audio file metadata
-pub fn extract_album_art(_path: &Path) -> Option<Vec<u8>> {
-    // This would use the `audiotags` or similar crate to extract embedded artwork
-    // For now, return None to indicate no embedded artwork
-    None
+/// Panel size the album art is converted for (cells inside the border)
+pub const ART_COLS: usize = 18;
+pub const ART_ROWS: usize = 10;
+
+/// Album art for an audio file: the cover embedded in its tags, else `cover`/`folder`/
+/// `front` (jpg, jpeg, png) in the same directory. Returns the raw image bytes.
+pub fn extract_album_art(path: &Path) -> Option<Vec<u8>> {
+    embedded_cover(path).or_else(|| sidecar_cover(path))
+}
+
+fn embedded_cover(path: &Path) -> Option<Vec<u8>> {
+    use symphonia::core::formats::FormatOptions;
+    use symphonia::core::io::MediaSourceStream;
+    use symphonia::core::meta::{MetadataOptions, MetadataRevision, StandardVisualKey};
+    use symphonia::core::probe::Hint;
+
+    let file = std::fs::File::open(path).ok()?;
+    let stream = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+    let mut probed = symphonia::default::get_probe()
+        .format(&hint, stream, &FormatOptions::default(), &MetadataOptions::default())
+        .ok()?;
+
+    // front cover if tagged as such, else the first picture
+    let best = |rev: &MetadataRevision| {
+        let visuals = rev.visuals();
+        visuals
+            .iter()
+            .find(|v| v.usage == Some(StandardVisualKey::FrontCover))
+            .or_else(|| visuals.first())
+            .map(|v| v.data.to_vec())
+    };
+
+    if let Some(mut container_meta) = probed.metadata.get() {
+        if let Some(art) = container_meta.skip_to_latest().and_then(best) {
+            return Some(art);
+        }
+    }
+    probed.format.metadata().skip_to_latest().and_then(best)
+}
+
+fn sidecar_cover(path: &Path) -> Option<Vec<u8>> {
+    let dir = path.parent()?;
+    ["cover", "folder", "front"]
+        .iter()
+        .flat_map(|name| ["jpg", "jpeg", "png"].iter().map(move |ext| format!("{name}.{ext}")))
+        .map(|file| dir.join(file))
+        .find_map(|candidate| std::fs::read(candidate).ok())
 }
 
 /// Download album art from MusicBrainz

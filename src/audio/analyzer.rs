@@ -151,7 +151,17 @@ pub struct SpectrumResult {
     pub peak_frequency: f32,
     /// RMS level
     pub rms: f32,
+    /// Width of one magnitude bin in Hz
+    pub bin_hz: f32,
+    /// Recent time-domain samples, decimated to [`WAVEFORM_POINTS`] points in -1.0..=1.0
+    pub waveform: Vec<f32>,
 }
+
+/// Number of points in [`SpectrumResult::waveform`]
+pub const WAVEFORM_POINTS: usize = 256;
+
+/// Level that maps to 0.0 in the normalized spectrum (dB below full scale)
+const FLOOR_DB: f32 = 70.0;
 
 /// Real-time FFT Spectrum Analyzer
 pub struct SpectrumAnalyzer {
@@ -304,8 +314,9 @@ impl SpectrumAnalyzer {
 
         let size = self.fft_size.size();
 
-        // Copy samples to input buffer with windowing
-        let samples: Vec<f32> = self.sample_buffer.iter().take(size).copied().collect();
+        // Analyze the most recent samples (the buffer holds a few windows of history)
+        let skip = self.sample_buffer.len() - size;
+        let samples: Vec<f32> = self.sample_buffer.iter().skip(skip).copied().collect();
 
         for i in 0..size {
             let sample = samples.get(i).copied().unwrap_or(0.0);
@@ -329,10 +340,11 @@ impl SpectrumAnalyzer {
             let complex = self.output_buffer[i];
             let magnitude = (complex.re.powi(2) + complex.im.powi(2)).sqrt();
             raw_magnitudes.push(magnitude);
-            // Convert to dB and normalize
-            let db = 20.0 * magnitude.max(1e-10).log10();
-            let normalized = (db + 100.0) / 100.0; // Normalize from -100dB to 0dB
-            magnitudes.push(normalized.clamp(0.0, 1.0));
+            // A full-scale sine under a Hann window peaks at N/4: rescale so it reads 0 dBFS,
+            // then map FLOOR_DB..0 dBFS to 0.0..1.0
+            let amplitude = 4.0 * magnitude / size as f32;
+            let db = 20.0 * amplitude.max(1e-7).log10();
+            magnitudes.push(((db + FLOOR_DB) / FLOOR_DB).clamp(0.0, 1.0));
         }
 
         // Apply smoothing
@@ -357,12 +369,27 @@ impl SpectrumAnalyzer {
         // Increment frame count
         self.frame_count.fetch_add(1, Ordering::Relaxed);
 
+        // Decimate the window to a fixed number of points, keeping each chunk's loudest sample
+        let chunk = (samples.len() / WAVEFORM_POINTS).max(1);
+        let waveform: Vec<f32> = samples
+            .chunks(chunk)
+            .take(WAVEFORM_POINTS)
+            .map(|c| {
+                c.iter()
+                    .copied()
+                    .max_by(|a, b| a.abs().total_cmp(&b.abs()))
+                    .unwrap_or(0.0)
+            })
+            .collect();
+
         Some(SpectrumResult {
             magnitudes,
             bands,
             beat,
             peak_frequency: peak_freq,
             rms,
+            bin_hz: self.fft_size.frequency_resolution(self.sample_rate),
+            waveform,
         })
     }
 
@@ -622,6 +649,48 @@ mod tests {
         let result = result.unwrap();
         // Peak should be near 440 Hz (within some tolerance)
         assert!((result.peak_frequency - 440.0).abs() < 20.0);
+    }
+
+    #[test]
+    fn test_full_scale_sine_reads_near_one_and_quiet_sine_is_lower() {
+        let mut loud = SpectrumAnalyzer::new(FftSize::Size4096, 44100);
+        loud.set_smoothing(0.0);
+        loud.add_samples(&generate_sine_wave(1000.0, 44100, 0.5));
+        let loud = loud.analyze().unwrap();
+        // the tone sits between two bins; the louder neighbour holds the peak
+        let peak_bin = (1000.0 / loud.bin_hz) as usize;
+        let near_peak = |m: &[f32]| m[peak_bin - 1..=peak_bin + 2].iter().cloned().fold(0.0, f32::max);
+        assert!(near_peak(&loud.magnitudes) > 0.97, "got {}", near_peak(&loud.magnitudes));
+
+        // -40 dBFS: 0.01 amplitude
+        let mut quiet = SpectrumAnalyzer::new(FftSize::Size4096, 44100);
+        quiet.set_smoothing(0.0);
+        let samples: Vec<f32> = generate_sine_wave(1000.0, 44100, 0.5).iter().map(|s| s * 0.01).collect();
+        quiet.add_samples(&samples);
+        let quiet = quiet.analyze().unwrap();
+        let level = near_peak(&quiet.magnitudes);
+        assert!((level - (70.0 - 40.0) / 70.0).abs() < 0.05, "got {level}");
+    }
+
+    #[test]
+    fn test_analysis_uses_the_newest_samples() {
+        let mut analyzer = SpectrumAnalyzer::new(FftSize::Size2048, 44100);
+        analyzer.set_smoothing(0.0);
+        // old audio at 300 Hz followed by one window of 3000 Hz
+        analyzer.add_samples(&generate_sine_wave(300.0, 44100, 0.1));
+        analyzer.add_samples(&generate_sine_wave(3000.0, 44100, 2048.0 / 44100.0));
+        let result = analyzer.analyze().unwrap();
+        assert!((result.peak_frequency - 3000.0).abs() < 50.0, "got {}", result.peak_frequency);
+    }
+
+    #[test]
+    fn test_waveform_is_decimated_time_domain_data() {
+        let mut analyzer = SpectrumAnalyzer::new(FftSize::Size4096, 44100);
+        analyzer.add_samples(&generate_sine_wave(100.0, 44100, 0.5));
+        let result = analyzer.analyze().unwrap();
+        assert_eq!(result.waveform.len(), WAVEFORM_POINTS);
+        assert!(result.waveform.iter().any(|s| *s > 0.8));
+        assert!(result.waveform.iter().any(|s| *s < -0.8));
     }
 
     #[test]

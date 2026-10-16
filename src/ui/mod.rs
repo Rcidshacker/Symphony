@@ -90,7 +90,7 @@ fn render_now_playing_section(f: &mut Frame, app: &App, area: Rect, theme: &Them
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(20), // Album art
+            Constraint::Length(artwork::ART_COLS as u16 + 2), // Album art (+ border)
             Constraint::Min(30),    // Track info + progress
             Constraint::Length(25), // Visualizer
         ])
@@ -357,6 +357,7 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         visualizer::VisualizationMode::Bars => "📊 Bars",
         visualizer::VisualizationMode::Waveform => "〰️ Wave",
         visualizer::VisualizationMode::Circular => "⭕ Circle",
+        visualizer::VisualizationMode::Minimal => "▪ Minimal",
         visualizer::VisualizationMode::Off => "❌ Off",
     };
     parts.push(Span::styled(viz_mode, dim));
@@ -442,7 +443,7 @@ fn render_help(f: &mut Frame, theme: &Theme) {
 ║  Enter    Play selected track             ║
 ║  v        Cycle visualizer modes          ║
 ║  t        Cycle themes                    ║
-║  1-4      Select visualizer mode          ║
+║  1-5      Pick visualizer (5 = off)       ║
 ║  h / ?    Toggle this help                ║
 ║  q / Ctrl+C  Quit                         ║
 ╚═══════════════════════════════════════════╝
