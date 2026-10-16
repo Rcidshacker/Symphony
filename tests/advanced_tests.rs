@@ -159,9 +159,9 @@ mod git_tests {
 
     #[test]
     fn test_activity_level_mood() {
-        assert_eq!(ActivityLevel::Idle.recommended_mood(), "relaxing");
-        assert_eq!(ActivityLevel::Light.recommended_mood(), "chill");
-        assert_eq!(ActivityLevel::Focused.recommended_mood(), "focus");
+        assert_eq!(ActivityLevel::Idle.recommended_mood(), "calm");
+        assert_eq!(ActivityLevel::Light.recommended_mood(), "steady");
+        assert_eq!(ActivityLevel::Focused.recommended_mood(), "driven");
         assert_eq!(ActivityLevel::Intense.recommended_mood(), "energetic");
     }
 
