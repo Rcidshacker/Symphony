@@ -167,7 +167,7 @@ impl LibraryScanner {
 
     /// Parse file name to extract artist and title
     /// Formats: "Artist - Title", "Artist-Title", "Title" (no artist)
-    fn parse_file_name(&self, file_name: &str) -> (String, String) {
+    pub fn parse_file_name(&self, file_name: &str) -> (String, String) {
         // Common patterns
         let separators = [" - ", "-", " – ", " – ", " by "];
 

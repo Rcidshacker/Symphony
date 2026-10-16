@@ -5,5 +5,7 @@
 pub mod analyzer;
 mod engine;
 
-pub use analyzer::{FftSize, FrequencyBand, SpectrumAnalyzer, SpectrumResult, WindowFunction};
+pub use analyzer::{
+    get_frequency_bands, FftSize, FrequencyBand, SpectrumAnalyzer, SpectrumResult, WindowFunction,
+};
 pub use engine::AudioEngine;

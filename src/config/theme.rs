@@ -610,7 +610,7 @@ mod color_serde {
         string_to_color(&s).map_err(serde::de::Error::custom)
     }
 
-    fn color_to_string(color: &Color) -> String {
+    pub(super) fn color_to_string(color: &Color) -> String {
         match color {
             Color::Reset => "reset".to_string(),
             Color::Black => "black".to_string(),
@@ -634,7 +634,7 @@ mod color_serde {
         }
     }
 
-    fn string_to_color(s: &str) -> Result<Color, String> {
+    pub(super) fn string_to_color(s: &str) -> Result<Color, String> {
         let s = s.trim().to_lowercase();
 
         match s.as_str() {

@@ -223,6 +223,7 @@ impl SimpleImage {
 }
 
 /// Simple pixel representation
+#[derive(Clone)]
 struct Pixel {
     r: u8,
     g: u8,
@@ -379,7 +380,7 @@ pub fn render_album_art(
     let block = Block::default()
         .title(block_title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(theme.border()));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -420,8 +421,8 @@ fn render_ascii_art(f: &mut Frame, area: Rect, art: &AsciiArt, theme: &Theme) {
             }
 
             let style = Style::default()
-                .fg(color.unwrap_or(theme.text))
-                .bg(theme.background);
+                .fg(color.unwrap_or(theme.text()))
+                .bg(theme.background());
 
             let span = Span::styled(char.to_string(), style);
             f.render_widget(Paragraph::new(span), Rect::new(x_pos, y_pos, 1, 1));

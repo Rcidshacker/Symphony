@@ -397,6 +397,14 @@ pub enum StreamError {
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
     
+    /// Cache error
+    #[error("Cache error: {0}")]
+    Cache(#[from] super::cache::CacheError),
+
+    /// HTTP error
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+
     /// Process execution error
     #[error("Process error: {0}")]
     ProcessError(String),

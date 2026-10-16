@@ -146,7 +146,7 @@ impl UserContext {
             activity: ActivityState::Unknown,
             focus_mode: false,
             recent_genres: VecDeque::with_capacity(10),
-            hourly_patterns: [None; 24],
+            hourly_patterns: std::array::from_fn(|_| None),
         }
     }
 
@@ -333,7 +333,6 @@ impl ContextDetector {
 
     /// Get recommendations based on detected context
     pub fn get_recommendations(&self) -> ContextRecommendations {
-        self.detect_activity(); // This line shouldn't compile - detect_activity takes &mut self
 
         ContextRecommendations {
             moods: vec![self.context.recommended_mood()],

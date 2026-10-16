@@ -24,7 +24,8 @@
 //! ```
 //!
 //! # Creating a Plugin
-//! ```rust,no_run
+//! ```rust,ignore
+//! // Guest code: built as a separate crate for the wasm32 target, not compiled here
 //! // In your plugin's lib.rs (compiled to WASM)
 //! 
 //! #[no_mangle]
@@ -239,7 +240,7 @@ impl PluginManifest {
     /// Load manifest from a TOML file
     pub fn from_file(path: &std::path::Path) -> Result<Self, PluginError> {
         let content = std::fs::read_to_string(path)?;
-        let manifest: PluginManifest = toml::from_str(&content)?;
+        let manifest: PluginManifest = toml::from_str(&content).map_err(|e| PluginError::ParseError(e.to_string()))?;
         Ok(manifest)
     }
 

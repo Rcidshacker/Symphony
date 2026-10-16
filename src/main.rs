@@ -3,18 +3,6 @@
 //! A sophisticated terminal music player with AI integration,
 //! real-time visualizations, and developer-focused features.
 
-mod app;
-mod audio;
-mod config;
-mod db;
-mod scanner;
-mod ui;
-mod ai;
-mod streaming;
-mod plugins;
-mod lyrics;
-mod integrations;
-
 use std::io;
 
 use crossterm::{
@@ -26,9 +14,10 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
-use crate::app::App;
-use crate::audio::AudioEngine;
-use crate::config::Config;
+use symphony::app::App;
+use symphony::audio::AudioEngine;
+use symphony::config::Config;
+use symphony::ui;
 
 /// Main entry point for Symphony
 fn main() -> anyhow::Result<()> {

@@ -6,7 +6,7 @@
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicF32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -95,7 +95,7 @@ pub struct AudioEngine {
     sink: Option<Sink>,
 
     /// Current volume
-    volume: Arc<AtomicF32>,
+    volume: Arc<AtomicU32>,
 
     /// Muted state
     muted: Arc<AtomicBool>,
@@ -129,7 +129,7 @@ impl AudioEngine {
             _output_stream: output_stream,
             stream_handle,
             sink: None,
-            volume: Arc::new(AtomicF32::new(0.6)),
+            volume: Arc::new(AtomicU32::new(0.6f32.to_bits())),
             muted: Arc::new(AtomicBool::new(false)),
             position_ms: Arc::new(AtomicU64::new(0)),
             playback_start: None,
@@ -171,7 +171,7 @@ impl AudioEngine {
         let source = Decoder::new(reader).map_err(|e| AudioError::DecodeError(e.to_string()))?;
 
         // Apply volume
-        let volume = self.volume.load(Ordering::SeqCst);
+        let volume = f32::from_bits(self.volume.load(Ordering::SeqCst));
         sink.set_volume(volume);
 
         // Append source
@@ -241,7 +241,7 @@ impl AudioEngine {
         let source = Decoder::new(cursor).map_err(|e| AudioError::DecodeError(e.to_string()))?;
 
         // Apply volume
-        let volume = self.volume.load(Ordering::SeqCst);
+        let volume = f32::from_bits(self.volume.load(Ordering::SeqCst));
         sink.set_volume(volume);
 
         // Append source
@@ -382,7 +382,7 @@ impl AudioEngine {
 
     /// Set volume (0.0 to 1.0)
     pub fn set_volume(&self, volume: f32) {
-        self.volume.store(volume, Ordering::SeqCst);
+        self.volume.store(volume.to_bits(), Ordering::SeqCst);
         if let Some(sink) = &self.sink {
             // If muted, don't actually change volume but store it
             if !self.muted.load(Ordering::SeqCst) {
@@ -393,7 +393,7 @@ impl AudioEngine {
 
     /// Get current volume
     pub fn volume(&self) -> f32 {
-        self.volume.load(Ordering::SeqCst)
+        f32::from_bits(self.volume.load(Ordering::SeqCst))
     }
 
     /// Set muted state
@@ -403,7 +403,7 @@ impl AudioEngine {
             if muted {
                 sink.set_volume(0.0);
             } else {
-                sink.set_volume(self.volume.load(Ordering::SeqCst));
+                sink.set_volume(f32::from_bits(self.volume.load(Ordering::SeqCst)));
             }
         }
     }

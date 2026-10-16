@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_visualizer_state() {
-        use symphony::ui::visualizer::VisualizerState;
+        use symphony::ui::visualizer::{VisualizationMode, VisualizerState};
 
         let state = VisualizerState::new(32);
         assert_eq!(state.mode, VisualizationMode::Bars);
