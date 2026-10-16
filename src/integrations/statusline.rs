@@ -2,7 +2,95 @@
 //!
 //! Output formatted status for tmux, zsh, and other shell integrations.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use serde::{Deserialize, Serialize};
+
+/// A snapshot older than this means the player is not running any more
+const STALE_AFTER_SECS: u64 = 4;
+
+/// What the running player publishes for `symphony status` (the player rewrites it every second)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct StatusSnapshot {
+    /// Track title (empty when nothing is loaded)
+    pub title: String,
+    /// Track artist
+    pub artist: String,
+    /// Track length in seconds
+    pub duration: u64,
+    /// Position in seconds
+    pub position: u64,
+    /// Whether audio is playing
+    pub playing: bool,
+    /// Volume 0.0-1.0
+    pub volume: f32,
+    /// Unix time the snapshot was written
+    pub updated_unix: u64,
+}
+
+/// Output formats of `symphony status`
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatusFormat {
+    Tmux,
+    Zsh,
+    Minimal,
+    Json,
+    I3blocks,
+    Waybar,
+    Polybar,
+}
+
+impl StatusFormat {
+    /// Parse a format name; `None` for unknown names
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(match name.to_lowercase().as_str() {
+            "tmux" => Self::Tmux,
+            "zsh" => Self::Zsh,
+            "minimal" => Self::Minimal,
+            "json" => Self::Json,
+            "i3blocks" => Self::I3blocks,
+            "waybar" => Self::Waybar,
+            "polybar" => Self::Polybar,
+            _ => return None,
+        })
+    }
+
+    /// Names accepted by [`StatusFormat::parse`]
+    pub const NAMES: &'static str = "tmux, zsh, minimal, json, i3blocks, waybar, polybar";
+}
+
+impl StatusSnapshot {
+    /// Write to `path` (to a temporary file first, so readers never see half a file)
+    pub fn write(&self, path: &Path) -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let temp = path.with_extension("tmp");
+        std::fs::write(&temp, serde_json::to_vec(self)?)?;
+        std::fs::rename(temp, path)
+    }
+
+    /// Read the snapshot at `path`; `None` when missing or unreadable
+    pub fn read(path: &Path) -> Option<Self> {
+        serde_json::from_slice(&std::fs::read(path).ok()?).ok()
+    }
+
+    /// Stamp with the current time
+    pub fn stamped(mut self) -> Self {
+        self.updated_unix = unix_now();
+        self
+    }
+
+    /// Whether the player published this recently enough to be running
+    pub fn is_live(&self, now_unix: u64) -> bool {
+        now_unix.saturating_sub(self.updated_unix) <= STALE_AFTER_SECS
+    }
+}
+
+fn unix_now() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
+}
 
 /// Status line formatter
 pub struct StatusLine;
@@ -130,9 +218,20 @@ impl StatusLine {
         }
     }
 
-    /// Write status to file (for tmux @plugin)
-    pub fn write_status_file(path: &PathBuf, content: &str) -> std::io::Result<()> {
-        std::fs::write(path, content)
+    /// Format a published snapshot; a missing or stale one means nothing is playing
+    pub fn render(snapshot: Option<&StatusSnapshot>, format: StatusFormat, now_unix: u64) -> String {
+        let live = snapshot.filter(|s| s.is_live(now_unix) && !s.title.is_empty());
+        let track = live.map(|s| (s.title.as_str(), s.artist.as_str(), s.duration, s.position));
+        let playing = live.is_some_and(|s| s.playing);
+        match format {
+            StatusFormat::Tmux => Self::tmux_format(track, playing),
+            StatusFormat::Zsh => Self::zsh_format(track.map(|(t, a, ..)| (t, a)), playing),
+            StatusFormat::Minimal => Self::minimal_format(playing, track.is_some()),
+            StatusFormat::Json => Self::json_format(track, playing, live.map_or(0.0, |s| s.volume)),
+            StatusFormat::I3blocks => Self::i3blocks_format(track.map(|(t, a, ..)| (t, a)), playing),
+            StatusFormat::Waybar => Self::waybar_format(track, playing),
+            StatusFormat::Polybar => Self::polybar_format(track, playing),
+        }
     }
 
     /// Generate polybar format
@@ -170,10 +269,10 @@ fn format_duration(secs: u64) -> String {
 
 /// Truncate string to max length
 fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if s.chars().count() <= max_len {
         s.to_string()
     } else {
-        let mut truncated = s[..max_len - 3].to_string();
+        let mut truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
         truncated.push_str("...");
         truncated
     }
@@ -186,36 +285,6 @@ fn escape_json(s: &str) -> String {
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
-}
-
-/// Status line configuration
-#[derive(Debug, Clone)]
-pub struct StatusLineConfig {
-    /// Enable tmux integration
-    pub tmux_enabled: bool,
-    /// Enable zsh integration
-    pub zsh_enabled: bool,
-    /// Status file path
-    pub status_file: Option<PathBuf>,
-    /// Update interval in milliseconds
-    pub update_interval_ms: u64,
-    /// Max title length
-    pub max_title_len: usize,
-    /// Max artist length
-    pub max_artist_len: usize,
-}
-
-impl Default for StatusLineConfig {
-    fn default() -> Self {
-        Self {
-            tmux_enabled: false,
-            zsh_enabled: false,
-            status_file: None,
-            update_interval_ms: 1000,
-            max_title_len: 25,
-            max_artist_len: 15,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -270,6 +339,71 @@ mod tests {
     fn test_truncate() {
         assert_eq!(truncate("Short", 10), "Short");
         assert_eq!(truncate("This is a very long string", 10), "This is...");
+    }
+
+    #[test]
+    fn truncate_counts_characters_not_bytes() {
+        // byte slicing used to panic in the middle of a multi-byte character
+        assert_eq!(truncate("あいうえおかきくけこさしすせそ", 8), "あいうえお...");
+        assert_eq!(truncate("Café Tacvba - Eres", 10), "Café Ta...");
+        assert_eq!(truncate("abcdef", 2), "...");
+    }
+
+    fn snapshot(updated_unix: u64) -> StatusSnapshot {
+        StatusSnapshot {
+            title: "Song".into(),
+            artist: "Band".into(),
+            duration: 180,
+            position: 90,
+            playing: true,
+            volume: 0.5,
+            updated_unix,
+        }
+    }
+
+    #[test]
+    fn snapshots_round_trip_through_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested/status.json");
+        assert_eq!(StatusSnapshot::read(&path), None);
+
+        snapshot(1000).write(&path).unwrap();
+        assert_eq!(StatusSnapshot::read(&path), Some(snapshot(1000)));
+        assert!(!path.with_extension("tmp").exists(), "temporary file is gone");
+
+        std::fs::write(&path, "not json").unwrap();
+        assert_eq!(StatusSnapshot::read(&path), None);
+    }
+
+    #[test]
+    fn render_shows_live_snapshots_and_ignores_stale_or_missing_ones() {
+        let live = snapshot(1000);
+        assert_eq!(
+            StatusLine::render(Some(&live), StatusFormat::Tmux, 1002),
+            "🎵 ▶ Song - Band [01:30/03:00]"
+        );
+        assert_eq!(StatusLine::render(Some(&live), StatusFormat::Zsh, 1002), "▶ Song - Band");
+        assert!(StatusLine::render(Some(&live), StatusFormat::Json, 1002).contains("\"playing\":true"));
+        assert!(StatusLine::render(Some(&live), StatusFormat::Waybar, 1002).contains("\"class\":\"playing\""));
+
+        // the player stopped writing: not running
+        assert_eq!(StatusLine::render(Some(&live), StatusFormat::Tmux, 1100), "🎵 Symphony");
+        assert_eq!(StatusLine::render(Some(&live), StatusFormat::Zsh, 1100), "");
+        assert_eq!(StatusLine::render(None, StatusFormat::Tmux, 1100), "🎵 Symphony");
+
+        let mut paused = snapshot(1000);
+        paused.playing = false;
+        assert_eq!(StatusLine::render(Some(&paused), StatusFormat::Minimal, 1001), "🎵⏸");
+        let mut idle = snapshot(1000);
+        idle.title.clear();
+        assert_eq!(StatusLine::render(Some(&idle), StatusFormat::Minimal, 1001), "");
+    }
+
+    #[test]
+    fn format_names_parse() {
+        assert_eq!(StatusFormat::parse("TMUX"), Some(StatusFormat::Tmux));
+        assert_eq!(StatusFormat::parse("waybar"), Some(StatusFormat::Waybar));
+        assert_eq!(StatusFormat::parse("fish"), None);
     }
 
     #[test]

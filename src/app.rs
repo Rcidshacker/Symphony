@@ -23,6 +23,7 @@ use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
 use crate::config::Config;
 use crate::db::Database;
+use crate::integrations::git::ActivityLevel;
 use crate::streaming::StreamTrack;
 use crate::ui::artwork::{self, ArtworkCache, ArtworkConfig, AsciiArt};
 use crate::ui::visualizer::{VisualizationMode, VisualizerState};
@@ -99,6 +100,9 @@ pub struct App {
 
     /// Plugins, Discord and Last.fm (idle until `start_integrations`)
     integrations: hooks::Integrations,
+
+    /// Coding activity the current queue was built for (see `adapt_music`)
+    adapted_level: Option<ActivityLevel>,
 
     /// Stream manager, created on first use
     stream: stream::SharedManager,
@@ -435,6 +439,7 @@ impl App {
             git_monitor,
             runtime,
             integrations: Default::default(),
+            adapted_level: None,
             stream: Default::default(),
             stream_pending: None,
             ai_tx,
@@ -457,6 +462,9 @@ impl App {
     /// Skip to next track
     pub fn next_track(&mut self) {
         if self.library.queue.is_empty() {
+            return;
+        }
+        if self.adapt_queue_for_git() {
             return;
         }
 
@@ -812,6 +820,7 @@ impl App {
         self.poll_background();
         self.poll_integrations();
         self.poll_plugin_notifications();
+        self.publish_status();
         self.update_visualizer();
 
         if self.playback_state.current_track.is_none() || !self.playback_state.is_playing {

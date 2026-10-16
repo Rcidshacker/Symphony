@@ -6,6 +6,7 @@
 //! `symphony stream <query>`       search YouTube/Spotify and play the best match
 //! `symphony add <path|source:id>` add local music (or a stream source)
 //! `symphony lastfm-login`         authorize Last.fm scrobbling
+//! `symphony status [format]`      one line about what is playing (tmux, zsh, json, ...)
 //! `symphony "<prompt>"`           start the player and run a natural-language command
 
 use std::path::PathBuf;
@@ -24,6 +25,8 @@ COMMANDS:
     scan <DIR>             Scan a directory and add its music to the library
     stream <QUERY>         Search YouTube/Spotify and play the best match
     add <SOURCE>           Add a local path, youtube:<id|url> or spotify:<track|playlist>:<id>
+    status [FORMAT]        Print what the running player is playing, for tmux/zsh/bars
+                           (tmux, zsh, minimal, json, i3blocks, waybar, polybar; default tmux)
     lastfm-login           Authorize Last.fm scrobbling (needs api_key/api_secret in the config)
     \"<PROMPT>\"             Start the player and ask the AI, e.g. symphony \"play something energetic\"
 
@@ -51,6 +54,8 @@ pub enum Command {
     Ask(String),
     /// Authorize Last.fm and store the session key
     LastfmLogin,
+    /// Print the status line of the running player in the given format
+    Status(String),
     /// Print help
     Help,
     /// Print version
@@ -124,6 +129,8 @@ fn command_from(positional: Vec<String>) -> Result<Command, CliError> {
     match first.as_str() {
         "init" => Ok(Command::Init),
         "lastfm-login" => Ok(Command::LastfmLogin),
+        "status" if rest.is_empty() => Ok(Command::Status("tmux".to_string())),
+        "status" => Ok(Command::Status(rest)),
         "scan" if rest.is_empty() => Err(CliError::MissingArgument {
             command: "scan",
             what: "a directory",
@@ -160,6 +167,8 @@ mod tests {
     fn subcommands() {
         assert_eq!(p(&["init"]).unwrap().command, Command::Init);
         assert_eq!(p(&["lastfm-login"]).unwrap().command, Command::LastfmLogin);
+        assert_eq!(p(&["status"]).unwrap().command, Command::Status("tmux".into()));
+        assert_eq!(p(&["status", "zsh"]).unwrap().command, Command::Status("zsh".into()));
         assert_eq!(
             p(&["scan", "/music"]).unwrap().command,
             Command::Scan(PathBuf::from("/music"))

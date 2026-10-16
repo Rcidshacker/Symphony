@@ -8,8 +8,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::task::JoinHandle;
 
-use super::{App, Track};
+use super::{App, RepeatMode, Track};
+use crate::ai::playlists::{PlaylistCriteria, SmartPlaylistGenerator};
 use crate::integrations::discord::{Activity, DiscordPresence};
+use crate::integrations::git::ActivityLevel;
+use crate::integrations::statusline::StatusSnapshot;
 use crate::integrations::lastfm::{should_scrobble, LastFm, ScrobbleTrack};
 use crate::plugins::{HostFunctions, PlaybackState as PluginPlayback, PluginEvent, PluginRuntime, TrackInfo};
 
@@ -37,6 +40,9 @@ pub(super) struct Integrations {
     counted: bool,
     /// Scrobbles still being sent
     pending: Vec<JoinHandle<()>>,
+    /// `start_integrations` ran: the status file may be written
+    started: bool,
+    last_status_write: Option<std::time::Instant>,
 }
 
 /// A mutex that stays usable after a panic elsewhere
@@ -75,6 +81,7 @@ fn scrobble_track(track: &Track) -> ScrobbleTrack {
 impl App {
     /// Start the plugin runtime, Discord presence and Last.fm from the `[plugins]` config
     pub fn start_integrations(&mut self) {
+        self.integrations.started = true;
         let config = self.config.plugins.clone();
         lock(&self.integrations.shared).volume = self.playback_state.volume;
 
@@ -124,6 +131,12 @@ impl App {
         self.track_finished();
         self.emit(PluginEvent::AppStopped);
         self.integrations.plugins = None; // runs every plugin's shutdown hook
+
+        // no status file means "not running" to `symphony status`
+        if self.integrations.started {
+            let _ = std::fs::remove_file(self.config.status_path());
+            self.integrations.started = false;
+        }
 
         if let Some(discord) = &self.integrations.discord {
             if let Err(e) = lock(discord).clear() {
@@ -292,6 +305,81 @@ impl App {
             state: if playing { format!("by {}", track.artist) } else { "Paused".to_string() },
             start_unix: (playing && show_timer).then_some(started),
         }));
+    }
+
+    /// Publish what is playing for `symphony status` (once a second, from `start_integrations` on)
+    pub(super) fn publish_status(&mut self) {
+        let integrations = &mut self.integrations;
+        if !integrations.started
+            || !self.config.integrations.statusline.enabled
+            || integrations.last_status_write.is_some_and(|t| t.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        integrations.last_status_write = Some(std::time::Instant::now());
+
+        let (title, artist) = self
+            .playback_state
+            .current_track
+            .as_ref()
+            .map(|t| (t.title.clone(), t.artist.clone()))
+            .unwrap_or_default();
+        let snapshot = StatusSnapshot {
+            title,
+            artist,
+            duration: self.playback_state.duration as u64,
+            position: self.playback_state.position as u64,
+            playing: self.playback_state.is_playing,
+            volume: self.playback_state.volume,
+            updated_unix: 0,
+        };
+        if let Err(e) = snapshot.stamped().write(&self.config.status_path()) {
+            tracing::debug!("status file: {e}");
+        }
+    }
+
+    /// At a track change: if the coding activity changed since the queue was built and
+    /// `adapt_music` is on, replace the queue with music for the new level.
+    /// Returns `true` when a new queue took over.
+    pub(super) fn adapt_queue_for_git(&mut self) -> bool {
+        if !self.config.integrations.git.adapt_music || self.playback_state.repeat == RepeatMode::One {
+            return false;
+        }
+        let Some(git) = self.git_monitor.as_ref().filter(|g| g.in_repo()) else {
+            return false;
+        };
+        let level = git.get_activity_level();
+        match self.adapted_level.replace(level) {
+            // the first track change: the queue the user picked stays
+            None => false,
+            Some(previous) if previous == level => false,
+            Some(_) => self.adapt_to_activity(level),
+        }
+    }
+
+    /// Replace the queue with music for `level` and play it; `false` if the library has nothing for it
+    pub fn adapt_to_activity(&mut self, level: ActivityLevel) -> bool {
+        let criteria = PlaylistCriteria {
+            name: Some(format!("git: {}", level.label())),
+            mood: Some(level.recommended_mood().to_string()),
+            ..Default::default()
+        };
+        let generator = SmartPlaylistGenerator::new().with_features(self.features.clone());
+        match generator.generate(&self.library.tracks, &criteria) {
+            Ok(playlist) if !playlist.tracks.is_empty() => {
+                let count = playlist.tracks.len();
+                self.adapted_level = Some(level);
+                self.start_queue(playlist.tracks, false);
+                self.ui_state.status_message = Some(format!(
+                    "Git: {} {} - {count} {} tracks queued",
+                    level.icon(),
+                    level.label(),
+                    level.recommended_mood()
+                ));
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Update Discord off the UI thread (`None` clears the presence)

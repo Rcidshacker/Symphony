@@ -21,12 +21,22 @@ pub enum ActivityLevel {
 }
 
 impl ActivityLevel {
-    /// Get recommended playlist mood
+    /// Level for `commits` commits in the last hour
+    pub fn from_commits(commits: usize) -> Self {
+        match commits {
+            0 => ActivityLevel::Idle,
+            1..=2 => ActivityLevel::Light,
+            3..=5 => ActivityLevel::Focused,
+            _ => ActivityLevel::Intense,
+        }
+    }
+
+    /// Mood of the music that suits this level: quiet when idle, picking up with the commits
     pub fn recommended_mood(&self) -> &'static str {
         match self {
-            ActivityLevel::Idle => "relaxing",
-            ActivityLevel::Light => "chill",
-            ActivityLevel::Focused => "focus",
+            ActivityLevel::Idle => "calm",
+            ActivityLevel::Light => "steady",
+            ActivityLevel::Focused => "driven",
             ActivityLevel::Intense => "energetic",
         }
     }
@@ -113,6 +123,14 @@ impl GitMonitor {
             recent_commits: Vec::new(),
             current_branch: None,
             files_changed: 0,
+        }
+    }
+
+    /// Monitor a specific repository instead of the one found from the current directory
+    pub fn for_repo(path: PathBuf, config: GitMonitorConfig) -> Self {
+        Self {
+            repo_path: Some(path),
+            ..Self::with_config(config)
         }
     }
 
@@ -217,13 +235,7 @@ impl GitMonitor {
 
                     self.commit_velocity = count as f32;
 
-                    // Update activity level
-                    self.activity_level = match count {
-                        0 => ActivityLevel::Idle,
-                        1..=2 => ActivityLevel::Light,
-                        3..=5 => ActivityLevel::Focused,
-                        _ => ActivityLevel::Intense,
-                    };
+                    self.activity_level = ActivityLevel::from_commits(count);
 
                     debug!(
                         "Git activity: {} commits/hour -> {:?}",
@@ -335,9 +347,9 @@ mod tests {
 
     #[test]
     fn test_activity_level_mood() {
-        assert_eq!(ActivityLevel::Idle.recommended_mood(), "relaxing");
-        assert_eq!(ActivityLevel::Light.recommended_mood(), "chill");
-        assert_eq!(ActivityLevel::Focused.recommended_mood(), "focus");
+        assert_eq!(ActivityLevel::Idle.recommended_mood(), "calm");
+        assert_eq!(ActivityLevel::Light.recommended_mood(), "steady");
+        assert_eq!(ActivityLevel::Focused.recommended_mood(), "driven");
         assert_eq!(ActivityLevel::Intense.recommended_mood(), "energetic");
     }
 

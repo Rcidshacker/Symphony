@@ -876,18 +876,14 @@ impl Default for PomodoroConfig {
     }
 }
 
-/// Status line configuration
+/// Status line configuration (what `symphony status` prints is read from this file)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusLineConfig {
-    /// Enable tmux status line
-    #[serde(default)]
-    pub tmux_enabled: bool,
+    /// Let the player publish its status for `symphony status`
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 
-    /// Enable zsh status line
-    #[serde(default)]
-    pub zsh_enabled: bool,
-
-    /// Status file path
+    /// Status file path (default: `status.json` in the cache directory)
     #[serde(default)]
     pub status_file: String,
 }
@@ -895,8 +891,7 @@ pub struct StatusLineConfig {
 impl Default for StatusLineConfig {
     fn default() -> Self {
         Self {
-            tmux_enabled: false,
-            zsh_enabled: false,
+            enabled: true,
             status_file: String::new(),
         }
     }
@@ -990,6 +985,14 @@ impl Config {
             })?
             .join("symphony")
             .join("config.toml"))
+    }
+
+    /// Where the player publishes its status for `symphony status`
+    pub fn status_path(&self) -> PathBuf {
+        match self.integrations.statusline.status_file.trim() {
+            "" => self.general.cache_directory.join("status.json"),
+            custom => PathBuf::from(custom),
+        }
     }
 
     /// Get the default configuration path

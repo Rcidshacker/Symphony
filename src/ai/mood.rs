@@ -43,6 +43,8 @@ pub fn mood_profile(mood: &str) -> Option<MoodProfile> {
         "aggressive" | "angry" | "intense" => (High, High),
         "happy" | "joyful" | "cheerful" | "fun" => (High, Mid),
         "epic" | "dramatic" | "powerful" => (High, Mid),
+        "steady" | "mellow" | "groovy" => (Low, Mid),
+        "driven" | "motivated" | "productive" => (Mid, Mid),
         "calm" | "focus" | "concentrate" | "study" | "coding" | "work" | "relaxed" | "relaxing" | "peaceful" | "gentle" | "sleep" | "chill" | "laid-back" => (Low, Low),
         "sad" | "melancholic" | "melancholy" | "blue" => (Low, Low),
         "romantic" | "love" => (Low, Low),

@@ -21,6 +21,7 @@ use symphony::cli::{self, Command};
 use symphony::config::Config;
 use symphony::db::Database;
 use symphony::integrations::lastfm::LastFm;
+use symphony::integrations::statusline::{StatusFormat, StatusLine, StatusSnapshot};
 use symphony::input::handle_key_event;
 use symphony::scanner::LibraryScanner;
 use symphony::streaming::{StreamManager, StreamManagerConfig};
@@ -57,6 +58,7 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Init => cmd_init(),
         Command::LastfmLogin => cmd_lastfm_login(),
+        Command::Status(format) => cmd_status(&format),
         Command::Scan(dir) => cmd_scan(&dir),
         Command::Add(spec) => cmd_add(&spec),
         Command::Stream(query) => run_tui(Config::load()?, Startup::Stream(&query)),
@@ -85,6 +87,23 @@ fn cmd_init() -> anyhow::Result<()> {
     println!("Database: {}", config.general.database_path.display());
     println!("Cache:    {}", config.general.cache_directory.display());
     println!("Next: symphony scan <music-dir>");
+    Ok(())
+}
+
+/// `symphony status [format]`: one line about the running player, for tmux, zsh and status bars.
+/// `SYMPHONY_STATUS_FILE` overrides where the snapshot is read from.
+fn cmd_status(format: &str) -> anyhow::Result<()> {
+    let Some(format) = StatusFormat::parse(format) else {
+        bail!("unknown format \"{format}\" (use one of: {})", StatusFormat::NAMES);
+    };
+    let path = match std::env::var_os("SYMPHONY_STATUS_FILE") {
+        Some(path) => path.into(),
+        None => Config::load()?.status_path(),
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    println!("{}", StatusLine::render(StatusSnapshot::read(&path).as_ref(), format, now));
     Ok(())
 }
 
