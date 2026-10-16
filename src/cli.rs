@@ -3,7 +3,7 @@
 //! `symphony`                      start the TUI
 //! `symphony init`                 create config, data dirs and database
 //! `symphony scan <dir>`           add a music directory to the library
-//! `symphony stream <query>`       search YouTube/Spotify
+//! `symphony stream <query>`       search YouTube/Spotify and play the best match
 //! `symphony add <path|source:id>` add local music (or a stream source)
 //! `symphony "<prompt>"`           start the player and run a natural-language command
 
@@ -21,8 +21,8 @@ USAGE:
 COMMANDS:
     init                   Create config file, data directories and database
     scan <DIR>             Scan a directory and add its music to the library
-    stream <QUERY>         Search YouTube/Spotify for tracks
-    add <PATH>             Add a local file or directory to the library
+    stream <QUERY>         Search YouTube/Spotify and play the best match
+    add <SOURCE>           Add a local path, youtube:<id|url> or spotify:<track|playlist>:<id>
     \"<PROMPT>\"             Start the player and ask the AI, e.g. symphony \"play something energetic\"
 
 With no command the interactive player starts.

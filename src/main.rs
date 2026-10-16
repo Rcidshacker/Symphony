@@ -15,7 +15,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
-use symphony::app::App;
+use symphony::app::{import_stream_spec, App};
 use symphony::audio::AudioEngine;
 use symphony::cli::{self, Command};
 use symphony::config::Config;
@@ -57,9 +57,9 @@ fn main() -> anyhow::Result<()> {
         Command::Init => cmd_init(),
         Command::Scan(dir) => cmd_scan(&dir),
         Command::Add(spec) => cmd_add(&spec),
-        Command::Stream(query) => cmd_stream(&query),
-        Command::Ask(prompt) => run_tui(Config::load()?, Some(&prompt)),
-        Command::Tui => run_tui(Config::load()?, None),
+        Command::Stream(query) => run_tui(Config::load()?, Startup::Stream(&query)),
+        Command::Ask(prompt) => run_tui(Config::load()?, Startup::Prompt(&prompt)),
+        Command::Tui => run_tui(Config::load()?, Startup::Nothing),
     }
 }
 
@@ -107,41 +107,45 @@ fn cmd_scan(dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `symphony add <path>`: local paths only; stream sources are not wired in yet.
+/// `symphony add <path | youtube:… | spotify:…>`: add local music or stream tracks to the library.
 fn cmd_add(spec: &str) -> anyhow::Result<()> {
-    if spec.starts_with("youtube:") || spec.starts_with("spotify:") {
-        bail!("adding stream sources to the library is not implemented yet; use `symphony stream <query>` to search");
+    let is_stream = spec.starts_with("youtube:")
+        || spec.starts_with("spotify:")
+        || spec.starts_with("http://")
+        || spec.starts_with("https://");
+    if !is_stream {
+        return cmd_scan(Path::new(spec));
     }
-    cmd_scan(Path::new(spec))
-}
 
-/// `symphony stream <query>`: search the streaming sources and list results.
-fn cmd_stream(query: &str) -> anyhow::Result<()> {
+    let config = Config::load()?;
+    let db = open_database(&config)?;
     let runtime = tokio::runtime::Runtime::new()?;
-    runtime.block_on(async {
-        let manager = StreamManager::new(StreamManagerConfig::default()).await?;
-        let result = manager.search_all(query, 10).await?;
-        if result.is_empty() {
-            println!("No results for \"{query}\"");
-        }
-        for (i, track) in result.tracks.iter().enumerate() {
-            println!(
-                "{:>2}. [{:?}] {} - {} ({}:{:02})",
-                i + 1,
-                track.source,
-                track.artist,
-                track.title,
-                track.duration / 60,
-                track.duration % 60
-            );
-        }
-        Ok(())
-    })
+    let added = runtime.block_on(async {
+        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming))
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        import_stream_spec(&manager, &db, spec)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
+    })?;
+    for track in &added {
+        println!("added {} - {} ({})", track.artist, track.title, track.id);
+    }
+    println!("{} track(s) added, {} in library", added.len(), db.track_count()?);
+    Ok(())
 }
 
-/// Start the interactive player, optionally running an AI prompt right away
-/// (`symphony "play something calm"`).
-fn run_tui(config: Config, prompt: Option<&str>) -> anyhow::Result<()> {
+/// What the player does right after it starts
+enum Startup<'a> {
+    Nothing,
+    /// Run a natural-language prompt (`symphony "play something calm"`)
+    Prompt(&'a str),
+    /// Search the streaming sources and play the best match (`symphony stream <query>`)
+    Stream(&'a str),
+}
+
+/// Start the interactive player.
+fn run_tui(config: Config, startup: Startup) -> anyhow::Result<()> {
     // Fallible setup happens before raw mode so errors print normally.
     let database = open_database(&config)?;
     let audio_engine = AudioEngine::new()?;
@@ -149,8 +153,10 @@ fn run_tui(config: Config, prompt: Option<&str>) -> anyhow::Result<()> {
     let mut app = App::new(config, audio_engine);
     app.database = Some(database);
     app.load_library()?;
-    if let Some(prompt) = prompt {
-        app.submit_prompt(prompt);
+    match startup {
+        Startup::Nothing => {}
+        Startup::Prompt(prompt) => app.submit_prompt(prompt),
+        Startup::Stream(query) => app.play_stream_query(query),
     }
 
     enable_raw_mode()?;

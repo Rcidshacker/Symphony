@@ -78,7 +78,7 @@ impl App {
     }
 
     /// Queue `tracks` and start the first one. The order is kept unless `shuffle` or shuffle mode is on.
-    fn start_queue(&mut self, tracks: Vec<Track>, shuffle: bool) {
+    pub(super) fn start_queue(&mut self, tracks: Vec<Track>, shuffle: bool) {
         self.library.queue = tracks;
         self.library.queue_index = 0;
         if shuffle || self.playback_state.shuffle {

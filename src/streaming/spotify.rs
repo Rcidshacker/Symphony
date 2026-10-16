@@ -42,6 +42,10 @@ pub struct SpotifyConfig {
     pub redirect_uri: String,
     /// Enable Spotify provider
     pub enabled: bool,
+    /// Web API base URL (overridable for tests)
+    pub api_url: String,
+    /// Accounts service base URL (overridable for tests)
+    pub accounts_url: String,
 }
 
 impl Default for SpotifyConfig {
@@ -51,6 +55,8 @@ impl Default for SpotifyConfig {
             client_secret: String::new(),
             redirect_uri: "http://localhost:8888/callback".to_string(),
             enabled: false,
+            api_url: SPOTIFY_API_URL.to_string(),
+            accounts_url: SPOTIFY_ACCOUNTS_URL.to_string(),
         }
     }
 }
@@ -201,7 +207,7 @@ impl SpotifyProvider {
 
     /// Refresh the access token using client credentials flow
     async fn refresh_token(&self) -> Result<(), StreamError> {
-        let url = format!("{}/api/token", SPOTIFY_ACCOUNTS_URL);
+        let url = format!("{}/api/token", self.config.accounts_url);
         
         let params = [
             ("grant_type", "client_credentials"),
@@ -293,7 +299,7 @@ impl SpotifyProvider {
         
         let url = format!(
             "{}/search?q={}&type=track&limit={}",
-            SPOTIFY_API_URL,
+            self.config.api_url,
             urlencoding::encode(query),
             limit
         );
@@ -343,7 +349,7 @@ impl SpotifyProvider {
     async fn get_track_details(&self, track_id: &str) -> Result<StreamTrack, StreamError> {
         let token = self.get_access_token().await?;
         
-        let url = format!("{}/tracks/{}", SPOTIFY_API_URL, track_id);
+        let url = format!("{}/tracks/{}", self.config.api_url, track_id);
 
         let response = self.client
             .get(&url)
@@ -382,6 +388,41 @@ impl SpotifyProvider {
 
         let track: TrackDetailsResponse = response.json().await?;
         Ok(self.convert_track_details(track))
+    }
+
+    /// All tracks of a public playlist (client-credentials tokens cannot read private ones)
+    pub async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<StreamTrack>, StreamError> {
+        let mut url = format!("{}/playlists/{}/tracks?limit=100", self.config.api_url, playlist_id);
+        let mut tracks = Vec::new();
+        loop {
+            let token = self.get_access_token().await?;
+            let mut response = self.client.get(&url).bearer_auth(&token).send().await?;
+            if response.status() == 401 {
+                self.refresh_token().await?;
+                let token = self.get_access_token().await?;
+                response = self.client.get(&url).bearer_auth(&token).send().await?;
+            }
+            if response.status() == 404 {
+                return Err(StreamError::TrackNotFound(format!("playlist {playlist_id}")));
+            }
+            if !response.status().is_success() {
+                return Err(StreamError::SearchFailed(format!(
+                    "Spotify playlist request failed: {}",
+                    response.status()
+                )));
+            }
+            let page: serde_json::Value = response.json().await?;
+            for item in page["items"].as_array().into_iter().flatten() {
+                // removed or local tracks come back as null / without ids
+                if let Ok(track) = serde_json::from_value::<TrackItem>(item["track"].clone()) {
+                    tracks.push(self.convert_track(track));
+                }
+            }
+            match page["next"].as_str() {
+                Some(next) => url = next.to_string(),
+                None => return Ok(tracks),
+            }
+        }
     }
 
     /// Convert track details to StreamTrack

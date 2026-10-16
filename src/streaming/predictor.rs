@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, info, warn};
 
 use super::cache::{CacheError, PrefetchItem, SmartCache};
@@ -143,7 +143,7 @@ impl PredictionReason {
 /// Predictive cache manager
 pub struct PredictiveCache {
     config: PredictorConfig,
-    db: Arc<RwLock<Connection>>,
+    db: Arc<Mutex<Connection>>,
     cache: Arc<SmartCache>,
     last_prediction: Arc<RwLock<Option<DateTime<Utc>>>>,
 }
@@ -156,7 +156,7 @@ impl PredictiveCache {
 
         Ok(Self {
             config,
-            db: Arc::new(RwLock::new(db)),
+            db: Arc::new(Mutex::new(db)),
             cache,
             last_prediction: Arc::new(RwLock::new(None)),
         })
@@ -224,7 +224,7 @@ impl PredictiveCache {
         completed: bool,
         skipped: bool,
     ) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
         let now = Utc::now().to_rfc3339();
 
         // Record play event
@@ -343,7 +343,7 @@ impl PredictiveCache {
 
     /// Predict based on track transitions
     async fn predict_from_transitions(&self, current_track: &str) -> Result<Vec<Prediction>, CacheError> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
 
         let mut stmt = db.prepare(
             "SELECT to_track, count, 
@@ -379,7 +379,7 @@ impl PredictiveCache {
 
     /// Predict based on time patterns
     async fn predict_from_time(&self) -> Result<Vec<Prediction>, CacheError> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
 
         let hour = Utc::now().hour() as i64;
         let day_of_week = Utc::now().weekday().num_days_from_sunday() as i64;
@@ -509,7 +509,7 @@ impl PredictiveCache {
 
     /// Get learning statistics
     pub async fn get_stats(&self) -> Result<PredictorStats, CacheError> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
 
         let total_transitions: i64 = db.query_row(
             "SELECT COUNT(*) FROM transitions",

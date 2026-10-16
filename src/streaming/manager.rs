@@ -60,6 +60,43 @@ pub struct StreamManagerConfig {
     pub prefer_cached: bool,
 }
 
+impl StreamManagerConfig {
+    /// Build the manager config from the `[streaming]` section of symphony.toml
+    pub fn from_config(cfg: &crate::config::StreamingConfig) -> Self {
+        fn quality(name: &str, fallback: StreamQuality) -> StreamQuality {
+            match name.to_lowercase().as_str() {
+                "low" => StreamQuality::Low,
+                "medium" => StreamQuality::Medium,
+                "high" => StreamQuality::High,
+                "best" => StreamQuality::Best,
+                _ => fallback,
+            }
+        }
+        let mb = 1024 * 1024;
+        let mut config = Self {
+            enabled: cfg.enabled,
+            default_quality: quality(&cfg.youtube.quality, StreamQuality::Medium),
+            max_concurrent_downloads: cfg.network.max_concurrent_downloads,
+            prefer_cached: cfg.network.prefer_cached,
+            ..Self::default()
+        };
+        config.youtube.ytdlp_path = cfg.youtube.ytdlp_path.clone();
+        config.spotify.enabled = cfg.spotify.enabled;
+        config.spotify.client_id = cfg.spotify.client_id.clone();
+        config.spotify.client_secret = cfg.spotify.client_secret.clone();
+        config.spotify.redirect_uri = cfg.spotify.redirect_uri.clone();
+        config.spotify.api_url = cfg.spotify.api_url.clone();
+        config.spotify.accounts_url = cfg.spotify.accounts_url.clone();
+        config.cache.cache_dir = cfg.cache.cache_dir.clone();
+        config.cache.max_hot_size = cfg.cache.max_hot_size_mb * mb;
+        config.cache.max_warm_size = cfg.cache.max_warm_size_mb * mb;
+        config.cache.max_cold_size = cfg.cache.max_cold_size_mb * mb;
+        config.cache.prefetch_enabled = cfg.cache.prefetch_enabled;
+        config.cache.prefetch_count = cfg.cache.prefetch_count;
+        config
+    }
+}
+
 impl Default for StreamManagerConfig {
     fn default() -> Self {
         Self {
@@ -439,15 +476,59 @@ impl StreamManager {
                 }
             }
             StreamSource::Spotify => {
-                // Spotify doesn't support full downloads
-                Err(StreamError::DownloadFailed(
-                    "Spotify does not support full track downloads. Use YouTube for downloading.".to_string(),
-                ))
+                // Spotify only serves 30 s previews, so play the closest YouTube match instead
+                let query = format!("{} {}", track.artist, track.title);
+                let found = self.search_youtube(&query, 5).await?;
+                let best = found
+                    .tracks
+                    .iter()
+                    .min_by_key(|t| (t.duration as i64 - track.duration as i64).abs())
+                    .ok_or_else(|| StreamError::TrackNotFound(format!("no YouTube match for {query}")))?;
+                info!("Spotify track {} resolved to YouTube {}", track.id, best.id);
+                let youtube_path = self.cache.generate_cache_path(best, self.config.default_quality);
+                match &self.youtube {
+                    Some(youtube) => {
+                        self.add_download(&track.id, &track.title, track.source).await;
+                        let result = youtube
+                            .download_track(&best.id, self.config.default_quality, &youtube_path)
+                            .await;
+                        self.remove_download(&track.id).await;
+                        result?;
+                    }
+                    None => {
+                        return Err(StreamError::Unavailable(
+                            "YouTube provider is not available".to_string(),
+                        ))
+                    }
+                }
+                self.cache
+                    .add_track(track, &youtube_path, self.config.default_quality)
+                    .await?;
+                Ok(youtube_path)
             }
             _ => Err(StreamError::DownloadFailed(format!(
                 "Cannot download {} tracks",
                 track.source
             ))),
+        }
+    }
+
+    /// Turn `youtube:<id|url>`, `spotify:track:<id>`, `spotify:playlist:<id>` or a
+    /// youtube.com / youtu.be / open.spotify.com link into tracks
+    pub async fn resolve_spec(&self, spec: &str) -> Result<Vec<StreamTrack>, StreamError> {
+        let spec = spec.trim();
+        if let Some(id) = youtube_id(spec) {
+            return Ok(vec![self.get_track_info(&id, StreamSource::YouTube).await?]);
+        }
+        match spotify_ref(spec) {
+            Some(("track", id)) => Ok(vec![self.get_track_info(id, StreamSource::Spotify).await?]),
+            Some(("playlist", id)) => match &self.spotify {
+                Some(spotify) => spotify.playlist_tracks(id).await,
+                None => Err(StreamError::Unavailable(
+                    "Spotify is not configured (set client_id and client_secret in symphony.toml)".to_string(),
+                )),
+            },
+            _ => Err(StreamError::TrackNotFound(format!("unrecognized stream source: {spec}"))),
         }
     }
 
@@ -606,6 +687,44 @@ impl StreamManager {
     }
 }
 
+/// Video id from `youtube:<id>`, `youtube:<url>` or a youtube.com / youtu.be link
+pub fn youtube_id(spec: &str) -> Option<String> {
+    let rest = spec.strip_prefix("youtube:").unwrap_or(spec);
+    let is_link = rest.starts_with("http://") || rest.starts_with("https://");
+    if !is_link {
+        // a bare id only counts behind the `youtube:` prefix
+        return (rest.len() < spec.len() && !rest.is_empty()).then(|| rest.to_string());
+    }
+    let after_scheme = rest.split("://").nth(1)?;
+    let (host, path_query) = after_scheme.split_once('/').unwrap_or((after_scheme, ""));
+    let id = if host.ends_with("youtu.be") {
+        path_query.split(['?', '&', '/']).next()?.to_string()
+    } else if host.ends_with("youtube.com") {
+        path_query
+            .split_once('?')?
+            .1
+            .split('&')
+            .find_map(|kv| kv.strip_prefix("v="))?
+            .to_string()
+    } else {
+        return None;
+    };
+    (!id.is_empty()).then_some(id)
+}
+
+/// `(kind, id)` from `spotify:track:<id>` or an open.spotify.com link
+pub fn spotify_ref(spec: &str) -> Option<(&str, &str)> {
+    if let Some(rest) = spec.strip_prefix("spotify:") {
+        let (kind, id) = rest.split_once(':')?;
+        return (!id.is_empty()).then_some((kind, id));
+    }
+    let path = spec.split("open.spotify.com/").nth(1)?;
+    let mut parts = path.split(['/', '?']);
+    let kind = parts.next()?;
+    let id = parts.next()?;
+    (!id.is_empty()).then_some((kind, id))
+}
+
 /// Result of playing a track
 #[derive(Debug, Clone)]
 pub struct PlayResult {
@@ -620,6 +739,21 @@ pub struct PlayResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn specs_are_parsed() {
+        assert_eq!(youtube_id("youtube:abc123").as_deref(), Some("abc123"));
+        assert_eq!(youtube_id("https://www.youtube.com/watch?v=abc123&t=9").as_deref(), Some("abc123"));
+        assert_eq!(youtube_id("youtube:https://youtu.be/abc123?si=x").as_deref(), Some("abc123"));
+        assert_eq!(youtube_id("abc123"), None);
+        assert_eq!(youtube_id("https://example.com/watch?v=abc"), None);
+        assert_eq!(spotify_ref("spotify:playlist:37i9"), Some(("playlist", "37i9")));
+        assert_eq!(
+            spotify_ref("https://open.spotify.com/track/6rq?si=abc"),
+            Some(("track", "6rq"))
+        );
+        assert_eq!(spotify_ref("youtube:abc"), None);
+    }
 
     #[test]
     fn test_combined_search_result() {

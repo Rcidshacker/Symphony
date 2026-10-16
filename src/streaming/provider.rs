@@ -77,10 +77,10 @@ impl StreamQuality {
     /// Get the YouTube format selector for this quality
     pub fn yt_dlp_format(&self) -> &'static str {
         match self {
-            StreamQuality::Low => "bestaudio[abr<=64]/bestaudio/worst",
-            StreamQuality::Medium => "bestaudio[abr<=128]/bestaudio",
-            StreamQuality::High => "bestaudio[abr<=256]/bestaudio",
-            StreamQuality::Best => "bestaudio/best",
+            StreamQuality::Low => "bestaudio[ext=m4a][abr<=64]/bestaudio[ext=m4a]/bestaudio",
+            StreamQuality::Medium => "bestaudio[ext=m4a][abr<=128]/bestaudio[ext=m4a]/bestaudio",
+            StreamQuality::High => "bestaudio[ext=m4a][abr<=256]/bestaudio[ext=m4a]/bestaudio",
+            StreamQuality::Best => "bestaudio[ext=m4a]/bestaudio",
         }
     }
 }

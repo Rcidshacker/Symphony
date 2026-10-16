@@ -23,12 +23,17 @@ use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
 use crate::config::Config;
 use crate::db::Database;
+use crate::streaming::StreamTrack;
 use crate::ui::artwork::{self, ArtworkCache, ArtworkConfig, AsciiArt};
 use crate::ui::visualizer::{VisualizationMode, VisualizerState};
 
 #[path = "app_assistant.rs"]
 mod assistant;
 use assistant::SearchKind;
+
+#[path = "app_stream.rs"]
+mod stream;
+pub use stream::{import_stream_spec, track_from_stream};
 
 /// Main application state
 pub struct App {
@@ -89,6 +94,12 @@ pub struct App {
     /// Runtime for async work such as AI requests
     runtime: Option<tokio::runtime::Runtime>,
 
+    /// Stream manager, created on first use
+    stream: stream::SharedManager,
+
+    /// Id of the stream track being fetched, if any
+    stream_pending: Option<String>,
+
     /// AI results come back from the runtime over this channel
     ai_tx: Sender<BackgroundEvent>,
     ai_rx: Receiver<BackgroundEvent>,
@@ -124,6 +135,15 @@ enum BackgroundEvent {
     Features {
         path: String,
         features: Option<AudioFeatures>,
+    },
+    /// A stream track finished downloading to the cache
+    StreamReady { track_id: String, path: PathBuf },
+    /// A stream track could not be fetched
+    StreamFailed { track_id: String, error: String },
+    /// A `symphony stream <query>` search finished
+    StreamSearch {
+        query: String,
+        result: Result<Vec<StreamTrack>, String>,
     },
 }
 
@@ -408,6 +428,8 @@ impl App {
             pomodoro,
             git_monitor,
             runtime,
+            stream: Default::default(),
+            stream_pending: None,
             ai_tx,
             ai_rx,
         }
@@ -484,11 +506,21 @@ impl App {
             return;
         }
 
-        let track = &self.library.queue[index];
-        let track_path = track.path.clone();
-        if let Err(e) = self.audio_engine.play_file(&track.path) {
-            self.ui_state.error_message = Some(format!("Failed to play track: {e}"));
+        let track = self.library.queue[index].clone();
+        self.stream_pending = None;
+        if stream::is_stream(&track) {
+            self.start_stream(track);
             return;
+        }
+        let path = track.path.clone();
+        self.begin_playback(&track, &path);
+    }
+
+    /// Start `track` from the audio file `track_path`; `false` if it could not be played
+    fn begin_playback(&mut self, track: &Track, track_path: &Path) -> bool {
+        if let Err(e) = self.audio_engine.play_file(track_path) {
+            self.ui_state.error_message = Some(format!("Failed to play track: {e}"));
+            return false;
         }
 
         self.playback_state.current_track = Some(track.clone());
@@ -506,19 +538,15 @@ impl App {
         // Clear error if any
         self.ui_state.error_message = None;
 
-        self.load_lyrics_for(&track_path);
+        self.load_lyrics_for(track_path);
         if !self.lyrics.has_lyrics() {
-            if let Some(track) = self.playback_state.current_track.clone() {
-                self.fetch_lyrics_online(&track);
-            }
+            self.fetch_lyrics_online(track);
         }
-        let track_id = self.playback_state.current_track.as_ref().map(|t| t.id.clone());
-        if let Some(id) = track_id {
-            self.load_artwork(&id, &track_path);
-        }
+        self.load_artwork(&track.id, track_path);
         if let Some(analyzer) = &mut self.analyzer {
             analyzer.reset();
         }
+        true
     }
 
     /// Stop playback completely
@@ -953,6 +981,9 @@ impl App {
                     self.ui_state.ai_answer = Some(text);
                 }
                 BackgroundEvent::Features { path, features } => self.apply_features(path, features),
+                BackgroundEvent::StreamReady { track_id, path } => self.apply_stream_ready(&track_id, path),
+                BackgroundEvent::StreamFailed { track_id, error } => self.apply_stream_failed(&track_id, error),
+                BackgroundEvent::StreamSearch { query, result } => self.apply_stream_search(&query, result),
             }
         }
     }

@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use super::provider::{StreamQuality, StreamSource, StreamTrack};
@@ -227,7 +227,7 @@ pub fn format_bytes(bytes: u64) -> String {
 /// Smart cache implementation
 pub struct SmartCache {
     config: CacheConfig,
-    db: Arc<RwLock<Connection>>,
+    db: Arc<Mutex<Connection>>,
     stats: Arc<RwLock<CacheStats>>,
 }
 
@@ -249,7 +249,7 @@ impl SmartCache {
 
         Ok(Self {
             config,
-            db: Arc::new(RwLock::new(db)),
+            db: Arc::new(Mutex::new(db)),
             stats: Arc::new(RwLock::new(stats)),
         })
     }
@@ -333,7 +333,7 @@ impl SmartCache {
 
     /// Check if a track is cached
     pub async fn is_cached(&self, track_id: &str) -> bool {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
         db.query_row(
             "SELECT 1 FROM cached_tracks WHERE track_id = ?1",
             params![track_id],
@@ -344,7 +344,7 @@ impl SmartCache {
 
     /// Get a cached track's file path
     pub async fn get_cached_path(&self, track_id: &str) -> Option<PathBuf> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
         db.query_row(
             "SELECT file_path FROM cached_tracks WHERE track_id = ?1",
             params![track_id],
@@ -356,7 +356,7 @@ impl SmartCache {
 
     /// Get a cached track's full info
     pub async fn get_track(&self, track_id: &str) -> Option<CachedTrack> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
         db.query_row(
             "SELECT track_id, source, file_path, quality, size_bytes, cached_at, 
                     last_played, play_count, tier, title, artist
@@ -408,7 +408,7 @@ impl SmartCache {
         // Determine initial tier
         let tier = CacheTier::Warm;
 
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
         let now = Utc::now().to_rfc3339();
 
         db.execute(
@@ -446,7 +446,7 @@ impl SmartCache {
 
     /// Record a play event (updates play count and last played)
     pub async fn record_play(&self, track_id: &str) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
         let now = Utc::now().to_rfc3339();
 
         db.execute(
@@ -482,7 +482,7 @@ impl SmartCache {
 
     /// Promote a track to a higher tier
     async fn promote_track(&self, track_id: &str) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
 
         // Get current tier
         let current_tier: String = db.query_row(
@@ -508,7 +508,7 @@ impl SmartCache {
 
     /// Demote a track to a lower tier
     async fn demote_track(&self, track_id: &str) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
 
         let current_tier: String = db.query_row(
             "SELECT tier FROM cached_tracks WHERE track_id = ?1",
@@ -533,7 +533,7 @@ impl SmartCache {
 
     /// Get the tier's current size
     async fn get_tier_size(&self, tier: CacheTier) -> Result<u64, CacheError> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
         let size: i64 = db.query_row(
             "SELECT COALESCE(SUM(size_bytes), 0) FROM cached_tracks WHERE tier = ?1",
             params![tier.to_string().to_lowercase()],
@@ -563,7 +563,7 @@ impl SmartCache {
             tier
         );
 
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
 
         // Get tracks ordered by eviction score (highest first)
         let tracks: Vec<(String, String, i64)> = db
@@ -602,7 +602,7 @@ impl SmartCache {
 
     /// Remove a track from the cache
     pub async fn remove_track(&self, track_id: &str) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
 
         // Get file path before removing
         let file_path: Option<String> = db
@@ -629,7 +629,7 @@ impl SmartCache {
 
     /// Clear all cached content
     pub async fn clear_all(&self) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
 
         // Get all file paths
         let paths: Vec<String> = db
@@ -651,6 +651,7 @@ impl SmartCache {
         db.execute("DELETE FROM prefetch_queue", [])?;
 
         info!("Cleared all cached content");
+        drop(db); // refresh_stats takes the same lock
         self.refresh_stats().await?;
 
         Ok(())
@@ -658,7 +659,7 @@ impl SmartCache {
 
     /// Refresh statistics
     async fn refresh_stats(&self) -> Result<(), CacheError> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
         let stats = Self::load_stats(&db)?;
         drop(db);
 
@@ -704,7 +705,7 @@ impl SmartCache {
             .cache_dir
             .join(source_dir)
             .join(quality_dir)
-            .join(format!("{}_{}.mp3", safe_title, track.id))
+            .join(format!("{}_{}.m4a", safe_title, track.id))
     }
 
     /// Add a track to the prefetch queue
@@ -725,7 +726,7 @@ impl SmartCache {
             return Ok(());
         }
 
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
         let now = Utc::now().to_rfc3339();
 
         db.execute(
@@ -747,7 +748,7 @@ impl SmartCache {
 
     /// Get the next tracks to prefetch
     pub async fn get_prefetch_queue(&self, limit: usize) -> Vec<PrefetchItem> {
-        let db = self.db.read().await;
+        let db = self.db.lock().await;
 
         db.prepare(
             "SELECT track_id, source, title, artist, priority FROM prefetch_queue 
@@ -777,7 +778,7 @@ impl SmartCache {
 
     /// Remove a track from the prefetch queue
     pub async fn remove_from_prefetch_queue(&self, track_id: &str) -> Result<(), CacheError> {
-        let db = self.db.write().await;
+        let db = self.db.lock().await;
         db.execute(
             "DELETE FROM prefetch_queue WHERE track_id = ?1",
             params![track_id],

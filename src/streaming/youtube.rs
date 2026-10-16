@@ -360,9 +360,6 @@ impl StreamProvider for YouTubeProvider {
             "--no-warnings",
             "--no-playlist",
             "-f", format,
-            "-x", // Extract audio
-            "--audio-format", "mp3",
-            "--audio-quality", "0",
             "-o", &output_str,
             &url,
         ];
