@@ -119,3 +119,71 @@ fn position_advances_while_playing_and_freezes_when_paused() {
     app.update();
     assert_eq!(app.playback_state.position, frozen);
 }
+
+// ---------------------------------------------------------------------------
+// Keyboard input
+// ---------------------------------------------------------------------------
+
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use symphony::input::handle_key_event;
+
+fn key(app: &mut App, code: KeyCode) -> bool {
+    handle_key_event(app, KeyEvent::new(code, KeyModifiers::NONE)).unwrap()
+}
+
+fn press(app: &mut App, c: char) -> bool {
+    key(app, KeyCode::Char(c))
+}
+
+#[test]
+fn key_release_events_are_ignored() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+
+    press(&mut app, 's');
+    assert!(app.playback_state.shuffle);
+
+    // Windows sends a release after every press; it must not toggle again
+    let release = KeyEvent::new_with_kind(KeyCode::Char('s'), KeyModifiers::NONE, KeyEventKind::Release);
+    assert!(handle_key_event(&mut app, release).unwrap());
+    assert!(app.playback_state.shuffle, "release toggled shuffle back off");
+
+    press(&mut app, 's');
+    assert!(!app.playback_state.shuffle);
+}
+
+#[test]
+fn typing_in_search_does_not_trigger_commands() {
+    let Some(mut app) = app_with_tracks(3) else { return };
+
+    press(&mut app, '/');
+    assert!(app.is_in_search_mode());
+
+    // q, s and n are all commands outside the prompt
+    for c in ['q', 's', 'n'] {
+        assert!(press(&mut app, c), "{c} quit the app while typing");
+    }
+    assert_eq!(app.ui_state.search_query, "qsn");
+    assert!(!app.playback_state.shuffle);
+
+    key(&mut app, KeyCode::Backspace);
+    assert_eq!(app.ui_state.search_query, "qs");
+
+    key(&mut app, KeyCode::Esc);
+    assert!(!app.is_in_search_mode());
+    assert!(!press(&mut app, 'q'), "q should quit outside the prompt");
+}
+
+#[test]
+fn shifted_symbols_and_ctrl_c_work() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+    app.playback_state.volume = 0.6;
+
+    // `+` and `?` arrive with SHIFT set on most keyboards
+    handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('+'), KeyModifiers::SHIFT)).unwrap();
+    assert_eq!(app.playback_state.volume, 0.65);
+    handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT)).unwrap();
+    assert!(app.ui_state.show_help);
+
+    let quit = handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    assert!(!quit.unwrap());
+}

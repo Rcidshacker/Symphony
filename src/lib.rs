@@ -6,6 +6,7 @@ pub mod audio;
 pub mod cli;
 pub mod config;
 pub mod db;
+pub mod input;
 pub mod integrations;
 pub mod lyrics;
 pub mod plugins;

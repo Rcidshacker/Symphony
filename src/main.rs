@@ -9,9 +9,7 @@ use std::path::Path;
 use anyhow::{bail, Context};
 
 use crossterm::{
-    event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
-    },
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -23,6 +21,7 @@ use symphony::audio::AudioEngine;
 use symphony::cli::{self, Command};
 use symphony::config::Config;
 use symphony::db::Database;
+use symphony::input::handle_key_event;
 use symphony::scanner::LibraryScanner;
 use symphony::streaming::{StreamManager, StreamManagerConfig};
 use symphony::ui;
@@ -213,122 +212,6 @@ fn run_event_loop(
     }
 
     Ok(())
-}
-
-/// Handle keyboard input
-fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
-    match (key.modifiers, key.code) {
-        // Quit
-        (KeyModifiers::CONTROL, KeyCode::Char('c')) | (KeyModifiers::NONE, KeyCode::Char('q')) => {
-            return Ok(false);
-        }
-
-        // Play/Pause
-        (KeyModifiers::NONE, KeyCode::Char(' ')) => {
-            app.toggle_playback();
-        }
-
-        // Next track
-        (KeyModifiers::NONE, KeyCode::Char('n')) | (KeyModifiers::NONE, KeyCode::Char(']')) => {
-            app.next_track();
-        }
-
-        // Previous track
-        (KeyModifiers::NONE, KeyCode::Char('p')) | (KeyModifiers::NONE, KeyCode::Char('[')) => {
-            app.previous_track();
-        }
-
-        // Volume up
-        (KeyModifiers::NONE, KeyCode::Char('+')) | (KeyModifiers::NONE, KeyCode::Char('=')) => {
-            app.volume_up();
-        }
-
-        // Volume down
-        (KeyModifiers::NONE, KeyCode::Char('-')) => {
-            app.volume_down();
-        }
-
-        // Mute toggle
-        (KeyModifiers::NONE, KeyCode::Char('m')) => {
-            app.toggle_mute();
-        }
-
-        // Shuffle toggle
-        (KeyModifiers::NONE, KeyCode::Char('s')) => {
-            app.toggle_shuffle();
-        }
-
-        // Repeat toggle
-        (KeyModifiers::NONE, KeyCode::Char('r')) => {
-            app.toggle_repeat();
-        }
-
-        // Search mode
-        (KeyModifiers::NONE, KeyCode::Char('/')) => {
-            app.enter_search_mode();
-        }
-
-        // Escape - exit search or cancel
-        (KeyModifiers::NONE, KeyCode::Esc) => {
-            app.exit_search_mode();
-        }
-
-        // Navigate playlist
-        (KeyModifiers::NONE, KeyCode::Up) | (KeyModifiers::NONE, KeyCode::Char('k')) => {
-            app.navigate_up();
-        }
-
-        (KeyModifiers::NONE, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => {
-            app.navigate_down();
-        }
-
-        // Enter - select/confirm
-        (KeyModifiers::NONE, KeyCode::Enter) => {
-            app.select_current_track();
-        }
-
-        // Help
-        (KeyModifiers::NONE, KeyCode::Char('h')) | (KeyModifiers::NONE, KeyCode::Char('?')) => {
-            app.toggle_help();
-        }
-
-        // Visualization mode toggle
-        (KeyModifiers::NONE, KeyCode::Char('v')) => {
-            app.next_visualization_mode();
-        }
-
-        // Theme cycling
-        (KeyModifiers::NONE, KeyCode::Char('t')) => {
-            app.next_theme();
-        }
-
-        // Direct visualizer mode selection (1-4)
-        (KeyModifiers::NONE, KeyCode::Char('1')) => {
-            app.set_visualization_mode(1);
-        }
-        (KeyModifiers::NONE, KeyCode::Char('2')) => {
-            app.set_visualization_mode(2);
-        }
-        (KeyModifiers::NONE, KeyCode::Char('3')) => {
-            app.set_visualization_mode(3);
-        }
-        (KeyModifiers::NONE, KeyCode::Char('4')) => {
-            app.set_visualization_mode(4);
-        }
-
-        // Handle text input in search mode
-        (KeyModifiers::NONE, KeyCode::Char(c)) if app.is_in_search_mode() => {
-            app.append_search_char(c);
-        }
-
-        (KeyModifiers::NONE, KeyCode::Backspace) if app.is_in_search_mode() => {
-            app.remove_search_char();
-        }
-
-        _ => {}
-    }
-
-    Ok(true)
 }
 
 /// Restore terminal to original state
