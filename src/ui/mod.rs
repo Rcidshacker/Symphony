@@ -35,7 +35,7 @@ pub fn render(f: &mut Frame, app: &App) {
             Constraint::Length(3),  // Header
             Constraint::Length(12), // Visualizer + Now Playing
             Constraint::Min(10),    // Library/Queue
-            Constraint::Length(4),  // Status bar + key hints
+            Constraint::Length(5),  // Status bar + key hints
         ])
         .split(f.area());
 
@@ -45,8 +45,12 @@ pub fn render(f: &mut Frame, app: &App) {
     // Render now playing section with visualizer
     render_now_playing_section(f, app, chunks[1], theme);
 
-    // Render library/queue
-    render_library(f, app, chunks[2], theme);
+    // Render library/queue, or the lyrics panel when toggled with `l`
+    if app.ui_state.show_lyrics {
+        app.lyrics.render(f, chunks[2]);
+    } else {
+        render_library(f, app, chunks[2], theme);
+    }
 
     // Render status bar
     render_status_bar(f, app, chunks[3], theme);
@@ -281,7 +285,14 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         })
         .collect();
 
-    let title = if app.ui_state.search_mode {
+    let title = if app.ui_state.ai_mode {
+        format!(
+            " 🤖 AI: {}▌  (Enter to send, Esc to cancel) ",
+            app.ui_state.ai_query
+        )
+    } else if app.ui_state.ai_pending {
+        " 🤖 AI: thinking... ".to_string()
+    } else if app.ui_state.search_mode {
         format!(" 📚 LIBRARY [Search: {}] ", app.ui_state.search_query)
     } else {
         " 📚 LIBRARY ".to_string()
@@ -311,7 +322,10 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
 }
 
 /// Key hints shown on the second status line
-const KEY_HINTS: &str = "space play/pause · n/p next/prev · +/- volume · m mute · s shuffle · r repeat · / search · ? help · q quit";
+const KEY_HINTS: [&str; 2] = [
+    "space play/pause · n/p next/prev · +/- volume · m mute · s shuffle · r repeat · q quit",
+    "/ search · a ask AI · l lyrics · w pomodoro · v visualizer · t theme · ? help",
+];
 
 /// Render status bar (state + message line, key hint line)
 fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
@@ -354,6 +368,33 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         dim,
     ));
 
+    // Pomodoro timer
+    let pomodoro_state = app.pomodoro.get_state();
+    if pomodoro_state.is_running() {
+        parts.push(sep());
+        parts.push(Span::styled(
+            format!(
+                "🍅 {} {}",
+                pomodoro_state.label(),
+                app.pomodoro.format_remaining()
+            ),
+            accent,
+        ));
+    }
+
+    // Git activity
+    if let Some(git) = app.git_monitor.as_ref().filter(|g| g.in_repo()) {
+        parts.push(sep());
+        parts.push(Span::styled(
+            format!(
+                "⎇ {} {}",
+                git.get_current_branch().unwrap_or("..."),
+                git.get_activity_level().icon()
+            ),
+            dim,
+        ));
+    }
+
     // Latest message or error
     if let Some(ref err) = app.ui_state.error_message {
         parts.push(sep());
@@ -365,7 +406,8 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
 
     let text = Text::from(vec![
         Line::from(parts),
-        Line::from(Span::styled(KEY_HINTS, dim)),
+        Line::from(Span::styled(KEY_HINTS[0], dim)),
+        Line::from(Span::styled(KEY_HINTS[1], dim)),
     ]);
 
     let status_bar = Paragraph::new(text).block(
@@ -391,6 +433,9 @@ fn render_help(f: &mut Frame, theme: &Theme) {
 ║  m        Mute toggle                     ║
 ║  s        Shuffle toggle                  ║
 ║  r        Cycle repeat modes              ║
+║  a        Ask the AI (type, Enter)        ║
+║  l        Show/hide lyrics (.lrc file)    ║
+║  w        Pomodoro start/stop             ║
 ║  /        Search mode                     ║
 ║  Esc      Exit search/cancel              ║
 ║  j/k      Navigate up/down                ║
@@ -400,11 +445,6 @@ fn render_help(f: &mut Frame, theme: &Theme) {
 ║  1-4      Select visualizer mode          ║
 ║  h / ?    Toggle this help                ║
 ║  q / Ctrl+C  Quit                         ║
-╠═══════════════════════════════════════════╣
-║  Phase 2: Visual Excellence               ║
-║  ✓ FFT Spectrum Analyzer                  ║
-║  ✓ 5 Themes                               ║
-║  ✓ Album Art                              ║
 ╚═══════════════════════════════════════════╝
 "#;
 

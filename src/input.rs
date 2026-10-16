@@ -21,9 +21,9 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         return Ok(false);
     }
 
-    // The search prompt takes every key as text, so letters bound to
+    // Search and AI prompts take every key as text, so letters bound to
     // commands (q, n, s, ...) can be typed.
-    if app.is_in_search_mode() {
+    if app.is_in_text_input() {
         handle_text_input(app, key.code, ctrl || alt);
         return Ok(true);
     }
@@ -48,6 +48,9 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         KeyCode::Char('r') => app.toggle_repeat(),
 
         KeyCode::Char('/') => app.enter_search_mode(),
+        KeyCode::Char('a') => app.enter_ai_mode(),
+        KeyCode::Char('l') => app.toggle_lyrics(),
+        KeyCode::Char('w') => app.toggle_pomodoro(),
 
         KeyCode::Esc => app.exit_search_mode(),
 
@@ -73,12 +76,12 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
 /// Keys while a text prompt (search or AI) is open.
 fn handle_text_input(app: &mut App, code: KeyCode, modified: bool) {
     match code {
-        KeyCode::Esc => app.exit_search_mode(),
-        KeyCode::Enter => app.select_current_track(),
-        KeyCode::Backspace => app.remove_search_char(),
+        KeyCode::Esc => app.cancel_text_input(),
+        KeyCode::Enter => app.confirm_text_input(),
+        KeyCode::Backspace => app.remove_input_char(),
         KeyCode::Up => app.navigate_up(),
         KeyCode::Down => app.navigate_down(),
-        KeyCode::Char(c) if !modified => app.append_search_char(c),
+        KeyCode::Char(c) if !modified => app.append_input_char(c),
         _ => {}
     }
 }

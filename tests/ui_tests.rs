@@ -121,10 +121,11 @@ fn position_advances_while_playing_and_freezes_when_paused() {
 }
 
 // ---------------------------------------------------------------------------
-// Keyboard input
+// Keyboard input, AI prompt, lyrics, pomodoro and git status
 // ---------------------------------------------------------------------------
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use symphony::ai::MusicIntent;
 use symphony::input::handle_key_event;
 
 fn key(app: &mut App, code: KeyCode) -> bool {
@@ -133,6 +134,30 @@ fn key(app: &mut App, code: KeyCode) -> bool {
 
 fn press(app: &mut App, c: char) -> bool {
     key(app, KeyCode::Char(c))
+}
+
+fn type_text(app: &mut App, text: &str) {
+    for c in text.chars() {
+        press(app, c);
+    }
+}
+
+fn app_with_config(count: usize, config: Config) -> Option<App> {
+    let engine = AudioEngine::new().ok()?;
+    let mut app = App::new(config, engine);
+    app.library.tracks = (0..count).map(|n| track(n, 200.0)).collect();
+    Some(app)
+}
+
+fn play_intent(artist: Option<&str>, genre: Option<&str>) -> MusicIntent {
+    MusicIntent::Play {
+        genre: genre.map(String::from),
+        mood: None,
+        artist: artist.map(String::from),
+        tempo: None,
+        era: None,
+        duration_mins: None,
+    }
 }
 
 #[test]
@@ -156,7 +181,7 @@ fn typing_in_search_does_not_trigger_commands() {
     let Some(mut app) = app_with_tracks(3) else { return };
 
     press(&mut app, '/');
-    assert!(app.is_in_search_mode());
+    assert!(app.is_in_text_input());
 
     // q, s and n are all commands outside the prompt
     for c in ['q', 's', 'n'] {
@@ -169,7 +194,7 @@ fn typing_in_search_does_not_trigger_commands() {
     assert_eq!(app.ui_state.search_query, "qs");
 
     key(&mut app, KeyCode::Esc);
-    assert!(!app.is_in_search_mode());
+    assert!(!app.is_in_text_input());
     assert!(!press(&mut app, 'q'), "q should quit outside the prompt");
 }
 
@@ -186,4 +211,149 @@ fn shifted_symbols_and_ctrl_c_work() {
 
     let quit = handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
     assert!(!quit.unwrap());
+}
+
+#[test]
+fn ai_intents_drive_the_player() {
+    let Some(mut app) = app_with_tracks(5) else { return };
+
+    // artist filter narrows the queue (playback itself fails: the files do not exist)
+    app.apply_ai_intent(play_intent(Some("artist 2"), None));
+    assert_eq!(app.library.queue.len(), 1);
+    assert_eq!(app.library.queue[0].id, "id2");
+
+    // no filter: the whole library, shuffled
+    app.apply_ai_intent(play_intent(None, None));
+    assert_eq!(app.library.queue.len(), 5);
+
+    // nothing matches
+    app.ui_state.error_message = None;
+    app.apply_ai_intent(play_intent(Some("nobody"), None));
+    assert!(app
+        .ui_state
+        .error_message
+        .as_deref()
+        .is_some_and(|e| e.contains("no local tracks")));
+
+    // search opens the search prompt with the query applied
+    app.apply_ai_intent(MusicIntent::Search { query: "song 3".into() });
+    assert!(app.ui_state.search_mode);
+    assert_eq!(app.library.filtered_tracks.len(), 1);
+    app.exit_search_mode();
+
+    // player state
+    app.apply_ai_intent(MusicIntent::SetState {
+        volume: Some(30),
+        shuffle: Some(true),
+        repeat: Some("all".into()),
+    });
+    assert_eq!(app.playback_state.volume, 0.3);
+    assert!(app.playback_state.shuffle);
+    assert_eq!(app.playback_state.repeat, symphony::app::RepeatMode::All);
+
+    // unsupported intents are reported, not silently dropped
+    app.apply_ai_intent(MusicIntent::Unknown { query: "dance".into() });
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("understood")));
+}
+
+#[test]
+fn ai_prompt_reports_an_unreachable_provider() {
+    let mut config = Config::default();
+    config.ai.enabled = true;
+    config.ai.provider = "ollama".into();
+    config.ai.ollama.base_url = "http://127.0.0.1:9".into(); // nothing listens here
+    let Some(mut app) = app_with_config(2, config) else { return };
+
+    press(&mut app, 'a');
+    assert!(app.ui_state.ai_mode);
+    type_text(&mut app, "play something chill");
+    assert_eq!(app.ui_state.ai_query, "play something chill");
+    key(&mut app, KeyCode::Enter);
+    assert!(app.ui_state.ai_pending, "request was not started");
+    assert!(!app.ui_state.ai_mode);
+
+    let start = std::time::Instant::now();
+    while app.ui_state.ai_pending && start.elapsed() < Duration::from_secs(30) {
+        app.update();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!app.ui_state.ai_pending, "AI request never finished");
+    assert!(app
+        .ui_state
+        .error_message
+        .as_deref()
+        .is_some_and(|e| e.starts_with("AI:")));
+}
+
+#[test]
+fn ai_prompt_respects_the_config_switch() {
+    let mut config = Config::default();
+    config.ai.enabled = false;
+    let Some(mut app) = app_with_config(1, config) else { return };
+
+    press(&mut app, 'a');
+    assert!(!app.ui_state.ai_mode);
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("disabled")));
+}
+
+#[test]
+fn lyrics_load_from_lrc_and_render_in_the_panel() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("song.lrc"),
+        "[00:00.00]First line\n[00:05.50]Second line\n[00:10.00]Third line\n",
+    )
+    .unwrap();
+
+    app.load_lyrics_for(&dir.path().join("song.mp3"));
+    assert!(app.lyrics.has_lyrics());
+    app.lyrics.update_position(6_000);
+    assert_eq!(app.lyrics.get_current_line_text(), Some("Second line"));
+
+    press(&mut app, 'l');
+    assert!(app.ui_state.show_lyrics);
+    let screen = render_to_string(&app, 120, 32);
+    assert!(screen.contains("Second line"), "lyrics panel did not show the line");
+
+    // a track without an .lrc clears the lyrics
+    app.load_lyrics_for(&dir.path().join("other.mp3"));
+    assert!(!app.lyrics.has_lyrics());
+
+    press(&mut app, 'l');
+    assert!(!app.ui_state.show_lyrics);
+}
+
+#[test]
+fn pomodoro_toggles_and_shows_in_the_status_bar() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+
+    press(&mut app, 'w');
+    assert!(app.pomodoro.get_state().is_running());
+    let screen = render_to_string(&app, 120, 32);
+    assert!(screen.contains("🍅"), "pomodoro missing from status bar");
+
+    press(&mut app, 'w');
+    assert!(!app.pomodoro.get_state().is_running());
+}
+
+#[test]
+fn git_branch_shows_in_the_status_bar_inside_a_repo() {
+    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(git) = app.git_monitor.as_ref().filter(|g| g.in_repo()) else {
+        return; // not running inside a git checkout
+    };
+    let _ = git;
+
+    app.update(); // first update queries git immediately
+    let screen = render_to_string(&app, 120, 32);
+    assert!(screen.contains("⎇"), "git segment missing from status bar");
 }

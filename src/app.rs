@@ -3,8 +3,16 @@
 //! This module contains the core application state and logic for Symphony.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::time::Instant;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::{Duration, Instant};
+
+use crate::ai::{AIManager, MusicIntent};
+use crate::integrations::git::GitMonitorConfig;
+use crate::integrations::pomodoro::PomodoroConfig;
+use crate::integrations::{GitMonitor, PomodoroEvent, PomodoroState, PomodoroTimer};
+use crate::lyrics::display::LyricsDisplayConfig;
+use crate::lyrics::{LrcParser, LyricsDisplay};
 
 use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
@@ -50,6 +58,28 @@ pub struct App {
 
     /// Time of the previous `update()` call (drives the playback position)
     last_tick: Instant,
+
+    /// Synced lyrics for the current track
+    pub lyrics: LyricsDisplay,
+
+    /// Pomodoro timer
+    pub pomodoro: PomodoroTimer,
+
+    /// Git activity monitor (`None` when disabled in the config)
+    pub git_monitor: Option<GitMonitor>,
+
+    /// Runtime for async work such as AI requests
+    runtime: Option<tokio::runtime::Runtime>,
+
+    /// AI results come back from the runtime over this channel
+    ai_tx: Sender<AiEvent>,
+    ai_rx: Receiver<AiEvent>,
+}
+
+/// Result of a background AI request
+enum AiEvent {
+    Intent(MusicIntent),
+    Error(String),
 }
 
 /// Playback state
@@ -198,6 +228,18 @@ pub struct UiState {
 
     /// Error message
     pub error_message: Option<String>,
+
+    /// Lyrics panel shown instead of the library
+    pub show_lyrics: bool,
+
+    /// AI prompt open
+    pub ai_mode: bool,
+
+    /// Text typed into the AI prompt
+    pub ai_query: String,
+
+    /// An AI request is in flight
+    pub ai_pending: bool,
 }
 
 /// Current view
@@ -225,6 +267,39 @@ impl App {
             // Fall back to monokai if theme not found
             let _ = theme_manager.set_theme("monokai");
         }
+
+        let lyrics = LyricsDisplay::with_config(LyricsDisplayConfig {
+            karaoke_mode: config.lyrics.karaoke_mode,
+            show_translation: config.lyrics.show_translation,
+            context_before: config.lyrics.context_lines,
+            context_after: config.lyrics.context_lines,
+            ..Default::default()
+        });
+
+        let pomo = &config.integrations.pomodoro;
+        let pomodoro = PomodoroTimer::with_config(PomodoroConfig {
+            work_duration: Duration::from_secs(pomo.work_minutes * 60),
+            break_duration: Duration::from_secs(pomo.break_minutes * 60),
+            long_break_duration: Duration::from_secs(pomo.long_break_minutes * 60),
+            auto_start_break: pomo.auto_start_break,
+            auto_start_work: pomo.auto_start_work,
+            notifications: pomo.notifications,
+            ..Default::default()
+        });
+
+        let git_monitor = config.integrations.git.enabled.then(|| {
+            GitMonitor::with_config(GitMonitorConfig {
+                check_interval: Duration::from_secs(config.integrations.git.check_interval),
+                ..Default::default()
+            })
+        });
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .ok();
+        let (ai_tx, ai_rx) = mpsc::channel();
 
         Self {
             config,
@@ -257,12 +332,22 @@ impl App {
                 search_query: String::new(),
                 status_message: None,
                 error_message: None,
+                show_lyrics: false,
+                ai_mode: false,
+                ai_query: String::new(),
+                ai_pending: false,
             },
             visualizer_state: VisualizerState::new(32),
             artwork_cache: ArtworkCache::default(),
             current_track_artwork: None,
             start_time: Instant::now(),
             last_tick: Instant::now(),
+            lyrics,
+            pomodoro,
+            git_monitor,
+            runtime,
+            ai_tx,
+            ai_rx,
         }
     }
 
@@ -338,6 +423,7 @@ impl App {
         }
 
         let track = &self.library.queue[index];
+        let track_path = track.path.clone();
         if let Err(e) = self.audio_engine.play_file(&track.path) {
             self.ui_state.error_message = Some(format!("Failed to play track: {e}"));
             return;
@@ -353,6 +439,8 @@ impl App {
 
         // Clear error if any
         self.ui_state.error_message = None;
+
+        self.load_lyrics_for(&track_path);
     }
 
     /// Stop playback completely
@@ -601,6 +689,9 @@ impl App {
         let elapsed = now.duration_since(self.last_tick).as_secs_f64();
         self.last_tick = now;
 
+        self.poll_ai();
+        self.poll_integrations();
+
         if self.playback_state.current_track.is_none() || !self.playback_state.is_playing {
             return;
         }
@@ -611,11 +702,269 @@ impl App {
         if state.duration > 0.0 {
             state.position = state.position.min(state.duration);
         }
+        self.lyrics
+            .update_position((self.playback_state.position * 1000.0) as u64);
 
         // The sink drains when the track ends: move on to the next one.
         if self.audio_engine.is_empty() {
             self.audio_engine.mark_completed();
             self.next_track();
+        }
+    }
+
+    // ---- text prompts (search / AI) ----
+
+    /// A text prompt is open and should receive every key
+    pub fn is_in_text_input(&self) -> bool {
+        self.ui_state.search_mode || self.ui_state.ai_mode
+    }
+
+    /// Type a character into the open prompt
+    pub fn append_input_char(&mut self, c: char) {
+        if self.ui_state.ai_mode {
+            self.ui_state.ai_query.push(c);
+        } else {
+            self.append_search_char(c);
+        }
+    }
+
+    /// Delete the last character of the open prompt
+    pub fn remove_input_char(&mut self) {
+        if self.ui_state.ai_mode {
+            self.ui_state.ai_query.pop();
+        } else {
+            self.remove_search_char();
+        }
+    }
+
+    /// Close the open prompt
+    pub fn cancel_text_input(&mut self) {
+        if self.ui_state.ai_mode {
+            self.exit_ai_mode();
+        } else {
+            self.exit_search_mode();
+        }
+    }
+
+    /// Enter in the open prompt: send the AI request, or play the selected search result
+    pub fn confirm_text_input(&mut self) {
+        if self.ui_state.ai_mode {
+            self.submit_ai_query();
+        } else {
+            self.select_current_track();
+        }
+    }
+
+    // ---- AI ----
+
+    /// Open the AI prompt (`a`)
+    pub fn enter_ai_mode(&mut self) {
+        if !self.config.ai.enabled {
+            self.ui_state.status_message =
+                Some("AI is disabled: set enabled = true under [ai] in the config".to_string());
+            return;
+        }
+        if self.ui_state.ai_pending {
+            self.ui_state.status_message = Some("AI is still working on your last request".to_string());
+            return;
+        }
+        self.ui_state.search_mode = false;
+        self.ui_state.ai_mode = true;
+        self.ui_state.ai_query.clear();
+    }
+
+    /// Close the AI prompt without sending
+    pub fn exit_ai_mode(&mut self) {
+        self.ui_state.ai_mode = false;
+        self.ui_state.ai_query.clear();
+    }
+
+    /// Send the typed prompt to the configured AI provider in the background
+    pub fn submit_ai_query(&mut self) {
+        let query = self.ui_state.ai_query.trim().to_string();
+        self.exit_ai_mode();
+        if query.is_empty() {
+            return;
+        }
+
+        let provider = match self.config.ai.get_provider_config() {
+            Ok(provider) => provider,
+            Err(e) => {
+                self.ui_state.error_message = Some(format!("AI: {e}"));
+                return;
+            }
+        };
+        let Some(runtime) = &self.runtime else {
+            self.ui_state.error_message = Some("AI: could not start the async runtime".to_string());
+            return;
+        };
+
+        let tx = self.ai_tx.clone();
+        self.ui_state.ai_pending = true;
+        self.ui_state.error_message = None;
+        self.ui_state.status_message = Some(format!("AI: thinking about \"{query}\"..."));
+
+        runtime.spawn(async move {
+            let result = async {
+                let manager = AIManager::new(provider).await?;
+                manager.parse_command(&query).await
+            }
+            .await;
+            let event = match result {
+                Ok(intent) => AiEvent::Intent(intent),
+                Err(e) => AiEvent::Error(e.to_string()),
+            };
+            let _ = tx.send(event);
+        });
+    }
+
+    /// Collect finished AI requests (called every frame)
+    fn poll_ai(&mut self) {
+        while let Ok(event) = self.ai_rx.try_recv() {
+            self.ui_state.ai_pending = false;
+            match event {
+                AiEvent::Intent(intent) => self.apply_ai_intent(intent),
+                AiEvent::Error(e) => self.ui_state.error_message = Some(format!("AI: {e}")),
+            }
+        }
+    }
+
+    /// Act on what the AI understood
+    pub fn apply_ai_intent(&mut self, intent: MusicIntent) {
+        let description = intent.description();
+        match intent {
+            MusicIntent::Play { genre, artist, .. } => {
+                let filtered = artist.is_some() || genre.is_some();
+                let tracks = if filtered {
+                    filter_tracks(&self.library.tracks, artist.as_deref(), genre.as_deref())
+                } else {
+                    self.library.tracks.clone()
+                };
+                if tracks.is_empty() {
+                    self.ui_state.error_message =
+                        Some(format!("AI: no local tracks match: {description}"));
+                    return;
+                }
+
+                let count = tracks.len();
+                self.library.queue = tracks;
+                self.library.queue_index = 0;
+                if !filtered || self.playback_state.shuffle {
+                    self.shuffle_queue();
+                }
+                self.play_track_at_index(0);
+                if self.ui_state.error_message.is_none() {
+                    let note = if filtered {
+                        ""
+                    } else {
+                        " (mood and tempo are not matched against local files)"
+                    };
+                    self.ui_state.status_message =
+                        Some(format!("AI: {description} - {count} tracks{note}"));
+                }
+            }
+            MusicIntent::Search { query } => {
+                self.enter_search_mode();
+                self.ui_state.search_query = query;
+                self.apply_search_filter();
+            }
+            MusicIntent::Skip { .. } => self.next_track(),
+            MusicIntent::SetState {
+                volume,
+                shuffle,
+                repeat,
+            } => {
+                if let Some(volume) = volume {
+                    self.set_volume(f32::from(volume.min(100)) / 100.0);
+                }
+                if let Some(shuffle) = shuffle {
+                    if shuffle != self.playback_state.shuffle {
+                        self.toggle_shuffle();
+                    }
+                }
+                if let Some(repeat) = repeat {
+                    self.playback_state.repeat = match repeat.to_lowercase().as_str() {
+                        "all" => RepeatMode::All,
+                        "one" | "track" | "song" => RepeatMode::One,
+                        _ => RepeatMode::Off,
+                    };
+                }
+            }
+            other => {
+                self.ui_state.status_message = Some(format!(
+                    "AI understood: {} (the player cannot do this yet)",
+                    other.description()
+                ));
+            }
+        }
+    }
+
+    // ---- lyrics ----
+
+    /// Show or hide the lyrics panel (`l`)
+    pub fn toggle_lyrics(&mut self) {
+        if !self.config.lyrics.enabled {
+            self.ui_state.status_message =
+                Some("Lyrics are disabled: set enabled = true under [lyrics]".to_string());
+            return;
+        }
+        self.ui_state.show_lyrics = !self.ui_state.show_lyrics;
+    }
+
+    /// Load the `.lrc` file next to the audio file, if there is one
+    pub fn load_lyrics_for(&mut self, audio_path: &Path) {
+        if !self.config.lyrics.enabled {
+            self.lyrics.clear();
+            return;
+        }
+        match LrcParser::parse_file(&audio_path.with_extension("lrc")) {
+            Ok(lyrics) => self.lyrics.set_lyrics(lyrics),
+            Err(_) => self.lyrics.clear(),
+        }
+    }
+
+    // ---- integrations ----
+
+    /// Start or stop the Pomodoro timer (`w`)
+    pub fn toggle_pomodoro(&mut self) {
+        let message = match self.pomodoro.get_state() {
+            PomodoroState::Working | PomodoroState::Break | PomodoroState::LongBreak => {
+                self.pomodoro.stop();
+                "Pomodoro stopped".to_string()
+            }
+            PomodoroState::WorkComplete => {
+                self.pomodoro.start_break();
+                "Pomodoro: break started".to_string()
+            }
+            _ => {
+                self.pomodoro.start_work();
+                format!(
+                    "Pomodoro: work session started ({})",
+                    self.pomodoro.format_remaining()
+                )
+            }
+        };
+        self.ui_state.status_message = Some(message);
+    }
+
+    /// Timer completion and git activity (called every frame; both are cheap or rate-limited)
+    fn poll_integrations(&mut self) {
+        if let Some(event) = self.pomodoro.check_completion() {
+            self.ui_state.status_message = Some(match event {
+                PomodoroEvent::WorkSessionComplete { session } => {
+                    format!("Pomodoro: work session {session} done, press w for a break")
+                }
+                PomodoroEvent::BreakComplete => {
+                    "Pomodoro: break over, press w for the next session".to_string()
+                }
+                PomodoroEvent::Started(_) | PomodoroEvent::Stopped { .. } => return,
+            });
+        }
+
+        // ponytail: runs `git` on the UI thread once per check_interval (60 s default);
+        // move to the runtime if the pause ever becomes visible.
+        if let Some(git) = &mut self.git_monitor {
+            git.update();
         }
     }
 
@@ -627,6 +976,29 @@ impl App {
         }
         Ok(())
     }
+}
+
+/// Tracks whose artist/title contains `artist` and whose genre contains `genre`
+/// (case-insensitive; a missing filter matches everything)
+fn filter_tracks(tracks: &[Track], artist: Option<&str>, genre: Option<&str>) -> Vec<Track> {
+    let artist = artist.map(str::to_lowercase);
+    let genre = genre.map(str::to_lowercase);
+
+    tracks
+        .iter()
+        .filter(|t| {
+            let artist_ok = artist.as_ref().is_none_or(|a| {
+                t.artist.to_lowercase().contains(a) || t.title.to_lowercase().contains(a)
+            });
+            let genre_ok = genre.as_ref().is_none_or(|g| {
+                t.genre
+                    .as_ref()
+                    .is_some_and(|tg| tg.to_lowercase().contains(g))
+            });
+            artist_ok && genre_ok
+        })
+        .cloned()
+        .collect()
 }
 
 impl Default for PlaybackState {
@@ -653,6 +1025,10 @@ impl Default for UiState {
             search_query: String::new(),
             status_message: None,
             error_message: None,
+            show_lyrics: false,
+            ai_mode: false,
+            ai_query: String::new(),
+            ai_pending: false,
         }
     }
 }
