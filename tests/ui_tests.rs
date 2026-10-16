@@ -48,7 +48,9 @@ fn render_to_string(app: &App, width: u16, height: u16) -> String {
 
 #[test]
 fn ui_shows_cursor_time_and_key_hints() {
-    let Some(mut app) = app_with_tracks(3) else { return };
+    let Some(mut app) = app_with_tracks(3) else {
+        return;
+    };
     app.library.selected_index = 1;
     app.playback_state.current_track = Some(app.library.tracks[0].clone());
     app.playback_state.is_playing = true;
@@ -58,9 +60,18 @@ fn ui_shows_cursor_time_and_key_hints() {
     let screen = render_to_string(&app, 120, 32);
     println!("{screen}");
 
-    assert!(screen.contains("1:05 / 10:38"), "elapsed / total time missing");
-    assert!(screen.contains("›   Artist 1 - Song 1"), "selection cursor missing");
-    assert!(screen.contains("▶ Artist 0 - Song 0"), "now-playing marker missing");
+    assert!(
+        screen.contains("1:05 / 10:38"),
+        "elapsed / total time missing"
+    );
+    assert!(
+        screen.contains("›   Artist 1 - Song 1"),
+        "selection cursor missing"
+    );
+    assert!(
+        screen.contains("▶ Artist 0 - Song 0"),
+        "now-playing marker missing"
+    );
     assert!(screen.contains("space play/pause"), "key hints missing");
     assert!(screen.contains("+/- volume"), "volume hint missing");
     assert!(screen.contains("VOL: 60%"), "volume label missing");
@@ -68,7 +79,9 @@ fn ui_shows_cursor_time_and_key_hints() {
 
 #[test]
 fn shuffle_keeps_tracks_and_restores_order() {
-    let Some(mut app) = app_with_tracks(8) else { return };
+    let Some(mut app) = app_with_tracks(8) else {
+        return;
+    };
     app.library.queue = app.library.tracks.clone();
     app.library.queue_index = 3;
     let current_id = app.library.queue[3].id.clone();
@@ -88,7 +101,9 @@ fn shuffle_keeps_tracks_and_restores_order() {
 
 #[test]
 fn volume_steps_are_whole_percents_and_clamped() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
     app.playback_state.volume = 0.6;
     app.volume_up();
     assert_eq!(app.playback_state.volume, 0.65);
@@ -104,14 +119,19 @@ fn volume_steps_are_whole_percents_and_clamped() {
 
 #[test]
 fn position_advances_while_playing_and_freezes_when_paused() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
     app.playback_state.current_track = Some(app.library.tracks[0].clone());
     app.playback_state.duration = 638.0;
     app.playback_state.is_playing = true;
 
     std::thread::sleep(Duration::from_millis(60));
     app.update();
-    assert!(app.playback_state.position >= 0.05, "position did not advance");
+    assert!(
+        app.playback_state.position >= 0.05,
+        "position did not advance"
+    );
 
     app.playback_state.is_playing = false;
     let frozen = app.playback_state.position;
@@ -162,15 +182,24 @@ fn play_intent(artist: Option<&str>, genre: Option<&str>) -> MusicIntent {
 
 #[test]
 fn key_release_events_are_ignored() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
 
     press(&mut app, 's');
     assert!(app.playback_state.shuffle);
 
     // Windows sends a release after every press; it must not toggle again
-    let release = KeyEvent::new_with_kind(KeyCode::Char('s'), KeyModifiers::NONE, KeyEventKind::Release);
+    let release = KeyEvent::new_with_kind(
+        KeyCode::Char('s'),
+        KeyModifiers::NONE,
+        KeyEventKind::Release,
+    );
     assert!(handle_key_event(&mut app, release).unwrap());
-    assert!(app.playback_state.shuffle, "release toggled shuffle back off");
+    assert!(
+        app.playback_state.shuffle,
+        "release toggled shuffle back off"
+    );
 
     press(&mut app, 's');
     assert!(!app.playback_state.shuffle);
@@ -178,7 +207,9 @@ fn key_release_events_are_ignored() {
 
 #[test]
 fn typing_in_search_does_not_trigger_commands() {
-    let Some(mut app) = app_with_tracks(3) else { return };
+    let Some(mut app) = app_with_tracks(3) else {
+        return;
+    };
 
     press(&mut app, '/');
     assert!(app.is_in_text_input());
@@ -200,22 +231,37 @@ fn typing_in_search_does_not_trigger_commands() {
 
 #[test]
 fn shifted_symbols_and_ctrl_c_work() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
     app.playback_state.volume = 0.6;
 
     // `+` and `?` arrive with SHIFT set on most keyboards
-    handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('+'), KeyModifiers::SHIFT)).unwrap();
+    handle_key_event(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('+'), KeyModifiers::SHIFT),
+    )
+    .unwrap();
     assert_eq!(app.playback_state.volume, 0.65);
-    handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT)).unwrap();
+    handle_key_event(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT),
+    )
+    .unwrap();
     assert!(app.ui_state.show_help);
 
-    let quit = handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    let quit = handle_key_event(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+    );
     assert!(!quit.unwrap());
 }
 
 #[test]
 fn ai_intents_drive_the_player() {
-    let Some(mut app) = app_with_tracks(5) else { return };
+    let Some(mut app) = app_with_tracks(5) else {
+        return;
+    };
 
     // artist filter narrows the queue (playback itself fails: the files do not exist)
     app.apply_ai_intent(play_intent(Some("artist 2"), None));
@@ -237,7 +283,9 @@ fn ai_intents_drive_the_player() {
 
     // search ranks by meaning (keywords here: no embedding server) and shows the results
     app.library.tracks[3].title = "Zebra Crossing".into();
-    app.apply_ai_intent(MusicIntent::Search { query: "zebra".into() });
+    app.apply_ai_intent(MusicIntent::Search {
+        query: "zebra".into(),
+    });
     assert!(wait_for(&mut app, |a| a.ui_state.pinned_results));
     assert!(app.ui_state.search_mode);
     assert_eq!(app.library.filtered_tracks.len(), 1);
@@ -257,7 +305,9 @@ fn ai_intents_drive_the_player() {
 
     // a question goes to the AI; with no server the failure is reported, not dropped
     app.ui_state.error_message = None;
-    app.apply_ai_intent(MusicIntent::Unknown { query: "what is jazz".into() });
+    app.apply_ai_intent(MusicIntent::Unknown {
+        query: "what is jazz".into(),
+    });
     assert!(wait_for(&mut app, |a| a
         .ui_state
         .error_message
@@ -284,7 +334,9 @@ fn ai_prompt_reports_an_unreachable_provider() {
     config.ai.enabled = true;
     config.ai.provider = "ollama".into();
     config.ai.ollama.base_url = "http://127.0.0.1:9".into(); // nothing listens here
-    let Some(mut app) = app_with_config(2, config) else { return };
+    let Some(mut app) = app_with_config(2, config) else {
+        return;
+    };
 
     press(&mut app, 'a');
     assert!(app.ui_state.ai_mode);
@@ -311,7 +363,9 @@ fn ai_prompt_reports_an_unreachable_provider() {
 fn ai_prompt_respects_the_config_switch() {
     let mut config = Config::default();
     config.ai.enabled = false;
-    let Some(mut app) = app_with_config(1, config) else { return };
+    let Some(mut app) = app_with_config(1, config) else {
+        return;
+    };
 
     press(&mut app, 'a');
     assert!(!app.ui_state.ai_mode);
@@ -324,7 +378,9 @@ fn ai_prompt_respects_the_config_switch() {
 
 #[test]
 fn lyrics_load_from_lrc_and_render_in_the_panel() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("song.lrc"),
@@ -340,7 +396,10 @@ fn lyrics_load_from_lrc_and_render_in_the_panel() {
     press(&mut app, 'l');
     assert!(app.ui_state.show_lyrics);
     let screen = render_to_string(&app, 120, 32);
-    assert!(screen.contains("Second line"), "lyrics panel did not show the line");
+    assert!(
+        screen.contains("Second line"),
+        "lyrics panel did not show the line"
+    );
 
     // a track without an .lrc clears the lyrics
     app.load_lyrics_for(&dir.path().join("other.mp3"));
@@ -352,7 +411,9 @@ fn lyrics_load_from_lrc_and_render_in_the_panel() {
 
 #[test]
 fn pomodoro_toggles_and_shows_in_the_status_bar() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
 
     press(&mut app, 'w');
     assert!(app.pomodoro.get_state().is_running());
@@ -365,7 +426,9 @@ fn pomodoro_toggles_and_shows_in_the_status_bar() {
 
 #[test]
 fn git_branch_shows_in_the_status_bar_inside_a_repo() {
-    let Some(mut app) = app_with_tracks(1) else { return };
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
     let Some(git) = app.git_monitor.as_ref().filter(|g| g.in_repo()) else {
         return; // not running inside a git checkout
     };

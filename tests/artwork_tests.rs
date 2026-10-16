@@ -58,9 +58,17 @@ fn covers_become_colored_ascii_that_fits_the_panel() {
         assert_eq!(art.ascii_height, ART_COLS / 2, "{cover}: height");
 
         let colors: HashSet<_> = art.colors.iter().flatten().flatten().collect();
-        assert!(colors.len() > 8, "{cover}: only {} distinct colors", colors.len());
+        assert!(
+            colors.len() > 8,
+            "{cover}: only {} distinct colors",
+            colors.len()
+        );
         let chars: HashSet<_> = art.chars.iter().flatten().collect();
-        assert!(chars.len() > 3, "{cover}: only {} distinct characters", chars.len());
+        assert!(
+            chars.len() > 3,
+            "{cover}: only {} distinct characters",
+            chars.len()
+        );
     }
 }
 
@@ -76,7 +84,10 @@ fn wide_images_keep_their_shape() {
 
     let art = AsciiArt::from_image(&png.into_inner(), &panel_config()).unwrap();
     assert_eq!(art.ascii_width, ART_COLS);
-    assert_eq!(art.ascii_height, 2, "200x50 at {ART_COLS} columns is 2 rows of cells");
+    assert_eq!(
+        art.ascii_height, 2,
+        "200x50 at {ART_COLS} columns is 2 rows of cells"
+    );
 }
 
 #[test]
@@ -105,7 +116,11 @@ fn play_muted(path: PathBuf) -> Option<App> {
     app.audio_engine.set_volume(0.0);
     app.library.tracks = vec![track_for(path)];
     app.select_current_track();
-    assert!(app.playback_state.is_playing, "{:?}", app.ui_state.error_message);
+    assert!(
+        app.playback_state.is_playing,
+        "{:?}",
+        app.ui_state.error_message
+    );
     Some(app)
 }
 
@@ -115,20 +130,32 @@ fn art_panel(app: &App) -> String {
     terminal.draw(|f| symphony::ui::render(f, app)).unwrap();
     let buffer = terminal.backend().buffer().clone();
     (4..14u16)
-        .map(|y| (1..19u16).map(|x| buffer[(x, y)].symbol().to_string()).collect::<String>())
+        .map(|y| {
+            (1..19u16)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect::<String>()
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
 #[test]
 fn playing_a_track_with_a_cover_shows_it_in_the_panel() {
-    let Some(app) = play_muted(fixture("tone_cover.mp3")) else { return };
+    let Some(app) = play_muted(fixture("tone_cover.mp3")) else {
+        return;
+    };
     assert!(app.current_track_artwork.is_some(), "cover was not loaded");
 
     let panel = art_panel(&app);
     println!("{panel}");
-    assert!(!panel.contains('♪'), "still showing the music-note placeholder");
-    assert!(panel.chars().any(|c| "#%@*+=".contains(c)), "no cover pixels drawn");
+    assert!(
+        !panel.contains('♪'),
+        "still showing the music-note placeholder"
+    );
+    assert!(
+        panel.chars().any(|c| "#%@*+=".contains(c)),
+        "no cover pixels drawn"
+    );
 }
 
 #[test]
@@ -136,7 +163,9 @@ fn a_track_without_a_cover_falls_back_to_the_placeholder() {
     // a temp dir, so the cover.png/cover.jpg fixtures next to tone.mp3 are not picked up
     let dir = tempfile::tempdir().unwrap();
     std::fs::copy(fixture("tone.mp3"), dir.path().join("plain.mp3")).unwrap();
-    let Some(app) = play_muted(dir.path().join("plain.mp3")) else { return };
+    let Some(app) = play_muted(dir.path().join("plain.mp3")) else {
+        return;
+    };
     assert!(app.current_track_artwork.is_none());
     assert!(art_panel(&app).contains('♪'));
 }

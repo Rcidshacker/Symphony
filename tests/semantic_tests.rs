@@ -24,7 +24,12 @@ fn concept_embedding(text: &str) -> Vec<f32> {
         .collect();
     CONCEPTS
         .iter()
-        .map(|concept| 0.01 + words.iter().filter(|w| concept.contains(&w.as_str())).count() as f32)
+        .map(|concept| {
+            0.01 + words
+                .iter()
+                .filter(|w| concept.contains(&w.as_str()))
+                .count() as f32
+        })
         .collect()
 }
 
@@ -55,11 +60,18 @@ fn track(title: &str) -> Track {
 }
 
 fn library() -> Vec<Track> {
-    vec![track("Sunny Day Party"), track("Melancholy Rain"), track("Lullaby for Sleep")]
+    vec![
+        track("Sunny Day Party"),
+        track("Melancholy Rain"),
+        track("Lullaby for Sleep"),
+    ]
 }
 
 fn ollama(url: &str) -> AIProviderConfig {
-    AIProviderConfig::Ollama { base_url: url.into(), model: "llm".into() }
+    AIProviderConfig::Ollama {
+        base_url: url.into(),
+        model: "llm".into(),
+    }
 }
 
 #[tokio::test]
@@ -69,13 +81,31 @@ async fn embeddings_match_meaning_not_words() {
     let tracks = library();
 
     // "feeling blue" shares no word with "Melancholy Rain"
-    let result = semantic_rank(&ollama(&server.url), "test-model", cache.path(), "feeling blue", &tracks).await;
+    let result = semantic_rank(
+        &ollama(&server.url),
+        "test-model",
+        cache.path(),
+        "feeling blue",
+        &tracks,
+    )
+    .await;
     assert_eq!(result.method, "embeddings (test-model)");
     assert!(result.note.is_none());
     assert_eq!(tracks[result.hits[0].0].title, "Melancholy Rain");
-    assert_eq!(result.hits.len(), 1, "the other tracks are far below the best match");
+    assert_eq!(
+        result.hits.len(),
+        1,
+        "the other tracks are far below the best match"
+    );
 
-    let result = semantic_rank(&ollama(&server.url), "test-model", cache.path(), "peaceful bedtime", &tracks).await;
+    let result = semantic_rank(
+        &ollama(&server.url),
+        "test-model",
+        cache.path(),
+        "peaceful bedtime",
+        &tracks,
+    )
+    .await;
     assert_eq!(tracks[result.hits[0].0].title, "Lullaby for Sleep");
 }
 
@@ -85,29 +115,71 @@ async fn track_vectors_are_cached_on_disk() {
     let cache = tempfile::tempdir().unwrap();
     let mut tracks = library();
 
-    semantic_rank(&ollama(&server.url), "test-model", cache.path(), "sad", &tracks).await;
-    assert_eq!(server.count("POST /api/embeddings"), 4, "3 tracks + the query");
+    semantic_rank(
+        &ollama(&server.url),
+        "test-model",
+        cache.path(),
+        "sad",
+        &tracks,
+    )
+    .await;
+    assert_eq!(
+        server.count("POST /api/embeddings"),
+        4,
+        "3 tracks + the query"
+    );
     assert!(embedding_cache_path(cache.path(), "test-model").exists());
 
     // same library: only the query is embedded again
-    semantic_rank(&ollama(&server.url), "test-model", cache.path(), "happy", &tracks).await;
+    semantic_rank(
+        &ollama(&server.url),
+        "test-model",
+        cache.path(),
+        "happy",
+        &tracks,
+    )
+    .await;
     assert_eq!(server.count("POST /api/embeddings"), 5);
 
     // one new track: one more request for it, plus the query
     tracks.push(track("Peaceful Ambient Night"));
-    semantic_rank(&ollama(&server.url), "test-model", cache.path(), "calm", &tracks).await;
+    semantic_rank(
+        &ollama(&server.url),
+        "test-model",
+        cache.path(),
+        "calm",
+        &tracks,
+    )
+    .await;
     assert_eq!(server.count("POST /api/embeddings"), 7);
 }
 
 #[tokio::test]
 async fn falls_back_to_keywords_when_embeddings_are_unavailable() {
-    let server = MockServer::start(vec![("POST /api/embeddings", fixed(404, r#"{"error":"model not found"}"#))]);
+    let server = MockServer::start(vec![(
+        "POST /api/embeddings",
+        fixed(404, r#"{"error":"model not found"}"#),
+    )]);
     let cache = tempfile::tempdir().unwrap();
     let tracks = library();
 
-    let result = semantic_rank(&ollama(&server.url), "missing-model", cache.path(), "rain", &tracks).await;
+    let result = semantic_rank(
+        &ollama(&server.url),
+        "missing-model",
+        cache.path(),
+        "rain",
+        &tracks,
+    )
+    .await;
     assert_eq!(result.method, "keywords");
-    assert!(result.note.as_deref().is_some_and(|n| n.contains("embeddings unavailable")), "{:?}", result.note);
+    assert!(
+        result
+            .note
+            .as_deref()
+            .is_some_and(|n| n.contains("embeddings unavailable")),
+        "{:?}",
+        result.note
+    );
     assert_eq!(tracks[result.hits[0].0].title, "Melancholy Rain");
 }
 
@@ -115,7 +187,14 @@ async fn falls_back_to_keywords_when_embeddings_are_unavailable() {
 async fn unreachable_server_also_falls_back() {
     let cache = tempfile::tempdir().unwrap();
     let tracks = library();
-    let result = semantic_rank(&ollama("http://127.0.0.1:9"), "m", cache.path(), "sunny", &tracks).await;
+    let result = semantic_rank(
+        &ollama("http://127.0.0.1:9"),
+        "m",
+        cache.path(),
+        "sunny",
+        &tracks,
+    )
+    .await;
     assert_eq!(result.method, "keywords");
     assert_eq!(tracks[result.hits[0].0].title, "Sunny Day Party");
 }

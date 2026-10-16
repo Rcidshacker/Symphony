@@ -8,8 +8,8 @@ pub mod visualizer;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
-    text::{Line, Span},
     text::Text,
+    text::{Line, Span},
     widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph},
     Frame,
 };
@@ -109,8 +109,8 @@ fn render_now_playing_section(f: &mut Frame, app: &App, area: Rect, theme: &Them
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Length(artwork::ART_COLS as u16 + 2), // Album art (+ border)
-            Constraint::Min(30),    // Track info + progress
-            Constraint::Length(25), // Visualizer
+            Constraint::Min(30),                              // Track info + progress
+            Constraint::Length(25),                           // Visualizer
         ])
         .split(area);
 
@@ -426,10 +426,16 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     // Latest message or error
     if let Some(ref err) = app.ui_state.error_message {
         parts.push(sep());
-        parts.push(Span::styled(err.clone(), Style::default().fg(theme.error())));
+        parts.push(Span::styled(
+            err.clone(),
+            Style::default().fg(theme.error()),
+        ));
     } else if let Some(ref msg) = app.ui_state.status_message {
         parts.push(sep());
-        parts.push(Span::styled(msg.clone(), Style::default().fg(theme.success())));
+        parts.push(Span::styled(
+            msg.clone(),
+            Style::default().fg(theme.success()),
+        ));
     }
 
     let text = Text::from(vec![
@@ -438,11 +444,8 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         Line::from(Span::styled(KEY_HINTS[1], dim)),
     ]);
 
-    let status_bar = Paragraph::new(text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(dim),
-    );
+    let status_bar =
+        Paragraph::new(text).block(Block::default().borders(Borders::ALL).border_style(dim));
 
     f.render_widget(status_bar, area);
 }

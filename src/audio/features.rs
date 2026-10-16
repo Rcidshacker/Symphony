@@ -68,7 +68,10 @@ fn estimate_tempo(mono: &[f32], sample_rate: u32) -> (f32, f32) {
         .chunks_exact(hop)
         .map(|c| (1.0 + 1000.0 * c.iter().map(|s| s * s).sum::<f32>() / hop as f32).ln())
         .collect();
-    let mut onset: Vec<f32> = envelope.windows(2).map(|w| (w[1] - w[0]).max(0.0)).collect();
+    let mut onset: Vec<f32> = envelope
+        .windows(2)
+        .map(|w| (w[1] - w[0]).max(0.0))
+        .collect();
     let mean = onset.iter().sum::<f32>() / onset.len() as f32;
     onset.iter_mut().for_each(|o| *o -= mean);
 
@@ -164,7 +167,9 @@ mod tests {
                 let into_beat = i % beat;
                 if into_beat < click {
                     let decay = 1.0 - into_beat as f32 / click as f32;
-                    (2.0 * std::f32::consts::PI * 1000.0 * into_beat as f32 / RATE as f32).sin() * decay * 0.8
+                    (2.0 * std::f32::consts::PI * 1000.0 * into_beat as f32 / RATE as f32).sin()
+                        * decay
+                        * 0.8
                 } else {
                     0.0
                 }
@@ -181,7 +186,11 @@ mod tests {
                 "{bpm} bpm track measured as {}",
                 features.bpm
             );
-            assert!(features.beat_strength > 0.3, "{bpm}: strength {}", features.beat_strength);
+            assert!(
+                features.beat_strength > 0.3,
+                "{bpm}: strength {}",
+                features.beat_strength
+            );
         }
     }
 
@@ -194,14 +203,20 @@ mod tests {
             .map(|i| (2.0 * std::f32::consts::PI * 220.0 * i as f32 / RATE as f32).sin() * 0.3)
             .collect();
         let steady = analyze_samples(&tone, RATE);
-        assert!(steady.beat_strength < 0.1, "steady tone strength {}", steady.beat_strength);
+        assert!(
+            steady.beat_strength < 0.1,
+            "steady tone strength {}",
+            steady.beat_strength
+        );
     }
 
     #[test]
     fn energy_follows_loudness() {
         let tone = |amplitude: f32| -> Vec<f32> {
             (0..RATE as usize * 5)
-                .map(|i| (2.0 * std::f32::consts::PI * 440.0 * i as f32 / RATE as f32).sin() * amplitude)
+                .map(|i| {
+                    (2.0 * std::f32::consts::PI * 440.0 * i as f32 / RATE as f32).sin() * amplitude
+                })
                 .collect()
         };
         let quiet = analyze_samples(&tone(0.02), RATE).energy; // about -37 dBFS rms

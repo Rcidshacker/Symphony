@@ -150,7 +150,11 @@ impl Database {
     }
 
     /// Store measured audio features for a file
-    pub fn upsert_features(&self, path: &str, features: &AudioFeatures) -> Result<(), DatabaseError> {
+    pub fn upsert_features(
+        &self,
+        path: &str,
+        features: &AudioFeatures,
+    ) -> Result<(), DatabaseError> {
         self.conn.execute(
             r#"
             INSERT INTO track_features (path, energy, bpm, beat_strength)
@@ -470,14 +474,30 @@ mod tests {
         let db = Database::in_memory().unwrap();
         assert!(db.all_features().unwrap().is_empty());
 
-        let first = AudioFeatures { energy: 0.4, bpm: 120.0, beat_strength: 0.3 };
+        let first = AudioFeatures {
+            energy: 0.4,
+            bpm: 120.0,
+            beat_strength: 0.3,
+        };
         db.upsert_features("/music/a.mp3", &first).unwrap();
-        db.upsert_features("/music/b.mp3", &AudioFeatures { energy: 0.9, bpm: 0.0, beat_strength: 0.0 }).unwrap();
+        db.upsert_features(
+            "/music/b.mp3",
+            &AudioFeatures {
+                energy: 0.9,
+                bpm: 0.0,
+                beat_strength: 0.0,
+            },
+        )
+        .unwrap();
         assert_eq!(db.all_features().unwrap().len(), 2);
         assert_eq!(db.all_features().unwrap()["/music/a.mp3"], first);
 
         // re-analysis replaces the row
-        let second = AudioFeatures { energy: 0.5, bpm: 90.0, beat_strength: 0.2 };
+        let second = AudioFeatures {
+            energy: 0.5,
+            bpm: 90.0,
+            beat_strength: 0.2,
+        };
         db.upsert_features("/music/a.mp3", &second).unwrap();
         assert_eq!(db.all_features().unwrap()["/music/a.mp3"], second);
         assert_eq!(db.all_features().unwrap().len(), 2);

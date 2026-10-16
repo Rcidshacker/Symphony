@@ -39,13 +39,16 @@ pub struct MoodProfile {
 pub fn mood_profile(mood: &str) -> Option<MoodProfile> {
     use Target::{High, Low, Mid};
     let (energy, tempo) = match mood.trim().to_lowercase().as_str() {
-        "energetic" | "pumped" | "workout" | "gym" | "hype" | "upbeat" | "party" | "dance" => (High, High),
+        "energetic" | "pumped" | "workout" | "gym" | "hype" | "upbeat" | "party" | "dance" => {
+            (High, High)
+        }
         "aggressive" | "angry" | "intense" => (High, High),
         "happy" | "joyful" | "cheerful" | "fun" => (High, Mid),
         "epic" | "dramatic" | "powerful" => (High, Mid),
         "steady" | "mellow" | "groovy" => (Low, Mid),
         "driven" | "motivated" | "productive" => (Mid, Mid),
-        "calm" | "focus" | "concentrate" | "study" | "coding" | "work" | "relaxed" | "relaxing" | "peaceful" | "gentle" | "sleep" | "chill" | "laid-back" => (Low, Low),
+        "calm" | "focus" | "concentrate" | "study" | "coding" | "work" | "relaxed" | "relaxing"
+        | "peaceful" | "gentle" | "sleep" | "chill" | "laid-back" => (Low, Low),
         "sad" | "melancholic" | "melancholy" | "blue" => (Low, Low),
         "romantic" | "love" => (Low, Low),
         _ => return None,
@@ -110,7 +113,11 @@ mod tests {
     use super::*;
 
     fn f(energy: f32, bpm: f32) -> AudioFeatures {
-        AudioFeatures { energy, bpm, beat_strength: 0.3 }
+        AudioFeatures {
+            energy,
+            bpm,
+            beat_strength: 0.3,
+        }
     }
 
     #[test]
@@ -127,7 +134,12 @@ mod tests {
         let energetic = mood_profile("energetic").unwrap();
         let calm = mood_profile("calm").unwrap();
 
-        let scores = |p| library.iter().map(|t| ranks.mood_fit(p, t)).collect::<Vec<_>>();
+        let scores = |p| {
+            library
+                .iter()
+                .map(|t| ranks.mood_fit(p, t))
+                .collect::<Vec<_>>()
+        };
         let (e, c) = (scores(energetic), scores(calm));
         assert!(e[2] > e[1] && e[1] > e[0], "energetic: {e:?}");
         assert!(c[0] > c[1] && c[1] > c[2], "calm: {c:?}");
@@ -145,7 +157,11 @@ mod tests {
 
     #[test]
     fn tracks_without_a_reliable_tempo_are_judged_on_energy_alone() {
-        let ambient = AudioFeatures { energy: 0.1, bpm: 0.0, beat_strength: 0.0 };
+        let ambient = AudioFeatures {
+            energy: 0.1,
+            bpm: 0.0,
+            beat_strength: 0.0,
+        };
         let library = [ambient, f(0.9, 150.0), f(0.6, 120.0)];
         let ranks = Ranks::new(library.iter());
         let calm = mood_profile("calm").unwrap();
@@ -157,6 +173,9 @@ mod tests {
     fn a_single_track_is_neutral() {
         let only = f(0.7, 100.0);
         let ranks = Ranks::new([only].iter());
-        assert_eq!(ranks.mood_fit(mood_profile("energetic").unwrap(), &only), 0.5);
+        assert_eq!(
+            ranks.mood_fit(mood_profile("energetic").unwrap(), &only),
+            0.5
+        );
     }
 }

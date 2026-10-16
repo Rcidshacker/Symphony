@@ -59,9 +59,10 @@ pub fn suggest(
                 .map(|(a, b)| sound_similarity(a, b));
 
             let (score, reason) = match (tags, sound) {
-                (Some((tag_score, tag_reason)), Some(sound)) => {
-                    (0.5 * tag_score + 0.5 * sound, format!("{tag_reason}, similar sound"))
-                }
+                (Some((tag_score, tag_reason)), Some(sound)) => (
+                    0.5 * tag_score + 0.5 * sound,
+                    format!("{tag_reason}, similar sound"),
+                ),
                 (Some((tag_score, tag_reason)), None) => (*tag_score, tag_reason.clone()),
                 (None, Some(sound)) => (0.8 * sound, "similar sound".to_string()),
                 (None, None) => return None,
@@ -106,7 +107,11 @@ mod tests {
             .map(|(id, energy, bpm)| {
                 (
                     format!("/m/{id}.mp3"),
-                    AudioFeatures { energy: *energy, bpm: *bpm, beat_strength: 0.4 },
+                    AudioFeatures {
+                        energy: *energy,
+                        bpm: *bpm,
+                        beat_strength: 0.4,
+                    },
                 )
             })
             .collect()
@@ -120,11 +125,19 @@ mod tests {
             track("slow-quiet", "C", None),
             track("unanalyzed", "D", None),
         ];
-        let features = feature_map(&[("seed", 0.9, 150.0), ("fast-loud", 0.85, 145.0), ("slow-quiet", 0.2, 70.0)]);
+        let features = feature_map(&[
+            ("seed", 0.9, 150.0),
+            ("fast-loud", 0.85, 145.0),
+            ("slow-quiet", 0.2, 70.0),
+        ]);
 
         let got = suggest(&library[0], &library, &features, 10);
         let ids: Vec<_> = got.iter().map(|s| s.track.id.as_str()).collect();
-        assert_eq!(ids, vec!["fast-loud", "slow-quiet"], "no seed in the list, unanalyzed tracks have nothing to go on");
+        assert_eq!(
+            ids,
+            vec!["fast-loud", "slow-quiet"],
+            "no seed in the list, unanalyzed tracks have nothing to go on"
+        );
         assert!(got[0].score > 0.7 && got[1].score < 0.4, "{got:?}");
         assert_eq!(got[0].reason, "similar sound");
     }
@@ -136,10 +149,17 @@ mod tests {
             track("same-artist-quiet", "Same Artist", Some("rock")),
             track("other-loud", "Other", Some("jazz")),
         ];
-        let features = feature_map(&[("seed", 0.9, 150.0), ("same-artist-quiet", 0.3, 80.0), ("other-loud", 0.9, 150.0)]);
+        let features = feature_map(&[
+            ("seed", 0.9, 150.0),
+            ("same-artist-quiet", 0.3, 80.0),
+            ("other-loud", 0.9, 150.0),
+        ]);
 
         let got = suggest(&library[0], &library, &features, 10);
-        let quiet = got.iter().find(|s| s.track.id == "same-artist-quiet").unwrap();
+        let quiet = got
+            .iter()
+            .find(|s| s.track.id == "same-artist-quiet")
+            .unwrap();
         assert!(quiet.reason.contains("similar sound"), "{}", quiet.reason);
         // both signals are used: the tag-similar quiet track still shows up
         assert!(got.len() == 2);
@@ -147,7 +167,9 @@ mod tests {
 
     #[test]
     fn limit_is_respected_and_seed_is_excluded() {
-        let library: Vec<Track> = (0..6).map(|i| track(&format!("t{i}"), "A", Some("rock"))).collect();
+        let library: Vec<Track> = (0..6)
+            .map(|i| track(&format!("t{i}"), "A", Some("rock")))
+            .collect();
         let got = suggest(&library[0], &library, &HashMap::new(), 3);
         assert_eq!(got.len(), 3);
         assert!(got.iter().all(|s| s.track.id != "t0"));
@@ -155,7 +177,11 @@ mod tests {
 
     #[test]
     fn sound_similarity_is_one_for_identical_tracks() {
-        let f = AudioFeatures { energy: 0.5, bpm: 120.0, beat_strength: 0.3 };
+        let f = AudioFeatures {
+            energy: 0.5,
+            bpm: 120.0,
+            beat_strength: 0.3,
+        };
         assert_eq!(sound_similarity(&f, &f), 1.0);
     }
 }

@@ -348,7 +348,10 @@ fn render_bars(
 
         for y in 0..inner.height {
             let span = Span::styled(pulse_char, pulse_style);
-            f.render_widget(Paragraph::new(span.clone()), Rect::new(inner.x, inner.y + y, 1, 1));
+            f.render_widget(
+                Paragraph::new(span.clone()),
+                Rect::new(inner.x, inner.y + y, 1, 1),
+            );
             f.render_widget(
                 Paragraph::new(span),
                 Rect::new(inner.x + inner.width - 1, inner.y + y, 1, 1),
@@ -451,7 +454,12 @@ fn render_minimal(
     const EIGHTHS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
     let meter_width = inner.width as usize - LABEL - 1;
 
-    for (row, band) in spectrum.bands.iter().take(inner.height as usize).enumerate() {
+    for (row, band) in spectrum
+        .bands
+        .iter()
+        .take(inner.height as usize)
+        .enumerate()
+    {
         let y = inner.y + row as u16;
         let filled_eighths = (band.magnitude.clamp(0.0, 1.0) * meter_width as f32 * 8.0) as usize;
         let mut meter = "█".repeat(filled_eighths / 8);
@@ -509,7 +517,8 @@ fn render_circular(
     // One spoke per bar, starting at 12 o'clock, drawn as a trail of dots from the hub outwards
     let num_spokes = state.bar_heights.len().max(1);
     for (i, height) in state.bar_heights.iter().enumerate() {
-        let angle = (i as f32 / num_spokes as f32) * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+        let angle =
+            (i as f32 / num_spokes as f32) * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
         let length = height.clamp(0.0, 1.0) * (max_radius - min_radius);
         let style = Style::default().fg(colors.get_color((i * 7) / num_spokes));
 
@@ -599,7 +608,10 @@ mod tests {
             VisualizationMode::Waveform.next(),
             VisualizationMode::Circular
         );
-        assert_eq!(VisualizationMode::Circular.next(), VisualizationMode::Minimal);
+        assert_eq!(
+            VisualizationMode::Circular.next(),
+            VisualizationMode::Minimal
+        );
         assert_eq!(VisualizationMode::Minimal.next(), VisualizationMode::Off);
         assert_eq!(VisualizationMode::Off.next(), VisualizationMode::Bars);
     }

@@ -27,7 +27,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
-use wasmi::{Caller, Config, Engine, Extern, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder};
+use wasmi::{
+    Caller, Config, Engine, Extern, Instance, Linker, Memory, Module, Store, StoreLimits,
+    StoreLimitsBuilder,
+};
 
 /// Instructions a plugin may run per call before it is stopped
 const FUEL_PER_CALL: u64 = 20_000_000;
@@ -152,7 +155,10 @@ impl PluginRuntime {
             if !self.auto_load.is_empty() && !self.auto_load.contains(&folder) {
                 continue;
             }
-            match self.load_plugin(&manifest_path, &path.join("plugin.wasm")).await {
+            match self
+                .load_plugin(&manifest_path, &path.join("plugin.wasm"))
+                .await
+            {
                 Ok(name) => loaded.push(name),
                 Err(e) => warn!("Failed to load plugin from {:?}: {}", path, e),
             }
@@ -174,7 +180,9 @@ impl PluginRuntime {
         let name = manifest.name.clone();
 
         if self.plugins.contains_key(&name) {
-            return Err(PluginError::InitFailed(format!("Plugin {name} already loaded")));
+            return Err(PluginError::InitFailed(format!(
+                "Plugin {name} already loaded"
+            )));
         }
         info!("Loading plugin: {} v{}", name, manifest.version);
 
@@ -186,7 +194,11 @@ impl PluginRuntime {
             name.clone(),
             LoadedPlugin {
                 manifest,
-                status: if enabled { PluginStatus::Active } else { PluginStatus::Disabled },
+                status: if enabled {
+                    PluginStatus::Active
+                } else {
+                    PluginStatus::Disabled
+                },
                 wasm_path: wasm_path.to_path_buf(),
                 enabled,
                 guest,
@@ -236,13 +248,22 @@ impl PluginRuntime {
             .ok_or_else(|| PluginError::WasmError("plugin must export `memory`".to_string()))?;
 
         let has_on_event = instance.get_export(&store, "on_event").is_some();
-        if has_on_event && instance.get_typed_func::<i32, i32>(&store, "alloc").is_err() {
+        if has_on_event
+            && instance
+                .get_typed_func::<i32, i32>(&store, "alloc")
+                .is_err()
+        {
             return Err(PluginError::WasmError(
                 "plugins with `on_event` must export `alloc(i32) -> i32`".to_string(),
             ));
         }
 
-        Ok(Guest { store, instance, memory, has_on_event })
+        Ok(Guest {
+            store,
+            instance,
+            memory,
+            has_on_event,
+        })
     }
 
     /// Unload a plugin, giving it a chance to clean up
@@ -350,7 +371,9 @@ impl PluginRuntime {
 
     /// How many host calls the plugin made without having the permission
     pub fn denied_calls(&self, name: &str) -> u32 {
-        self.plugins.get(name).map_or(0, |p| p.guest.store.data().denied)
+        self.plugins
+            .get(name)
+            .map_or(0, |p| p.guest.store.data().denied)
     }
 
     /// Check if a plugin is enabled
@@ -386,7 +409,9 @@ fn has_event_permission(manifest: &PluginManifest, event: &PluginEvent) -> bool 
         | PluginEvent::VolumeChanged(_)
         | PluginEvent::SeekChanged { .. } => Permission::PlaybackState,
         PluginEvent::PlaylistChanged { .. } => Permission::Playlists,
-        PluginEvent::AppStarted | PluginEvent::AppStopped | PluginEvent::Custom { .. } => return true,
+        PluginEvent::AppStarted | PluginEvent::AppStopped | PluginEvent::Custom { .. } => {
+            return true
+        }
     };
     manifest.has_permission(&required)
 }
@@ -396,7 +421,10 @@ fn call_hook(guest: &mut Guest, name: &str) -> Result<(), String> {
     let Ok(hook) = guest.instance.get_typed_func::<(), ()>(&guest.store, name) else {
         return Ok(());
     };
-    guest.store.set_fuel(FUEL_PER_CALL).map_err(|e| e.to_string())?;
+    guest
+        .store
+        .set_fuel(FUEL_PER_CALL)
+        .map_err(|e| e.to_string())?;
     hook.call(&mut guest.store, ()).map_err(|e| e.to_string())
 }
 
@@ -412,14 +440,22 @@ fn deliver(guest: &mut Guest, json: &str) -> Result<(), String> {
         .get_typed_func::<(i32, i32), ()>(&guest.store, "on_event")
         .map_err(|e| e.to_string())?;
 
-    guest.store.set_fuel(FUEL_PER_CALL).map_err(|e| e.to_string())?;
-    let ptr = alloc.call(&mut guest.store, len).map_err(|e| e.to_string())?;
-    let offset = usize::try_from(ptr).map_err(|_| "alloc returned a negative pointer".to_string())?;
+    guest
+        .store
+        .set_fuel(FUEL_PER_CALL)
+        .map_err(|e| e.to_string())?;
+    let ptr = alloc
+        .call(&mut guest.store, len)
+        .map_err(|e| e.to_string())?;
+    let offset =
+        usize::try_from(ptr).map_err(|_| "alloc returned a negative pointer".to_string())?;
     guest
         .memory
         .write(&mut guest.store, offset, json.as_bytes())
         .map_err(|e| format!("alloc returned a bad buffer: {e}"))?;
-    on_event.call(&mut guest.store, (ptr, len)).map_err(|e| e.to_string())
+    on_event
+        .call(&mut guest.store, (ptr, len))
+        .map_err(|e| e.to_string())
 }
 
 /// The calling plugin's memory
@@ -433,7 +469,9 @@ fn read_str(caller: &Caller<'_, HostState>, ptr: i32, len: i32) -> Option<String
         return None;
     }
     let mut buf = vec![0u8; len as usize];
-    memory_of(caller)?.read(caller, ptr as usize, &mut buf).ok()?;
+    memory_of(caller)?
+        .read(caller, ptr as usize, &mut buf)
+        .ok()?;
     Some(String::from_utf8_lossy(&buf).into_owned())
 }
 
@@ -451,11 +489,15 @@ fn define_host_functions(linker: &mut Linker<HostState>) -> Result<(), PluginErr
     let link_err = |e: wasmi::errors::LinkerError| PluginError::WasmError(e.to_string());
 
     linker
-        .func_wrap("symphony", "log", |caller: Caller<'_, HostState>, ptr: i32, len: i32| {
-            if let Some(message) = read_str(&caller, ptr, len) {
-                caller.data().host.log(&message);
-            }
-        })
+        .func_wrap(
+            "symphony",
+            "log",
+            |caller: Caller<'_, HostState>, ptr: i32, len: i32| {
+                if let Some(message) = read_str(&caller, ptr, len) {
+                    caller.data().host.log(&message);
+                }
+            },
+        )
         .map_err(link_err)?;
 
     linker
@@ -487,12 +529,16 @@ fn define_host_functions(linker: &mut Linker<HostState>) -> Result<(), PluginErr
         .map_err(link_err)?;
 
     linker
-        .func_wrap("symphony", "get_volume", |mut caller: Caller<'_, HostState>| -> f32 {
-            if !allowed(&mut caller, Permission::PlaybackState) {
-                return -1.0;
-            }
-            caller.data().host.get_volume()
-        })
+        .func_wrap(
+            "symphony",
+            "get_volume",
+            |mut caller: Caller<'_, HostState>| -> f32 {
+                if !allowed(&mut caller, Permission::PlaybackState) {
+                    return -1.0;
+                }
+                caller.data().host.get_volume()
+            },
+        )
         .map_err(link_err)?;
 
     linker
@@ -503,7 +549,9 @@ fn define_host_functions(linker: &mut Linker<HostState>) -> Result<(), PluginErr
                 if !allowed(&mut caller, Permission::Notifications) {
                     return -1;
                 }
-                if let (Some(title), Some(body)) = (read_str(&caller, tp, tl), read_str(&caller, bp, bl)) {
+                if let (Some(title), Some(body)) =
+                    (read_str(&caller, tp, tl), read_str(&caller, bp, bl))
+                {
                     caller.data().host.show_notification(&title, &body);
                 }
                 0
@@ -519,8 +567,13 @@ fn define_host_functions(linker: &mut Linker<HostState>) -> Result<(), PluginErr
                 if !allowed(&mut caller, Permission::Discord) {
                     return -1;
                 }
-                if let (Some(title), Some(artist)) = (read_str(&caller, tp, tl), read_str(&caller, ap, al)) {
-                    caller.data().host.set_discord_presence(&title, &artist, "", 0);
+                if let (Some(title), Some(artist)) =
+                    (read_str(&caller, tp, tl), read_str(&caller, ap, al))
+                {
+                    caller
+                        .data()
+                        .host
+                        .set_discord_presence(&title, &artist, "", 0);
                 }
                 0
             },
@@ -535,7 +588,9 @@ fn define_host_functions(linker: &mut Linker<HostState>) -> Result<(), PluginErr
                 if !allowed(&mut caller, Permission::Lastfm) {
                     return -1;
                 }
-                if let (Some(title), Some(artist)) = (read_str(&caller, tp, tl), read_str(&caller, ap, al)) {
+                if let (Some(title), Some(artist)) =
+                    (read_str(&caller, tp, tl), read_str(&caller, ap, al))
+                {
                     caller.data().host.scrobble(&title, &artist, "");
                 }
                 0

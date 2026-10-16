@@ -39,7 +39,8 @@ fn mock_ollama() -> MockServer {
             "POST /api/chat",
             Box::new(|request| {
                 // only the user's message: the system prompt contains examples of every intent
-                let body: serde_json::Value = serde_json::from_str(&request.body).unwrap_or_default();
+                let body: serde_json::Value =
+                    serde_json::from_str(&request.body).unwrap_or_default();
                 let prompt = body["messages"]
                     .as_array()
                     .and_then(|m| m.last())
@@ -65,18 +66,28 @@ fn mock_ollama() -> MockServer {
         ),
         (
             "POST /api/generate",
-            fixed(200, r#"{"response":"Try some lo-fi beats: steady and unobtrusive.","done":true}"#),
+            fixed(
+                200,
+                r#"{"response":"Try some lo-fi beats: steady and unobtrusive.","done":true}"#,
+            ),
         ),
         (
             "POST /api/embeddings",
             Box::new(|request| {
-                let body: serde_json::Value = serde_json::from_str(&request.body).unwrap_or_default();
+                let body: serde_json::Value =
+                    serde_json::from_str(&request.body).unwrap_or_default();
                 let text = body["prompt"].as_str().unwrap_or_default().to_lowercase();
                 let sad = ["sad", "melancholy", "rain", "tears"];
                 let vector: Vec<f32> = [
                     sad.iter().filter(|w| text.contains(*w)).count() as f32,
-                    ["gym", "anthem", "energetic"].iter().filter(|w| text.contains(*w)).count() as f32,
-                    ["stroll", "drive", "night", "sunday"].iter().filter(|w| text.contains(*w)).count() as f32,
+                    ["gym", "anthem", "energetic"]
+                        .iter()
+                        .filter(|w| text.contains(*w))
+                        .count() as f32,
+                    ["stroll", "drive", "night", "sunday"]
+                        .iter()
+                        .filter(|w| text.contains(*w))
+                        .count() as f32,
                 ]
                 .iter()
                 .map(|v| v + 0.01)
@@ -119,7 +130,11 @@ fn app_with_library(dir: &Path, ollama_url: &str) -> Option<App> {
         write_wav(&path, &[], 3.0, 0.0);
         app.features.insert(
             path.to_string_lossy().to_string(),
-            AudioFeatures { energy, bpm, beat_strength: 0.4 },
+            AudioFeatures {
+                energy,
+                bpm,
+                beat_strength: 0.4,
+            },
         );
         app.library.tracks.push(track_for(title, path));
     }
@@ -139,7 +154,10 @@ fn wait_for(app: &mut App, mut done: impl FnMut(&App) -> bool) -> bool {
 }
 
 fn playing_title(app: &App) -> Option<String> {
-    app.playback_state.current_track.as_ref().map(|t| t.title.clone())
+    app.playback_state
+        .current_track
+        .as_ref()
+        .map(|t| t.title.clone())
 }
 
 fn queue_titles(app: &App) -> Vec<String> {
@@ -151,7 +169,11 @@ fn screen(app: &App) -> String {
     terminal.draw(|f| symphony::ui::render(f, app)).unwrap();
     let buffer = terminal.backend().buffer().clone();
     (0..32u16)
-        .map(|y| (0..120u16).map(|x| buffer[(x, y)].symbol().to_string()).collect::<String>())
+        .map(|y| {
+            (0..120u16)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect::<String>()
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -159,31 +181,52 @@ fn screen(app: &App) -> String {
 #[test]
 fn an_energetic_prompt_plays_the_loudest_fastest_track_first() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.submit_prompt("play something energetic");
-    assert!(wait_for(&mut app, |a| playing_title(a).is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| playing_title(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
 
     assert_eq!(playing_title(&app).as_deref(), Some("Gym Anthem"));
-    assert_eq!(queue_titles(&app)[..2], ["Gym Anthem", "Night Drive"], "best matches first");
-    assert!(app.ui_state.status_message.as_deref().is_some_and(|s| s.starts_with("AI:")));
+    assert_eq!(
+        queue_titles(&app)[..2],
+        ["Gym Anthem", "Night Drive"],
+        "best matches first"
+    );
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.starts_with("AI:")));
 }
 
 #[test]
 fn a_calm_prompt_plays_the_quietest_slowest_track_first() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.submit_prompt("play something calm");
     assert!(wait_for(&mut app, |a| playing_title(a).is_some()));
     assert_eq!(playing_title(&app).as_deref(), Some("Melancholy Rain"));
-    assert_eq!(queue_titles(&app).last().map(String::as_str), Some("Gym Anthem"));
+    assert_eq!(
+        queue_titles(&app).last().map(String::as_str),
+        Some("Gym Anthem")
+    );
 }
 
 #[test]
 fn a_focus_session_playlist_is_built_calm_first_and_reports_the_shortfall() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.submit_prompt("create a 2 hour focus session");
     assert!(wait_for(&mut app, |a| playing_title(a).is_some()));
@@ -198,38 +241,73 @@ fn a_focus_session_playlist_is_built_calm_first_and_reports_the_shortfall() {
 #[test]
 fn suggestions_are_the_tracks_that_sound_most_alike() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.submit_prompt("more like gym");
-    assert!(wait_for(&mut app, |a| a.ui_state.pinned_results), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| a.ui_state.pinned_results),
+        "{:?}",
+        app.ui_state.error_message
+    );
 
-    let titles: Vec<_> = app.library.filtered_tracks.iter().map(|t| t.title.as_str()).collect();
-    assert_eq!(titles, vec!["Night Drive", "Sunday Stroll", "Melancholy Rain"], "closest sound first, seed excluded");
+    let titles: Vec<_> = app
+        .library
+        .filtered_tracks
+        .iter()
+        .map(|t| t.title.as_str())
+        .collect();
+    assert_eq!(
+        titles,
+        vec!["Night Drive", "Sunday Stroll", "Melancholy Rain"],
+        "closest sound first, seed excluded"
+    );
     assert!(app.ui_state.search_query.contains("similar to Gym Anthem"));
 }
 
 #[test]
 fn a_search_prompt_finds_tracks_by_meaning() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.submit_prompt("find something sad");
-    assert!(wait_for(&mut app, |a| a.ui_state.pinned_results), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| a.ui_state.pinned_results),
+        "{:?}",
+        app.ui_state.error_message
+    );
     assert_eq!(app.library.filtered_tracks[0].title, "Melancholy Rain");
-    assert!(app.ui_state.status_message.as_deref().is_some_and(|s| s.contains("embeddings")));
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("embeddings")));
 }
 
 #[test]
 fn questions_are_answered_in_a_popup_that_any_key_closes() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.submit_prompt("what should I listen to while debugging?");
-    assert!(wait_for(&mut app, |a| a.ui_state.ai_answer.is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| a.ui_state.ai_answer.is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
     assert!(screen(&app).contains("Try some lo-fi beats"));
 
     // the key that closes the popup does nothing else (q would quit)
-    let keep_running = handle_key_event(&mut app, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE)).unwrap();
+    let keep_running = handle_key_event(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE),
+    )
+    .unwrap();
     assert!(keep_running);
     assert!(app.ui_state.ai_answer.is_none());
 }
@@ -237,7 +315,9 @@ fn questions_are_answered_in_a_popup_that_any_key_closes() {
 #[test]
 fn the_model_is_told_about_the_moment() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
 
     app.toggle_pomodoro(); // a focus session is running
     app.submit_prompt("play something calm");
@@ -255,10 +335,18 @@ fn the_model_is_told_about_the_moment() {
 
     // and what is playing is part of the next prompt
     app.submit_prompt("play something energetic");
-    assert!(wait_for(&mut app, |a| playing_title(a).as_deref() == Some("Gym Anthem")));
+    assert!(wait_for(&mut app, |a| playing_title(a).as_deref()
+        == Some("Gym Anthem")));
     app.submit_prompt("play something calm");
-    assert!(wait_for(&mut app, |a| playing_title(a).as_deref() == Some("Melancholy Rain")));
-    let last = ollama.requests().into_iter().filter(|r| r.target.starts_with("/api/chat")).last().unwrap().body;
+    assert!(wait_for(&mut app, |a| playing_title(a).as_deref()
+        == Some("Melancholy Rain")));
+    let last = ollama
+        .requests()
+        .into_iter()
+        .filter(|r| r.target.starts_with("/api/chat"))
+        .last()
+        .unwrap()
+        .body;
     assert!(last.contains("Currently playing: Gym Anthem"), "{last}");
 }
 
@@ -273,21 +361,28 @@ fn the_library_is_analyzed_in_the_background_and_remembered() {
     for track in LibraryScanner::new().scan_directory(dir.path()).unwrap() {
         db.upsert_track(&track).unwrap();
     }
-    let Ok(engine) = AudioEngine::new() else { return };
+    let Ok(engine) = AudioEngine::new() else {
+        return;
+    };
     let mut app = App::new(Config::default(), engine);
     app.database = Some(db);
     app.load_library().unwrap();
     assert_eq!(app.library.tracks.len(), 3);
     assert_eq!(app.ui_state.analysis_remaining, 3);
 
-    assert!(wait_for(&mut app, |a| a.ui_state.analysis_remaining == 0), "analysis never finished");
+    assert!(
+        wait_for(&mut app, |a| a.ui_state.analysis_remaining == 0),
+        "analysis never finished"
+    );
     assert_eq!(app.features.len(), 3);
 
     let energy = |name: &str| -> f32 {
         let path = dir.path().join(name).to_string_lossy().to_string();
         app.features[&path].energy
     };
-    assert!(energy("loud.wav") > energy("quiet.wav") && energy("quiet.wav") > energy("silence.wav"));
+    assert!(
+        energy("loud.wav") > energy("quiet.wav") && energy("quiet.wav") > energy("silence.wav")
+    );
 
     // stored in the database: a restart does not analyze again
     let stored = app.database.as_ref().unwrap().all_features().unwrap();
@@ -297,10 +392,16 @@ fn the_library_is_analyzed_in_the_background_and_remembered() {
 #[test]
 fn a_prompt_from_the_command_line_respects_the_ai_switch() {
     let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
-    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else { return };
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
     app.config.ai.enabled = false;
 
     app.submit_prompt("play something calm");
-    assert!(app.ui_state.status_message.as_deref().is_some_and(|s| s.contains("disabled")));
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("disabled")));
     assert!(ollama.requests().is_empty());
 }

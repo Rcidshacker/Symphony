@@ -96,7 +96,9 @@ fn run_until(app: &mut App, secs: f32, mut done: impl FnMut(&App) -> bool) -> bo
 #[test]
 fn spectrum_follows_the_audio_that_is_playing() {
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = playing_tone_app(dir.path()) else { return };
+    let Some(mut app) = playing_tone_app(dir.path()) else {
+        return;
+    };
 
     assert!(
         run_until(&mut app, 3.0, |a| a.visualizer_state.spectrum.is_some()),
@@ -111,7 +113,9 @@ fn spectrum_follows_the_audio_that_is_playing() {
         spectrum.peak_frequency
     );
     assert!(spectrum.rms > 0.4, "rms was {}", spectrum.rms);
-    assert!(spectrum.waveform.iter().any(|s| *s > 0.5) && spectrum.waveform.iter().any(|s| *s < -0.5));
+    assert!(
+        spectrum.waveform.iter().any(|s| *s > 0.5) && spectrum.waveform.iter().any(|s| *s < -0.5)
+    );
 
     // log-spaced bars: the bar holding 1 kHz is lit, the lowest bar is not
     let bars = &app.visualizer_state.bar_heights;
@@ -135,8 +139,13 @@ fn spectrum_follows_the_audio_that_is_playing() {
 #[test]
 fn visualizer_fades_out_when_paused() {
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = playing_tone_app(dir.path()) else { return };
-    assert!(run_until(&mut app, 3.0, |a| a.visualizer_state.spectrum.is_some()));
+    let Some(mut app) = playing_tone_app(dir.path()) else {
+        return;
+    };
+    assert!(run_until(&mut app, 3.0, |a| a
+        .visualizer_state
+        .spectrum
+        .is_some()));
 
     app.toggle_playback(); // pause: the audio device stops pulling samples
     assert!(
@@ -149,10 +158,14 @@ fn visualizer_fades_out_when_paused() {
 #[test]
 fn every_visualizer_mode_draws_the_playing_audio() {
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = playing_app(dir.path(), &[120.0, 440.0, 1500.0, 4000.0, 9000.0], 0.9) else {
+    let Some(mut app) = playing_app(dir.path(), &[120.0, 440.0, 1500.0, 4000.0, 9000.0], 0.9)
+    else {
         return;
     };
-    assert!(run_until(&mut app, 3.0, |a| a.visualizer_state.spectrum.is_some()));
+    assert!(run_until(&mut app, 3.0, |a| a
+        .visualizer_state
+        .spectrum
+        .is_some()));
     run_until(&mut app, 0.4, |_| false);
 
     for mode in [

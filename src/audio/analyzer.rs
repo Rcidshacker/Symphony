@@ -659,13 +659,25 @@ mod tests {
         let loud = loud.analyze().unwrap();
         // the tone sits between two bins; the louder neighbour holds the peak
         let peak_bin = (1000.0 / loud.bin_hz) as usize;
-        let near_peak = |m: &[f32]| m[peak_bin - 1..=peak_bin + 2].iter().cloned().fold(0.0, f32::max);
-        assert!(near_peak(&loud.magnitudes) > 0.97, "got {}", near_peak(&loud.magnitudes));
+        let near_peak = |m: &[f32]| {
+            m[peak_bin - 1..=peak_bin + 2]
+                .iter()
+                .cloned()
+                .fold(0.0, f32::max)
+        };
+        assert!(
+            near_peak(&loud.magnitudes) > 0.97,
+            "got {}",
+            near_peak(&loud.magnitudes)
+        );
 
         // -40 dBFS: 0.01 amplitude
         let mut quiet = SpectrumAnalyzer::new(FftSize::Size4096, 44100);
         quiet.set_smoothing(0.0);
-        let samples: Vec<f32> = generate_sine_wave(1000.0, 44100, 0.5).iter().map(|s| s * 0.01).collect();
+        let samples: Vec<f32> = generate_sine_wave(1000.0, 44100, 0.5)
+            .iter()
+            .map(|s| s * 0.01)
+            .collect();
         quiet.add_samples(&samples);
         let quiet = quiet.analyze().unwrap();
         let level = near_peak(&quiet.magnitudes);
@@ -680,7 +692,11 @@ mod tests {
         analyzer.add_samples(&generate_sine_wave(300.0, 44100, 0.1));
         analyzer.add_samples(&generate_sine_wave(3000.0, 44100, 2048.0 / 44100.0));
         let result = analyzer.analyze().unwrap();
-        assert!((result.peak_frequency - 3000.0).abs() < 50.0, "got {}", result.peak_frequency);
+        assert!(
+            (result.peak_frequency - 3000.0).abs() < 50.0,
+            "got {}",
+            result.peak_frequency
+        );
     }
 
     #[test]

@@ -121,42 +121,112 @@ impl SimpleEmbeddingGenerator {
     fn music_vocabulary() -> Vec<String> {
         // Genres
         let genres = vec![
-            "rock", "pop", "jazz", "classical", "electronic", "hip-hop", "rap",
-            "metal", "folk", "country", "blues", "r&b", "soul", "punk", "indie",
-            "alternative", "techno", "house", "ambient", "chill", "lo-fi", "lofi",
-            "reggae", "latin", "k-pop", "kpop", "disco", "funk", "gospel",
+            "rock",
+            "pop",
+            "jazz",
+            "classical",
+            "electronic",
+            "hip-hop",
+            "rap",
+            "metal",
+            "folk",
+            "country",
+            "blues",
+            "r&b",
+            "soul",
+            "punk",
+            "indie",
+            "alternative",
+            "techno",
+            "house",
+            "ambient",
+            "chill",
+            "lo-fi",
+            "lofi",
+            "reggae",
+            "latin",
+            "k-pop",
+            "kpop",
+            "disco",
+            "funk",
+            "gospel",
         ];
 
         // Moods
         let moods = vec![
-            "happy", "sad", "energetic", "calm", "relaxing", "upbeat", "melancholic",
-            "romantic", "angry", "peaceful", "focus", "study", "party", "chill",
-            "epic", "dark", "bright", "dreamy", "intense", "gentle", "powerful",
+            "happy",
+            "sad",
+            "energetic",
+            "calm",
+            "relaxing",
+            "upbeat",
+            "melancholic",
+            "romantic",
+            "angry",
+            "peaceful",
+            "focus",
+            "study",
+            "party",
+            "chill",
+            "epic",
+            "dark",
+            "bright",
+            "dreamy",
+            "intense",
+            "gentle",
+            "powerful",
         ];
 
         // Tempo/energy
         let tempo = vec![
-            "fast", "slow", "medium", "upbeat", "downtempo", "high-energy",
-            "low-energy", "driving", "ballad", "anthem",
+            "fast",
+            "slow",
+            "medium",
+            "upbeat",
+            "downtempo",
+            "high-energy",
+            "low-energy",
+            "driving",
+            "ballad",
+            "anthem",
         ];
 
         // Eras
         let eras = vec![
-            "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s", "classic",
-            "modern", "contemporary", "vintage", "retro",
+            "60s",
+            "70s",
+            "80s",
+            "90s",
+            "2000s",
+            "2010s",
+            "2020s",
+            "classic",
+            "modern",
+            "contemporary",
+            "vintage",
+            "retro",
         ];
 
         // Instruments
         let instruments = vec![
-            "guitar", "piano", "drums", "bass", "violin", "synth", "synthesizer",
-            "acoustic", "electric", "orchestral", "electronic",
+            "guitar",
+            "piano",
+            "drums",
+            "bass",
+            "violin",
+            "synth",
+            "synthesizer",
+            "acoustic",
+            "electric",
+            "orchestral",
+            "electronic",
         ];
 
         // Common descriptors
         let descriptors = vec![
-            "love", "heart", "night", "day", "summer", "winter", "rain", "sun",
-            "moon", "star", "dance", "cry", "smile", "memories", "dream",
-            "journey", "road", "home", "freedom", "time", "life", "world",
+            "love", "heart", "night", "day", "summer", "winter", "rain", "sun", "moon", "star",
+            "dance", "cry", "smile", "memories", "dream", "journey", "road", "home", "freedom",
+            "time", "life", "world",
         ];
 
         let mut vocab = Vec::new();
@@ -290,7 +360,8 @@ impl EmbeddingDatabase {
             Err(_) => return Vec::new(),
         };
 
-        let mut results: Vec<(String, f32)> = self.embeddings
+        let mut results: Vec<(String, f32)> = self
+            .embeddings
             .values()
             .map(|e| {
                 let sim = cosine_similarity(&query_embedding, &e.vector);
@@ -311,7 +382,8 @@ impl EmbeddingDatabase {
             None => return Vec::new(),
         };
 
-        let mut results: Vec<(String, f32)> = self.embeddings
+        let mut results: Vec<(String, f32)> = self
+            .embeddings
             .values()
             .filter(|e| e.track_id != track_id)
             .map(|e| {

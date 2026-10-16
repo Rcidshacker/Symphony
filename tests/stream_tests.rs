@@ -18,7 +18,11 @@ use symphony::streaming::{StreamManager, StreamManagerConfig};
 fn fake_ytdlp() -> PathBuf {
     let exe = std::env::current_exe().unwrap();
     let examples = exe.parent().unwrap().parent().unwrap().join("examples");
-    let name = if cfg!(windows) { "fake_ytdlp.exe" } else { "fake_ytdlp" };
+    let name = if cfg!(windows) {
+        "fake_ytdlp.exe"
+    } else {
+        "fake_ytdlp"
+    };
     examples.join(name)
 }
 
@@ -76,7 +80,10 @@ fn wait_for(app: &mut App, mut done: impl FnMut(&App) -> bool) -> bool {
 }
 
 fn playing(app: &App) -> Option<String> {
-    app.playback_state.current_track.as_ref().map(|t| t.id.clone())
+    app.playback_state
+        .current_track
+        .as_ref()
+        .map(|t| t.id.clone())
 }
 
 fn spotify_track(id: &str, name: &str, artist: &str, duration_ms: u64) -> serde_json::Value {
@@ -92,7 +99,8 @@ fn spotify_track(id: &str, name: &str, artist: &str, duration_ms: u64) -> serde_
 }
 
 fn mock_spotify() -> MockServer {
-    let token = serde_json::json!({"access_token": "tok", "token_type": "Bearer", "expires_in": 3600});
+    let token =
+        serde_json::json!({"access_token": "tok", "token_type": "Bearer", "expires_in": 3600});
     // the playlist has two tracks and one removed entry; its second page proves pagination
     let page_one = |base: &str| {
         serde_json::json!({
@@ -124,94 +132,164 @@ fn mock_spotify() -> MockServer {
 #[test]
 fn searching_a_stream_downloads_it_and_plays_the_file() {
     let _serial = serial();
-    let (dir, log) = (tempfile::tempdir().unwrap(), tempfile::NamedTempFile::new().unwrap());
+    let (dir, log) = (
+        tempfile::tempdir().unwrap(),
+        tempfile::NamedTempFile::new().unwrap(),
+    );
     fake_env(log.path());
-    let Some(mut app) = new_app(config(dir.path())) else { return };
+    let Some(mut app) = new_app(config(dir.path())) else {
+        return;
+    };
 
     app.play_stream_query("lofi beats");
-    assert!(wait_for(&mut app, |a| playing(a).is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| playing(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
 
     // the first search result ("lofi beats #1", the 60 s one) is playing
     assert_eq!(playing(&app).as_deref(), Some("youtube:lofi_beats-60"));
     assert!(app.playback_state.is_playing);
-    assert!(app.audio_engine.is_playing(), "the downloaded m4a is being decoded");
+    assert!(
+        app.audio_engine.is_playing(),
+        "the downloaded m4a is being decoded"
+    );
     assert_eq!(downloads(log.path()), 1);
     // saved in the library, and the file is in the cache
-    assert!(app.library.tracks.iter().any(|t| t.id == "youtube:lofi_beats-60"));
-    let cached: Vec<_> = walk(&dir.path().join("streams")).into_iter().filter(|p| p.extension().is_some_and(|e| e == "m4a")).collect();
+    assert!(app
+        .library
+        .tracks
+        .iter()
+        .any(|t| t.id == "youtube:lofi_beats-60"));
+    let cached: Vec<_> = walk(&dir.path().join("streams"))
+        .into_iter()
+        .filter(|p| p.extension().is_some_and(|e| e == "m4a"))
+        .collect();
     assert_eq!(cached.len(), 1, "{cached:?}");
 }
 
 #[test]
 fn a_cached_track_plays_offline_without_yt_dlp() {
     let _serial = serial();
-    let (dir, log) = (tempfile::tempdir().unwrap(), tempfile::NamedTempFile::new().unwrap());
+    let (dir, log) = (
+        tempfile::tempdir().unwrap(),
+        tempfile::NamedTempFile::new().unwrap(),
+    );
     fake_env(log.path());
     let db_path = dir.path().join("lib.db");
 
     // first session: online, downloads and saves the track
-    let Some(mut app) = new_app(config(dir.path())) else { return };
+    let Some(mut app) = new_app(config(dir.path())) else {
+        return;
+    };
     app.database = Some(Database::new(db_path.to_str().unwrap()).unwrap());
     app.play_stream_query("lofi beats");
-    assert!(wait_for(&mut app, |a| playing(a).is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| playing(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
     drop(app);
     assert_eq!(downloads(log.path()), 1);
 
     // second session: yt-dlp is gone, the cached file still plays
     let mut offline = config(dir.path());
-    offline.streaming.youtube.ytdlp_path = dir.path().join("no-such-yt-dlp").to_string_lossy().to_string();
-    let Some(mut app) = new_app(offline) else { return };
+    offline.streaming.youtube.ytdlp_path = dir
+        .path()
+        .join("no-such-yt-dlp")
+        .to_string_lossy()
+        .to_string();
+    let Some(mut app) = new_app(offline) else {
+        return;
+    };
     app.database = Some(Database::new(db_path.to_str().unwrap()).unwrap());
     app.load_library().unwrap();
     app.select_current_track();
-    assert!(wait_for(&mut app, |a| playing(a).is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| playing(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
     assert_eq!(playing(&app).as_deref(), Some("youtube:lofi_beats-60"));
-    assert_eq!(downloads(log.path()), 1, "nothing was downloaded the second time");
+    assert_eq!(
+        downloads(log.path()),
+        1,
+        "nothing was downloaded the second time"
+    );
 }
 
 #[test]
 fn a_failed_download_is_reported_and_nothing_plays() {
     let _serial = serial();
-    let (dir, log) = (tempfile::tempdir().unwrap(), tempfile::NamedTempFile::new().unwrap());
+    let (dir, log) = (
+        tempfile::tempdir().unwrap(),
+        tempfile::NamedTempFile::new().unwrap(),
+    );
     fake_env(log.path());
-    let Some(mut app) = new_app(config(dir.path())) else { return };
+    let Some(mut app) = new_app(config(dir.path())) else {
+        return;
+    };
 
     app.play_stream_query("broken");
     assert!(wait_for(&mut app, |a| a.ui_state.error_message.is_some()));
 
     let error = app.ui_state.error_message.clone().unwrap();
-    assert!(error.contains("Stream failed") && error.contains("unavailable"), "{error}");
+    assert!(
+        error.contains("Stream failed") && error.contains("unavailable"),
+        "{error}"
+    );
     assert!(playing(&app).is_none());
 }
 
 #[test]
 fn enter_on_a_saved_stream_track_fetches_and_plays_it() {
     let _serial = serial();
-    let (dir, log) = (tempfile::tempdir().unwrap(), tempfile::NamedTempFile::new().unwrap());
+    let (dir, log) = (
+        tempfile::tempdir().unwrap(),
+        tempfile::NamedTempFile::new().unwrap(),
+    );
     fake_env(log.path());
     let config = config(dir.path());
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let db = Database::new(dir.path().join("lib.db").to_str().unwrap()).unwrap();
     let added = runtime.block_on(async {
-        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming)).await.unwrap();
-        import_stream_spec(&manager, &db, "https://www.youtube.com/watch?v=abc123").await.unwrap()
+        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming))
+            .await
+            .unwrap();
+        import_stream_spec(&manager, &db, "https://www.youtube.com/watch?v=abc123")
+            .await
+            .unwrap()
     });
     assert_eq!(added[0].id, "youtube:abc123");
 
-    let Some(mut app) = new_app(config) else { return };
+    let Some(mut app) = new_app(config) else {
+        return;
+    };
     app.database = Some(db);
     app.load_library().unwrap();
-    assert_eq!(app.library.tracks.len(), 1, "the stream track survives a restart");
+    assert_eq!(
+        app.library.tracks.len(),
+        1,
+        "the stream track survives a restart"
+    );
 
     app.select_current_track();
-    assert!(wait_for(&mut app, |a| playing(a).is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| playing(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
     assert_eq!(playing(&app).as_deref(), Some("youtube:abc123"));
 }
 
 #[test]
 fn spotify_playlists_import_page_by_page_and_play_through_the_closest_youtube_match() {
     let _serial = serial();
-    let (dir, log) = (tempfile::tempdir().unwrap(), tempfile::NamedTempFile::new().unwrap());
+    let (dir, log) = (
+        tempfile::tempdir().unwrap(),
+        tempfile::NamedTempFile::new().unwrap(),
+    );
     fake_env(log.path());
     let spotify = mock_spotify();
 
@@ -225,19 +303,33 @@ fn spotify_playlists_import_page_by_page_and_play_through_the_closest_youtube_ma
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let db = Database::new(dir.path().join("lib.db").to_str().unwrap()).unwrap();
     let added = runtime.block_on(async {
-        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming)).await.unwrap();
-        import_stream_spec(&manager, &db, "spotify:playlist:PL1").await.unwrap()
+        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming))
+            .await
+            .unwrap();
+        import_stream_spec(&manager, &db, "spotify:playlist:PL1")
+            .await
+            .unwrap()
     });
     let ids: Vec<_> = added.iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(ids, ["spotify:s1", "spotify:s2"], "removed entries are skipped, both pages read");
+    assert_eq!(
+        ids,
+        ["spotify:s1", "spotify:s2"],
+        "removed entries are skipped, both pages read"
+    );
     assert_eq!(db.track_count().unwrap(), 2);
     assert!(spotify.count("GET /playlists/PL1/tracks?offset=2") == 1);
 
-    let Some(mut app) = new_app(config) else { return };
+    let Some(mut app) = new_app(config) else {
+        return;
+    };
     app.database = Some(db);
     app.load_library().unwrap();
     app.select_current_track();
-    assert!(wait_for(&mut app, |a| playing(a).is_some()), "{:?}", app.ui_state.error_message);
+    assert!(
+        wait_for(&mut app, |a| playing(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
 
     // Spotify itself only has 30 s previews: the 118 s track plays the 120 s YouTube result
     assert_eq!(playing(&app).as_deref(), Some("spotify:s1"));
@@ -253,8 +345,12 @@ fn unknown_sources_are_rejected() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let db = Database::new(dir.path().join("lib.db").to_str().unwrap()).unwrap();
     let err = runtime.block_on(async {
-        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming)).await.unwrap();
-        import_stream_spec(&manager, &db, "https://example.com/song.mp3").await.unwrap_err()
+        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming))
+            .await
+            .unwrap();
+        import_stream_spec(&manager, &db, "https://example.com/song.mp3")
+            .await
+            .unwrap_err()
     });
     assert!(err.contains("unrecognized"), "{err}");
 }

@@ -2,7 +2,7 @@
 //!
 //! Fetches lyrics from local cache and online sources.
 
-use super::{Lyrics, LyricsError, LyricsSource, LrcParser};
+use super::{LrcParser, Lyrics, LyricsError, LyricsSource};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, info, warn};
@@ -58,7 +58,10 @@ impl LyricsFetcher {
             None
         };
 
-        Self { config, http_client }
+        Self {
+            config,
+            http_client,
+        }
     }
 
     /// Create fetcher with default config
@@ -110,7 +113,8 @@ impl LyricsFetcher {
             return Ok(None);
         }
 
-        let max_age = std::time::Duration::from_secs(u64::from(self.config.cache_expiration_days) * 86_400);
+        let max_age =
+            std::time::Duration::from_secs(u64::from(self.config.cache_expiration_days) * 86_400);
         let age = fs::metadata(&cache_path)
             .await
             .ok()
@@ -146,7 +150,10 @@ impl LyricsFetcher {
             return Ok(Some(lyrics));
         }
 
-        match self.lrclib_search(client, title, artist, duration_secs).await {
+        match self
+            .lrclib_search(client, title, artist, duration_secs)
+            .await
+        {
             Ok(Some(lyrics)) => Ok(Some(lyrics)),
             // the search found nothing: report the lookup's network error if there was one
             Ok(None) => exact.map(|_| None),
@@ -187,7 +194,9 @@ impl LyricsFetcher {
             return Ok(None);
         }
         if !status.is_success() {
-            return Err(LyricsError::NetworkError(format!("LRCLIB returned {status}")));
+            return Err(LyricsError::NetworkError(format!(
+                "LRCLIB returned {status}"
+            )));
         }
 
         let entry: LrclibEntry = response
@@ -205,7 +214,10 @@ impl LyricsFetcher {
         artist: &str,
         duration_secs: Option<f64>,
     ) -> Result<Option<Lyrics>, LyricsError> {
-        let url = format!("{}/api/search", self.config.lrclib_url.trim_end_matches('/'));
+        let url = format!(
+            "{}/api/search",
+            self.config.lrclib_url.trim_end_matches('/')
+        );
         let response = client
             .get(&url)
             .query(&[("track_name", title), ("artist_name", artist)])
@@ -215,7 +227,9 @@ impl LyricsFetcher {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(LyricsError::NetworkError(format!("LRCLIB returned {status}")));
+            return Err(LyricsError::NetworkError(format!(
+                "LRCLIB returned {status}"
+            )));
         }
 
         let entries: Vec<LrclibEntry> = response
@@ -225,7 +239,12 @@ impl LyricsFetcher {
 
         let best = entries
             .into_iter()
-            .filter(|e| !e.instrumental && e.synced_lyrics.as_deref().is_some_and(|s| !s.trim().is_empty()))
+            .filter(|e| {
+                !e.instrumental
+                    && e.synced_lyrics
+                        .as_deref()
+                        .is_some_and(|s| !s.trim().is_empty())
+            })
             .min_by(|a, b| {
                 let distance = |e: &LrclibEntry| match (duration_secs, e.duration) {
                     (Some(wanted), Some(got)) if wanted > 0.0 => (wanted - got).abs(),

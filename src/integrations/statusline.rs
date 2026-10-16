@@ -89,7 +89,9 @@ impl StatusSnapshot {
 }
 
 fn unix_now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 /// Status line formatter
@@ -108,10 +110,7 @@ impl StatusLine {
     /// );
     /// assert_eq!(status, "🎵 ▶ Bohemian Rhapsody - Queen [01:30/03:00]");
     /// ```
-    pub fn tmux_format(
-        track: Option<(&str, &str, u64, u64)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn tmux_format(track: Option<(&str, &str, u64, u64)>, is_playing: bool) -> String {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
             let pos_str = format_clock(position);
@@ -131,13 +130,15 @@ impl StatusLine {
     }
 
     /// Generate zsh prompt format (compact)
-    pub fn zsh_format(
-        track: Option<(&str, &str)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn zsh_format(track: Option<(&str, &str)>, is_playing: bool) -> String {
         if let Some((title, artist)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
-            format!("{} {} - {}", icon, truncate(title, 25), truncate(artist, 15))
+            format!(
+                "{} {} - {}",
+                icon,
+                truncate(title, 25),
+                truncate(artist, 15)
+            )
         } else {
             String::new()
         }
@@ -178,10 +179,7 @@ impl StatusLine {
     }
 
     /// Generate i3blocks format
-    pub fn i3blocks_format(
-        track: Option<(&str, &str)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn i3blocks_format(track: Option<(&str, &str)>, is_playing: bool) -> String {
         if let Some((title, artist)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
             format!("{} {} - {}", icon, truncate(title, 30), artist)
@@ -191,10 +189,7 @@ impl StatusLine {
     }
 
     /// Generate waybar format (for Sway/Wayland)
-    pub fn waybar_format(
-        track: Option<(&str, &str, u64, u64)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn waybar_format(track: Option<(&str, &str, u64, u64)>, is_playing: bool) -> String {
         if let Some((title, artist, duration, position)) = track {
             let icon = if is_playing { "▶" } else { "⏸" };
             let progress = if duration > 0 {
@@ -219,7 +214,11 @@ impl StatusLine {
     }
 
     /// Format a published snapshot; a missing or stale one means nothing is playing
-    pub fn render(snapshot: Option<&StatusSnapshot>, format: StatusFormat, now_unix: u64) -> String {
+    pub fn render(
+        snapshot: Option<&StatusSnapshot>,
+        format: StatusFormat,
+        now_unix: u64,
+    ) -> String {
         let live = snapshot.filter(|s| s.is_live(now_unix) && !s.title.is_empty());
         let track = live.map(|s| (s.title.as_str(), s.artist.as_str(), s.duration, s.position));
         let playing = live.is_some_and(|s| s.playing);
@@ -228,19 +227,22 @@ impl StatusLine {
             StatusFormat::Zsh => Self::zsh_format(track.map(|(t, a, ..)| (t, a)), playing),
             StatusFormat::Minimal => Self::minimal_format(playing, track.is_some()),
             StatusFormat::Json => Self::json_format(track, playing, live.map_or(0.0, |s| s.volume)),
-            StatusFormat::I3blocks => Self::i3blocks_format(track.map(|(t, a, ..)| (t, a)), playing),
+            StatusFormat::I3blocks => {
+                Self::i3blocks_format(track.map(|(t, a, ..)| (t, a)), playing)
+            }
             StatusFormat::Waybar => Self::waybar_format(track, playing),
             StatusFormat::Polybar => Self::polybar_format(track, playing),
         }
     }
 
     /// Generate polybar format
-    pub fn polybar_format(
-        track: Option<(&str, &str, u64, u64)>,
-        is_playing: bool,
-    ) -> String {
+    pub fn polybar_format(track: Option<(&str, &str, u64, u64)>, is_playing: bool) -> String {
         if let Some((title, artist, duration, position)) = track {
-            let icon = if is_playing { "%{F#00ff00}▶%{F-}" } else { "⏸" };
+            let icon = if is_playing {
+                "%{F#00ff00}▶%{F-}"
+            } else {
+                "⏸"
+            };
             format!(
                 "{} {} - {} %{{F#888}}{}%{{F-}}/%{{F#888}}{}%{{F-}}",
                 icon,
@@ -293,10 +295,7 @@ mod tests {
 
     #[test]
     fn test_tmux_format() {
-        let status = StatusLine::tmux_format(
-            Some(("Test Song", "Test Artist", 180, 90)),
-            true,
-        );
+        let status = StatusLine::tmux_format(Some(("Test Song", "Test Artist", 180, 90)), true);
         assert!(status.contains("Test Song"));
         assert!(status.contains("Test Artist"));
         assert!(status.contains("01:30/03:00"));
@@ -317,11 +316,7 @@ mod tests {
 
     #[test]
     fn test_json_format() {
-        let json = StatusLine::json_format(
-            Some(("Test", "Artist", 100, 50)),
-            true,
-            0.75,
-        );
+        let json = StatusLine::json_format(Some(("Test", "Artist", 100, 50)), true, 0.75);
 
         assert!(json.contains("\"title\":\"Test\""));
         assert!(json.contains("\"playing\":true"));
@@ -344,7 +339,10 @@ mod tests {
     #[test]
     fn truncate_counts_characters_not_bytes() {
         // byte slicing used to panic in the middle of a multi-byte character
-        assert_eq!(truncate("あいうえおかきくけこさしすせそ", 8), "あいうえお...");
+        assert_eq!(
+            truncate("あいうえおかきくけこさしすせそ", 8),
+            "あいうえお..."
+        );
         assert_eq!(truncate("Café Tacvba - Eres", 10), "Café Ta...");
         assert_eq!(truncate("abcdef", 2), "...");
     }
@@ -369,7 +367,10 @@ mod tests {
 
         snapshot(1000).write(&path).unwrap();
         assert_eq!(StatusSnapshot::read(&path), Some(snapshot(1000)));
-        assert!(!path.with_extension("tmp").exists(), "temporary file is gone");
+        assert!(
+            !path.with_extension("tmp").exists(),
+            "temporary file is gone"
+        );
 
         std::fs::write(&path, "not json").unwrap();
         assert_eq!(StatusSnapshot::read(&path), None);
@@ -382,21 +383,39 @@ mod tests {
             StatusLine::render(Some(&live), StatusFormat::Tmux, 1002),
             "🎵 ▶ Song - Band [01:30/03:00]"
         );
-        assert_eq!(StatusLine::render(Some(&live), StatusFormat::Zsh, 1002), "▶ Song - Band");
-        assert!(StatusLine::render(Some(&live), StatusFormat::Json, 1002).contains("\"playing\":true"));
-        assert!(StatusLine::render(Some(&live), StatusFormat::Waybar, 1002).contains("\"class\":\"playing\""));
+        assert_eq!(
+            StatusLine::render(Some(&live), StatusFormat::Zsh, 1002),
+            "▶ Song - Band"
+        );
+        assert!(
+            StatusLine::render(Some(&live), StatusFormat::Json, 1002).contains("\"playing\":true")
+        );
+        assert!(StatusLine::render(Some(&live), StatusFormat::Waybar, 1002)
+            .contains("\"class\":\"playing\""));
 
         // the player stopped writing: not running
-        assert_eq!(StatusLine::render(Some(&live), StatusFormat::Tmux, 1100), "🎵 Symphony");
+        assert_eq!(
+            StatusLine::render(Some(&live), StatusFormat::Tmux, 1100),
+            "🎵 Symphony"
+        );
         assert_eq!(StatusLine::render(Some(&live), StatusFormat::Zsh, 1100), "");
-        assert_eq!(StatusLine::render(None, StatusFormat::Tmux, 1100), "🎵 Symphony");
+        assert_eq!(
+            StatusLine::render(None, StatusFormat::Tmux, 1100),
+            "🎵 Symphony"
+        );
 
         let mut paused = snapshot(1000);
         paused.playing = false;
-        assert_eq!(StatusLine::render(Some(&paused), StatusFormat::Minimal, 1001), "🎵⏸");
+        assert_eq!(
+            StatusLine::render(Some(&paused), StatusFormat::Minimal, 1001),
+            "🎵⏸"
+        );
         let mut idle = snapshot(1000);
         idle.title.clear();
-        assert_eq!(StatusLine::render(Some(&idle), StatusFormat::Minimal, 1001), "");
+        assert_eq!(
+            StatusLine::render(Some(&idle), StatusFormat::Minimal, 1001),
+            ""
+        );
     }
 
     #[test]

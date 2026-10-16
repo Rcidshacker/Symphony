@@ -222,10 +222,7 @@ impl LyricsDisplay {
                             .add_modifier(Modifier::ITALIC)
                     };
 
-                    display_lines.push(Line::from(Span::styled(
-                        translation.clone(),
-                        trans_style,
-                    )));
+                    display_lines.push(Line::from(Span::styled(translation.clone(), trans_style)));
                 }
             }
         }
@@ -424,10 +421,7 @@ impl MiniLyricsDisplay {
         if text.is_empty() {
             Line::raw("")
         } else {
-            Line::styled(
-                format!("♪ {}", text),
-                Style::default().fg(Color::Yellow),
-            )
+            Line::styled(format!("♪ {}", text), Style::default().fg(Color::Yellow))
         }
     }
 }
@@ -481,8 +475,13 @@ mod tests {
         assert_eq!(mini.get_current_text(5), "Te...");
     }
 
-    fn render_to_buffer(display: &LyricsDisplay, width: u16, height: u16) -> ratatui::buffer::Buffer {
-        let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+    fn render_to_buffer(
+        display: &LyricsDisplay,
+        width: u16,
+        height: u16,
+    ) -> ratatui::buffer::Buffer {
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
         terminal.draw(|f| display.render(f, f.area())).unwrap();
         terminal.backend().buffer().clone()
     }
@@ -490,7 +489,9 @@ mod tests {
     /// First cell of `needle` on the screen (row text must be ASCII-only before it)
     fn find(buffer: &ratatui::buffer::Buffer, needle: &str) -> Option<(u16, u16)> {
         for y in 0..buffer.area.height {
-            let row: String = (0..buffer.area.width).map(|x| buffer[(x, y)].symbol().to_string()).collect();
+            let row: String = (0..buffer.area.width)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect();
             if let Some(byte) = row.find(needle) {
                 return Some((row[..byte].chars().count() as u16, y));
             }
@@ -516,10 +517,17 @@ mod tests {
 
         let (x, y) = find(&buffer, "big").unwrap();
         assert_eq!(buffer[(x, y)].fg, Color::Yellow);
-        assert!(buffer[(x, y)].modifier.contains(Modifier::UNDERLINED), "current word underlined");
+        assert!(
+            buffer[(x, y)].modifier.contains(Modifier::UNDERLINED),
+            "current word underlined"
+        );
 
         let (x, y) = find(&buffer, "world").unwrap();
-        assert_eq!(buffer[(x, y)].fg, Color::Gray, "unsung word keeps the future color");
+        assert_eq!(
+            buffer[(x, y)].fg,
+            Color::Gray,
+            "unsung word keeps the future color"
+        );
     }
 
     #[test]
@@ -527,7 +535,10 @@ mod tests {
         // 3-byte characters: byte slicing at a proportional offset would panic
         let lyrics = Lyrics::new(
             "t",
-            vec![LyricsLine::new(0, "旧支配者のキャロル"), LyricsLine::new(10_000, "次")],
+            vec![
+                LyricsLine::new(0, "旧支配者のキャロル"),
+                LyricsLine::new(10_000, "次"),
+            ],
         );
         let mut display = LyricsDisplay::new();
         display.set_lyrics(lyrics);

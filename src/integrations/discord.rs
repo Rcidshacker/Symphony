@@ -49,7 +49,12 @@ impl DiscordPresence {
 
     /// Presence over a custom transport (used by tests)
     pub fn with_connector(client_id: impl Into<String>, connect: Connector) -> Self {
-        Self { client_id: client_id.into(), connect, conn: None, nonce: 0 }
+        Self {
+            client_id: client_id.into(),
+            connect,
+            conn: None,
+            nonce: 0,
+        }
     }
 
     /// Show `activity`
@@ -85,7 +90,8 @@ impl DiscordPresence {
             self.conn = Some(self.handshake()?);
         }
         self.nonce += 1;
-        let payload = json!({ "cmd": "SET_ACTIVITY", "args": args, "nonce": self.nonce.to_string() });
+        let payload =
+            json!({ "cmd": "SET_ACTIVITY", "args": args, "nonce": self.nonce.to_string() });
         let conn = self.conn.as_mut().ok_or(io::ErrorKind::NotConnected)?;
         write_frame(conn, OP_FRAME, &payload)?;
         // Discord answers every command; an error response means the activity was refused
@@ -93,7 +99,9 @@ impl DiscordPresence {
         match response["evt"].as_str() {
             Some("ERROR") => Err(io::Error::other(format!(
                 "Discord refused the activity: {}",
-                response["data"]["message"].as_str().unwrap_or("unknown error")
+                response["data"]["message"]
+                    .as_str()
+                    .unwrap_or("unknown error")
             ))),
             _ => Ok(()),
         }
@@ -101,10 +109,16 @@ impl DiscordPresence {
 
     fn handshake(&self) -> io::Result<Box<dyn Ipc>> {
         let mut conn = (self.connect)()?;
-        write_frame(&mut conn, OP_HANDSHAKE, &json!({ "v": 1, "client_id": self.client_id }))?;
+        write_frame(
+            &mut conn,
+            OP_HANDSHAKE,
+            &json!({ "v": 1, "client_id": self.client_id }),
+        )?;
         let (_, ready) = read_frame(&mut conn)?;
         if ready["evt"].as_str() != Some("READY") {
-            return Err(io::Error::other(format!("Discord did not accept the client id: {ready}")));
+            return Err(io::Error::other(format!(
+                "Discord did not accept the client id: {ready}"
+            )));
         }
         Ok(conn)
     }
@@ -128,7 +142,10 @@ pub fn read_frame(reader: &mut impl Read) -> io::Result<(u32, Value)> {
     let opcode = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
     let len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
     if len > MAX_FRAME_BYTES {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "oversized Discord frame"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "oversized Discord frame",
+        ));
     }
     let mut body = vec![0u8; len as usize];
     reader.read_exact(&mut body)?;
@@ -147,7 +164,10 @@ fn connect_local() -> io::Result<Box<dyn Ipc>> {
             return Ok(Box::new(pipe));
         }
     }
-    Err(io::Error::new(io::ErrorKind::NotFound, "Discord is not running"))
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "Discord is not running",
+    ))
 }
 
 #[cfg(unix)]
@@ -158,12 +178,17 @@ fn connect_local() -> io::Result<Box<dyn Ipc>> {
         .chain(["/tmp".to_string()]);
     for dir in dirs {
         for n in 0..10 {
-            if let Ok(socket) = std::os::unix::net::UnixStream::connect(format!("{dir}/discord-ipc-{n}")) {
+            if let Ok(socket) =
+                std::os::unix::net::UnixStream::connect(format!("{dir}/discord-ipc-{n}"))
+            {
                 return Ok(Box::new(socket));
             }
         }
     }
-    Err(io::Error::new(io::ErrorKind::NotFound, "Discord is not running"))
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "Discord is not running",
+    ))
 }
 
 #[cfg(test)]
@@ -235,21 +260,34 @@ mod tests {
         );
 
         presence
-            .set_activity(&Activity { details: "Song".into(), state: "Artist".into(), start_unix: Some(1_700_000_000) })
+            .set_activity(&Activity {
+                details: "Song".into(),
+                state: "Artist".into(),
+                start_unix: Some(1_700_000_000),
+            })
             .unwrap();
         presence.clear().unwrap();
 
         let frames = parse(&sent.lock().unwrap());
         assert_eq!(frames.len(), 3, "one handshake, then one frame per command");
-        assert_eq!(frames[0], (OP_HANDSHAKE, json!({"v": 1, "client_id": "1234"})));
+        assert_eq!(
+            frames[0],
+            (OP_HANDSHAKE, json!({"v": 1, "client_id": "1234"}))
+        );
         let activity = &frames[1].1;
         assert_eq!(frames[1].0, OP_FRAME);
         assert_eq!(activity["cmd"], "SET_ACTIVITY");
         assert_eq!(activity["args"]["activity"]["details"], "Song");
         assert_eq!(activity["args"]["activity"]["state"], "Artist");
-        assert_eq!(activity["args"]["activity"]["timestamps"]["start"], 1_700_000_000);
+        assert_eq!(
+            activity["args"]["activity"]["timestamps"]["start"],
+            1_700_000_000
+        );
         assert_eq!(activity["args"]["pid"], std::process::id());
-        assert!(frames[2].1["args"]["activity"].is_null(), "clear sends a null activity");
+        assert!(
+            frames[2].1["args"]["activity"].is_null(),
+            "clear sends a null activity"
+        );
         assert_ne!(activity["nonce"], frames[2].1["nonce"]);
     }
 
@@ -283,7 +321,12 @@ mod tests {
     fn errors_surface_when_discord_is_missing_or_refuses() {
         let mut absent = DiscordPresence::with_connector(
             "1",
-            Box::new(|| Err(io::Error::new(io::ErrorKind::NotFound, "Discord is not running"))),
+            Box::new(|| {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Discord is not running",
+                ))
+            }),
         );
         assert!(absent.set_activity(&Activity::default()).is_err());
 
@@ -292,12 +335,17 @@ mod tests {
             Box::new(|| {
                 Ok(Box::new(Fake {
                     sent: Arc::default(),
-                    replies: Cursor::new(frames(&[json!({"cmd":"DISPATCH","evt":"ERROR","data":{"message":"Invalid Client ID"}})])),
+                    replies: Cursor::new(frames(&[
+                        json!({"cmd":"DISPATCH","evt":"ERROR","data":{"message":"Invalid Client ID"}}),
+                    ])),
                     break_writes: false,
                 }) as Box<dyn Ipc>)
             }),
         );
-        let error = refused.set_activity(&Activity::default()).unwrap_err().to_string();
+        let error = refused
+            .set_activity(&Activity::default())
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("client id"), "{error}");
     }
 

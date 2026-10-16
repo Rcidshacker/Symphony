@@ -591,7 +591,8 @@ impl App {
         let volume = ((volume.clamp(0.0, 1.0)) * 100.0).round() / 100.0;
         self.playback_state.volume = volume;
         self.audio_engine.set_volume(volume);
-        self.ui_state.status_message = Some(format!("Volume: {}%", (volume * 100.0).round() as u32));
+        self.ui_state.status_message =
+            Some(format!("Volume: {}%", (volume * 100.0).round() as u32));
         self.volume_changed();
     }
 
@@ -666,9 +667,12 @@ impl App {
             .map(|t| t.id.clone());
 
         let tracks = &self.library.tracks;
-        self.library
-            .queue
-            .sort_by_key(|q| tracks.iter().position(|t| t.id == q.id).unwrap_or(usize::MAX));
+        self.library.queue.sort_by_key(|q| {
+            tracks
+                .iter()
+                .position(|t| t.id == q.id)
+                .unwrap_or(usize::MAX)
+        });
 
         if let Some(id) = current_id {
             if let Some(pos) = self.library.queue.iter().position(|t| t.id == id) {
@@ -908,7 +912,8 @@ impl App {
             return;
         }
         if self.ui_state.ai_pending {
-            self.ui_state.status_message = Some("AI is still working on your last request".to_string());
+            self.ui_state.status_message =
+                Some("AI is still working on your last request".to_string());
             return;
         }
         self.ui_state.search_mode = false;
@@ -1004,9 +1009,15 @@ impl App {
                     self.ui_state.ai_answer = Some(text);
                 }
                 BackgroundEvent::Features { path, features } => self.apply_features(path, features),
-                BackgroundEvent::StreamReady { track_id, path } => self.apply_stream_ready(&track_id, path),
-                BackgroundEvent::StreamFailed { track_id, error } => self.apply_stream_failed(&track_id, error),
-                BackgroundEvent::StreamSearch { query, result } => self.apply_stream_search(&query, result),
+                BackgroundEvent::StreamReady { track_id, path } => {
+                    self.apply_stream_ready(&track_id, path)
+                }
+                BackgroundEvent::StreamFailed { track_id, error } => {
+                    self.apply_stream_failed(&track_id, error)
+                }
+                BackgroundEvent::StreamSearch { query, result } => {
+                    self.apply_stream_search(&query, result)
+                }
             }
         }
     }
@@ -1110,7 +1121,10 @@ impl App {
             let result = fetcher
                 .fetch_track(&title, &artist, Some(&album), Some(duration))
                 .await;
-            let _ = tx.send(BackgroundEvent::Lyrics { track_id: id, result });
+            let _ = tx.send(BackgroundEvent::Lyrics {
+                track_id: id,
+                result,
+            });
         });
     }
 
@@ -1137,8 +1151,9 @@ impl App {
     /// Translate the lyrics with the AI provider (`x`); pressed again it shows/hides the translation
     pub fn translate_lyrics(&mut self) {
         if !self.lyrics.has_lyrics() {
-            self.ui_state.status_message =
-                Some("No lyrics to translate: add a .lrc file or enable [lyrics] auto_fetch".to_string());
+            self.ui_state.status_message = Some(
+                "No lyrics to translate: add a .lrc file or enable [lyrics] auto_fetch".to_string(),
+            );
             return;
         }
         if self.lyrics.has_translations() {
@@ -1159,15 +1174,19 @@ impl App {
         };
         let (Some(runtime), Some(track_id)) = (
             &self.runtime,
-            self.playback_state.current_track.as_ref().map(|t| t.id.clone()),
+            self.playback_state
+                .current_track
+                .as_ref()
+                .map(|t| t.id.clone()),
         ) else {
             return;
         };
-        let Some(lines) = self
-            .lyrics
-            .lyrics()
-            .map(|l| l.lines.iter().map(|line| line.text.clone()).collect::<Vec<_>>())
-        else {
+        let Some(lines) = self.lyrics.lyrics().map(|l| {
+            l.lines
+                .iter()
+                .map(|line| line.text.clone())
+                .collect::<Vec<_>>()
+        }) else {
             return;
         };
 

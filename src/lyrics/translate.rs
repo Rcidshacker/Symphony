@@ -68,7 +68,10 @@ pub async fn translate_lines(
             .respond(&translation_prompt(language, chunk))
             .await
             .map_err(|e| e.to_string())?;
-        for (i, translation) in parse_translations(&reply, chunk.len()).into_iter().enumerate() {
+        for (i, translation) in parse_translations(&reply, chunk.len())
+            .into_iter()
+            .enumerate()
+        {
             translated[chunk_index * CHUNK + i] = translation;
         }
     }
@@ -89,20 +92,37 @@ mod tests {
     #[test]
     fn parses_the_requested_format() {
         let got = parse_translations("1|Bonjour\n2|Monde\n3|Encore", 3);
-        assert_eq!(got, vec![Some("Bonjour".into()), Some("Monde".into()), Some("Encore".into())]);
+        assert_eq!(
+            got,
+            vec![
+                Some("Bonjour".into()),
+                Some("Monde".into()),
+                Some("Encore".into())
+            ]
+        );
     }
 
     #[test]
     fn tolerates_other_separators_fences_and_preambles() {
         let reply = "Here is the translation:\n```\n1. Bonjour\n2: Monde\n3) Encore\n```";
         let got = parse_translations(reply, 3);
-        assert_eq!(got, vec![Some("Bonjour".into()), Some("Monde".into()), Some("Encore".into())]);
+        assert_eq!(
+            got,
+            vec![
+                Some("Bonjour".into()),
+                Some("Monde".into()),
+                Some("Encore".into())
+            ]
+        );
     }
 
     #[test]
     fn missing_and_out_of_range_lines_stay_empty() {
         let got = parse_translations("1|Bonjour\n3|Encore\n9|Ignored", 3);
-        assert_eq!(got, vec![Some("Bonjour".into()), None, Some("Encore".into())]);
+        assert_eq!(
+            got,
+            vec![Some("Bonjour".into()), None, Some("Encore".into())]
+        );
     }
 
     #[test]
@@ -112,6 +132,9 @@ mod tests {
             vec![Some("Bonjour".into()), Some("Monde".into())]
         );
         // wrong count: do not guess
-        assert_eq!(parse_translations("Bonjour\nMonde\nExtra", 2), vec![None, None]);
+        assert_eq!(
+            parse_translations("Bonjour\nMonde\nExtra", 2),
+            vec![None, None]
+        );
     }
 }

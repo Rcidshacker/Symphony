@@ -202,10 +202,11 @@ fn parse_enhanced_words(text: &str, re: &Regex) -> Vec<WordTimestamp> {
             continue;
         }
 
-        let end_ms = tags.get(i + 1).map_or(
-            start_ms + 100 * word.chars().count() as u64,
-            |next| to_ms(&next[1], &next[2], next.get(3).map(|m| m.as_str())),
-        );
+        let end_ms = tags
+            .get(i + 1)
+            .map_or(start_ms + 100 * word.chars().count() as u64, |next| {
+                to_ms(&next[1], &next[2], next.get(3).map(|m| m.as_str()))
+            });
         words.push(WordTimestamp {
             word,
             start_ms,
@@ -297,10 +298,7 @@ mod tests {
     fn test_to_lrc() {
         let lyrics = Lyrics::new(
             "test",
-            vec![
-                LyricsLine::new(0, "First"),
-                LyricsLine::new(5000, "Second"),
-            ],
+            vec![LyricsLine::new(0, "First"), LyricsLine::new(5000, "Second")],
         );
 
         let lrc = to_lrc(&lyrics);
@@ -311,8 +309,15 @@ mod tests {
     #[test]
     fn test_repeated_timestamps_make_one_line_each() {
         let lyrics = LrcParser::parse("[00:10.00][00:50.00]Chorus\n[00:20.00]Verse").unwrap();
-        let got: Vec<_> = lyrics.lines.iter().map(|l| (l.timestamp_ms, l.text.as_str())).collect();
-        assert_eq!(got, vec![(10_000, "Chorus"), (20_000, "Verse"), (50_000, "Chorus")]);
+        let got: Vec<_> = lyrics
+            .lines
+            .iter()
+            .map(|l| (l.timestamp_ms, l.text.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![(10_000, "Chorus"), (20_000, "Verse"), (50_000, "Chorus")]
+        );
     }
 
     #[test]
@@ -341,7 +346,8 @@ mod tests {
 
     #[test]
     fn test_unicode_and_bom() {
-        let lyrics = LrcParser::parse("\u{feff}[ti:旧支配者のキャロル]\n[00:01.00]歌ってみた ☃️").unwrap();
+        let lyrics =
+            LrcParser::parse("\u{feff}[ti:旧支配者のキャロル]\n[00:01.00]歌ってみた ☃️").unwrap();
         assert_eq!(lyrics.title.as_deref(), Some("旧支配者のキャロル"));
         assert_eq!(lyrics.lines[0].text, "歌ってみた ☃️");
     }
@@ -354,9 +360,19 @@ mod tests {
         let line = &lyrics.lines[0];
         assert_eq!(line.text, "Hello big world");
         let words = line.word_timestamps.as_ref().expect("word timing");
-        let got: Vec<_> = words.iter().map(|w| (w.word.as_str(), w.start_ms, w.end_ms)).collect();
+        let got: Vec<_> = words
+            .iter()
+            .map(|w| (w.word.as_str(), w.start_ms, w.end_ms))
+            .collect();
         // each word ends where the next starts; the last one is clamped to the next line
-        assert_eq!(got, vec![("Hello", 12_000, 12_500), ("big", 12_500, 13_200), ("world", 13_200, 13_700)]);
+        assert_eq!(
+            got,
+            vec![
+                ("Hello", 12_000, 12_500),
+                ("big", 12_500, 13_200),
+                ("world", 13_200, 13_700)
+            ]
+        );
         assert!(lyrics.lines[1].word_timestamps.is_none());
     }
 

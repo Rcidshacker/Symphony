@@ -82,7 +82,8 @@ pub struct TapSource<S: Source<Item = i16>> {
 impl<S: Source<Item = i16>> TapSource<S> {
     /// Wrap `inner`, feeding `tap`
     pub fn new(inner: S, tap: Arc<AudioTap>) -> Self {
-        tap.sample_rate.store(inner.sample_rate(), Ordering::Relaxed);
+        tap.sample_rate
+            .store(inner.sample_rate(), Ordering::Relaxed);
         let channels = inner.channels().max(1);
         Self {
             inner,
@@ -114,7 +115,8 @@ impl<S: Source<Item = i16>> Iterator for TapSource<S> {
         self.frame_sum += f32::from(sample) / 32_768.0;
         self.frame_len += 1;
         if self.frame_len >= self.channels {
-            self.pending.push(self.frame_sum / f32::from(self.frame_len));
+            self.pending
+                .push(self.frame_sum / f32::from(self.frame_len));
             self.frame_sum = 0.0;
             self.frame_len = 0;
             if self.pending.len() >= BATCH {
@@ -164,7 +166,11 @@ mod tests {
 
         let mono = tap.drain();
         assert_eq!(mono.len(), 2);
-        assert!(mono[0].abs() < 1e-6, "(0.5 + -0.5) / 2 should be 0, got {}", mono[0]);
+        assert!(
+            mono[0].abs() < 1e-6,
+            "(0.5 + -0.5) / 2 should be 0, got {}",
+            mono[0]
+        );
         assert!((mono[1] - 0.5).abs() < 1e-3, "got {}", mono[1]);
         assert!(tap.drain().is_empty(), "drain empties the buffer");
     }

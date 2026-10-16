@@ -56,10 +56,47 @@ pub fn track_text(track: &Track) -> String {
 // ---------------------------------------------------------------------------
 
 const STOPWORDS: &[&str] = &[
-    "a", "an", "the", "of", "and", "or", "to", "in", "on", "for", "with", "by", "is", "it", "my",
-    "me", "you", "your", "do", "we", "i", "at", "from", "mv", "ft", "feat", "official", "full",
-    "version", "audio", "video", "songs", "song", "music", "play", "find", "something", "some",
-    "like", "that", "this",
+    "a",
+    "an",
+    "the",
+    "of",
+    "and",
+    "or",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "by",
+    "is",
+    "it",
+    "my",
+    "me",
+    "you",
+    "your",
+    "do",
+    "we",
+    "i",
+    "at",
+    "from",
+    "mv",
+    "ft",
+    "feat",
+    "official",
+    "full",
+    "version",
+    "audio",
+    "video",
+    "songs",
+    "song",
+    "music",
+    "play",
+    "find",
+    "something",
+    "some",
+    "like",
+    "that",
+    "this",
 ];
 
 fn is_cjk(c: char) -> bool {
@@ -146,7 +183,12 @@ pub fn lexical_rank(query: &str, tracks: &[Track]) -> Vec<(usize, f32)> {
     let n = documents.len() as f32;
     let idf: HashMap<String, f32> = document_frequency
         .into_iter()
-        .map(|(token, df)| (token.to_string(), ((n + 1.0) / (df as f32 + 1.0)).ln() + 1.0))
+        .map(|(token, df)| {
+            (
+                token.to_string(),
+                ((n + 1.0) / (df as f32 + 1.0)).ln() + 1.0,
+            )
+        })
         .collect();
 
     let query_vector = tf_idf(&tokenize(query), &idf);
@@ -209,7 +251,10 @@ impl OllamaEmbedder {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(format!("Ollama returned {status} (is '{}' pulled?)", self.model));
+            return Err(format!(
+                "Ollama returned {status} (is '{}' pulled?)",
+                self.model
+            ));
         }
         let parsed: EmbeddingResponse = response.json().await.map_err(|e| e.to_string())?;
         if parsed.embedding.is_empty() {
@@ -349,7 +394,13 @@ pub async fn semantic_rank(
 pub fn embedding_cache_path(cache_dir: &Path, model: &str) -> PathBuf {
     let safe: String = model
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '.' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     cache_dir.join(format!("embeddings-{safe}.json"))
 }
@@ -376,9 +427,15 @@ mod tests {
 
     #[test]
     fn tokenize_drops_noise_and_splits_cjk_into_pairs() {
-        assert_eq!(tokenize("Do you want to build a Snowman?!"), vec!["want", "build", "snowman"]);
+        assert_eq!(
+            tokenize("Do you want to build a Snowman?!"),
+            vec!["want", "build", "snowman"]
+        );
         assert_eq!(tokenize("🎶 Lo-Fi Beats ☃️"), vec!["lo", "fi", "beats"]);
-        assert_eq!(tokenize("旧支配者のキャロル"), vec!["旧支", "支配", "配者", "者の", "のキ", "キャ", "ャロ", "ロル"]);
+        assert_eq!(
+            tokenize("旧支配者のキャロル"),
+            vec!["旧支", "支配", "配者", "者の", "のキ", "キャ", "ャロ", "ロル"]
+        );
         assert_eq!(tokenize("歌 band"), vec!["歌", "band"]);
     }
 
@@ -395,7 +452,10 @@ mod tests {
         assert!(ranked[0].1 > ranked[1].1);
 
         assert!(lexical_rank("quantum chromodynamics", &library).is_empty());
-        assert!(lexical_rank("the of and", &library).is_empty(), "stopwords only");
+        assert!(
+            lexical_rank("the of and", &library).is_empty(),
+            "stopwords only"
+        );
     }
 
     #[test]
@@ -423,6 +483,9 @@ mod tests {
     #[test]
     fn cache_path_is_filesystem_safe() {
         let path = embedding_cache_path(Path::new("/c"), "nomic-embed-text:latest");
-        assert_eq!(path.file_name().unwrap(), "embeddings-nomic-embed-text_latest.json");
+        assert_eq!(
+            path.file_name().unwrap(),
+            "embeddings-nomic-embed-text_latest.json"
+        );
     }
 }

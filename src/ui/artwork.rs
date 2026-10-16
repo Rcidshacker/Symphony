@@ -312,7 +312,9 @@ impl ArtworkCache {
 
         // Evict the oldest entries until there is room
         while self.cache.len() >= self.max_size {
-            let Some(oldest) = self.order.pop_front() else { break };
+            let Some(oldest) = self.order.pop_front() else {
+                break;
+            };
             self.cache.remove(&oldest);
         }
 
@@ -421,7 +423,12 @@ fn embedded_cover(path: &Path) -> Option<Vec<u8>> {
         hint.with_extension(ext);
     }
     let mut probed = symphonia::default::get_probe()
-        .format(&hint, stream, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            stream,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .ok()?;
 
     // front cover if tagged as such, else the first picture
@@ -446,7 +453,11 @@ fn sidecar_cover(path: &Path) -> Option<Vec<u8>> {
     let dir = path.parent()?;
     ["cover", "folder", "front"]
         .iter()
-        .flat_map(|name| ["jpg", "jpeg", "png"].iter().map(move |ext| format!("{name}.{ext}")))
+        .flat_map(|name| {
+            ["jpg", "jpeg", "png"]
+                .iter()
+                .map(move |ext| format!("{name}.{ext}"))
+        })
         .map(|file| dir.join(file))
         .find_map(|candidate| std::fs::read(candidate).ok())
 }

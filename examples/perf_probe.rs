@@ -11,7 +11,9 @@ use symphony::config::Config;
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let file = args.get(1).expect("usage: perf_probe <audio file> [seconds]");
+    let file = args
+        .get(1)
+        .expect("usage: perf_probe <audio file> [seconds]");
     let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(10);
 
     let started = Instant::now();
@@ -35,7 +37,10 @@ fn main() -> anyhow::Result<()> {
     });
     let mut terminal = Terminal::new(TestBackend::new(120, 40))?;
     terminal.draw(|f| symphony::ui::render(f, &app))?;
-    println!("startup_to_first_frame_ms={}", started.elapsed().as_millis());
+    println!(
+        "startup_to_first_frame_ms={}",
+        started.elapsed().as_millis()
+    );
 
     app.select_current_track();
     let (mut frames, mut worst, mut total) = (0u32, Duration::ZERO, Duration::ZERO);
@@ -50,6 +55,10 @@ fn main() -> anyhow::Result<()> {
         frames += 1;
         std::thread::sleep(Duration::from_millis(16).saturating_sub(took));
     }
-    println!("frames={frames} avg_frame_us={} worst_frame_us={}", total.as_micros() / u128::from(frames.max(1)), worst.as_micros());
+    println!(
+        "frames={frames} avg_frame_us={} worst_frame_us={}",
+        total.as_micros() / u128::from(frames.max(1)),
+        worst.as_micros()
+    );
     Ok(())
 }

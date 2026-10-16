@@ -105,7 +105,14 @@ impl MusicIntent {
     /// Get a human-readable description of the intent
     pub fn description(&self) -> String {
         match self {
-            MusicIntent::Play { genre, mood, artist, tempo, era, .. } => {
+            MusicIntent::Play {
+                genre,
+                mood,
+                artist,
+                tempo,
+                era,
+                ..
+            } => {
                 let mut parts = Vec::new();
                 if let Some(a) = artist {
                     parts.push(format!("artist: {}", a));
@@ -136,7 +143,10 @@ impl MusicIntent {
                     format!("Suggest {} tracks", count)
                 }
             }
-            MusicIntent::CreatePlaylist { theme, duration_mins } => {
+            MusicIntent::CreatePlaylist {
+                theme,
+                duration_mins,
+            } => {
                 format!("Create '{}' playlist ({} mins)", theme, duration_mins)
             }
             MusicIntent::Skip { reason } => {
@@ -153,7 +163,11 @@ impl MusicIntent {
                     "Get track info".to_string()
                 }
             }
-            MusicIntent::SetState { volume, shuffle, repeat } => {
+            MusicIntent::SetState {
+                volume,
+                shuffle,
+                repeat,
+            } => {
                 let mut parts = Vec::new();
                 if let Some(v) = volume {
                     parts.push(format!("volume: {}%", v));
@@ -339,8 +353,12 @@ pub fn parse_intent_json(reply: &str) -> Result<MusicIntent, AIError> {
             theme: parsed.theme.unwrap_or_else(|| "New Playlist".to_string()),
             duration_mins: parsed.duration_mins.unwrap_or(60),
         },
-        "skip" => MusicIntent::Skip { reason: parsed.reason },
-        "info" => MusicIntent::Info { about: parsed.about },
+        "skip" => MusicIntent::Skip {
+            reason: parsed.reason,
+        },
+        "info" => MusicIntent::Info {
+            about: parsed.about,
+        },
         "set_state" => MusicIntent::SetState {
             volume: parsed.volume,
             shuffle: parsed.shuffle,
@@ -366,7 +384,10 @@ impl AIContext {
         }
 
         if !self.favorite_genres.is_empty() {
-            parts.push(format!("Favorite genres: {}", self.favorite_genres.join(", ")));
+            parts.push(format!(
+                "Favorite genres: {}",
+                self.favorite_genres.join(", ")
+            ));
         }
 
         if self.focus_mode {
@@ -383,15 +404,27 @@ mod tests {
 
     #[test]
     fn parse_intent_reads_every_field_the_prompt_documents() {
-        match parse_intent_json(r#"{"intent":"suggest","based_on":"Radiohead","count":5}"#).unwrap() {
+        match parse_intent_json(r#"{"intent":"suggest","based_on":"Radiohead","count":5}"#).unwrap()
+        {
             MusicIntent::Suggest { based_on, count } => {
                 assert_eq!((based_on.as_deref(), count), (Some("Radiohead"), 5));
             }
             other => panic!("{other:?}"),
         }
-        match parse_intent_json(r#"{"intent":"set_state","volume":30,"shuffle":true,"repeat":"all"}"#).unwrap() {
-            MusicIntent::SetState { volume, shuffle, repeat } => {
-                assert_eq!((volume, shuffle, repeat.as_deref()), (Some(30), Some(true), Some("all")));
+        match parse_intent_json(
+            r#"{"intent":"set_state","volume":30,"shuffle":true,"repeat":"all"}"#,
+        )
+        .unwrap()
+        {
+            MusicIntent::SetState {
+                volume,
+                shuffle,
+                repeat,
+            } => {
+                assert_eq!(
+                    (volume, shuffle, repeat.as_deref()),
+                    (Some(30), Some(true), Some("all"))
+                );
             }
             other => panic!("{other:?}"),
         }

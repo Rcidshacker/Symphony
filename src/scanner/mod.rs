@@ -153,7 +153,8 @@ impl LibraryScanner {
         let meta = MetadataExtractor::extract(path);
         let meta = meta.as_ref();
         let tag = |pick: fn(&TrackMetadata) -> &Option<String>| {
-            meta.and_then(|m| pick(m).clone()).filter(|s| !s.trim().is_empty())
+            meta.and_then(|m| pick(m).clone())
+                .filter(|s| !s.trim().is_empty())
         };
 
         Some(Track {
@@ -301,7 +302,8 @@ impl TrackMetadata {
                 Some(StandardTagKey::TrackNumber) => {
                     // "3" or "3/12"
                     if self.track_number.is_none() {
-                        self.track_number = value.split('/').next().and_then(|n| n.trim().parse().ok());
+                        self.track_number =
+                            value.split('/').next().and_then(|n| n.trim().parse().ok());
                     }
                     continue;
                 }

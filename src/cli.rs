@@ -167,8 +167,14 @@ mod tests {
     fn subcommands() {
         assert_eq!(p(&["init"]).unwrap().command, Command::Init);
         assert_eq!(p(&["lastfm-login"]).unwrap().command, Command::LastfmLogin);
-        assert_eq!(p(&["status"]).unwrap().command, Command::Status("tmux".into()));
-        assert_eq!(p(&["status", "zsh"]).unwrap().command, Command::Status("zsh".into()));
+        assert_eq!(
+            p(&["status"]).unwrap().command,
+            Command::Status("tmux".into())
+        );
+        assert_eq!(
+            p(&["status", "zsh"]).unwrap().command,
+            Command::Status("zsh".into())
+        );
         assert_eq!(
             p(&["scan", "/music"]).unwrap().command,
             Command::Scan(PathBuf::from("/music"))
@@ -202,9 +208,18 @@ mod tests {
     fn errors() {
         assert!(matches!(
             p(&["scan"]),
-            Err(CliError::MissingArgument { command: "scan", .. })
+            Err(CliError::MissingArgument {
+                command: "scan",
+                ..
+            })
         ));
-        assert!(matches!(p(&["stream"]), Err(CliError::MissingArgument { .. })));
-        assert_eq!(p(&["--bogus"]), Err(CliError::UnknownOption("--bogus".into())));
+        assert!(matches!(
+            p(&["stream"]),
+            Err(CliError::MissingArgument { .. })
+        ));
+        assert_eq!(
+            p(&["--bogus"]),
+            Err(CliError::UnknownOption("--bogus".into()))
+        );
     }
 }

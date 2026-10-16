@@ -98,7 +98,10 @@ pub const RECOMMENDED_MODELS: &[(&str, &str)] = &[
     ("google/gemini-pro", "Google's model"),
     ("meta-llama/llama-3.1-70b-instruct", "Open source, powerful"),
     ("mistralai/mistral-large", "Mistral's best"),
-    ("perplexity/llama-3.1-sonar-huge-128k-online", "With web search"),
+    (
+        "perplexity/llama-3.1-sonar-huge-128k-online",
+        "With web search",
+    ),
 ];
 
 impl OpenRouterProvider {
@@ -147,10 +150,7 @@ impl OpenRouterProvider {
             "Authorization",
             format!("Bearer {}", self.api_key).parse().unwrap(),
         );
-        headers.insert(
-            "Content-Type",
-            "application/json".parse().unwrap(),
-        );
+        headers.insert("Content-Type", "application/json".parse().unwrap());
 
         // Optional metadata headers
         if let Some(ref url) = self.site_url {
@@ -170,7 +170,8 @@ impl OpenRouterProvider {
 
     /// Get available models
     pub async fn list_models(&self) -> Result<Vec<(String, String)>, AIError> {
-        let response = self.client
+        let response = self
+            .client
             .get("https://openrouter.ai/api/v1/models")
             .headers(self.build_headers())
             .send()
@@ -225,7 +226,8 @@ impl LLMProvider for OpenRouterProvider {
             temperature: Some(0.3),
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://openrouter.ai/api/v1/chat/completions")
             .headers(self.build_headers())
             .json(&request)
@@ -239,7 +241,10 @@ impl LLMProvider for OpenRouterProvider {
 
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(AIError::ApiError(format!("OpenRouter error {}: {}", status, body)));
+            return Err(AIError::ApiError(format!(
+                "OpenRouter error {}: {}",
+                status, body
+            )));
         }
 
         let openrouter_response: OpenRouterResponse = response.json().await?;
@@ -264,7 +269,8 @@ impl LLMProvider for OpenRouterProvider {
             temperature: Some(0.7),
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post("https://openrouter.ai/api/v1/chat/completions")
             .headers(self.build_headers())
             .json(&request)
@@ -311,22 +317,22 @@ Select exactly {} tracks. Respond with a JSON array of track names only:
         let response = self.generate_response(&prompt).await?;
 
         // Parse the track list from response
-        let tracks: Vec<String> = serde_json::from_str(&response)
-            .unwrap_or_else(|_| {
-                response
-                    .lines()
-                    .filter(|line| !line.is_empty() && !line.starts_with('[') && !line.starts_with(']'))
-                    .take(count)
-                    .map(|s| s.trim_matches('"').trim_matches(',').to_string())
-                    .collect()
-            });
+        let tracks: Vec<String> = serde_json::from_str(&response).unwrap_or_else(|_| {
+            response
+                .lines()
+                .filter(|line| !line.is_empty() && !line.starts_with('[') && !line.starts_with(']'))
+                .take(count)
+                .map(|s| s.trim_matches('"').trim_matches(',').to_string())
+                .collect()
+        });
 
         Ok(tracks)
     }
 
     async fn health_check(&self) -> Result<bool, AIError> {
         // Try to list models as a health check
-        let result = self.client
+        let result = self
+            .client
             .get("https://openrouter.ai/api/v1/models")
             .headers(self.build_headers())
             .send()
@@ -381,10 +387,7 @@ mod tests {
 
     #[test]
     fn test_parse_intent_json() {
-        let provider = OpenRouterProvider::new(
-            "test-key".to_string(),
-            "test-model".to_string(),
-        );
+        let provider = OpenRouterProvider::new("test-key".to_string(), "test-model".to_string());
 
         let json = r#"{"intent": "play", "genre": "electronic", "mood": "focus"}"#;
         let intent = provider.parse_intent_json(json).unwrap();
@@ -400,6 +403,8 @@ mod tests {
     #[test]
     fn test_recommended_models() {
         assert!(!RECOMMENDED_MODELS.is_empty());
-        assert!(RECOMMENDED_MODELS.iter().any(|(id, _)| id.contains("claude")));
+        assert!(RECOMMENDED_MODELS
+            .iter()
+            .any(|(id, _)| id.contains("claude")));
     }
 }

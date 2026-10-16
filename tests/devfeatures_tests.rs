@@ -37,7 +37,11 @@ fn app(dir: &Path) -> Option<App> {
         write_wav(&path, &[], 3.0, 0.0);
         app.features.insert(
             path.to_string_lossy().to_string(),
-            AudioFeatures { energy, bpm, beat_strength: 0.4 },
+            AudioFeatures {
+                energy,
+                bpm,
+                beat_strength: 0.4,
+            },
         );
         app.library.tracks.push(Track {
             id: title.into(),
@@ -57,12 +61,23 @@ fn app(dir: &Path) -> Option<App> {
 
 fn git(repo: &Path, args: &[&str]) {
     let out = Command::new("git")
-        .args(["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"])
+        .args([
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "commit.gpgsign=false",
+        ])
         .args(args)
         .current_dir(repo)
         .output()
         .expect("git is installed");
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 fn repo_with_commits(dir: &Path, commits: usize) -> PathBuf {
@@ -70,13 +85,19 @@ fn repo_with_commits(dir: &Path, commits: usize) -> PathBuf {
     std::fs::create_dir_all(&repo).unwrap();
     git(&repo, &["init", "-q"]);
     for i in 0..commits {
-        git(&repo, &["commit", "-q", "--allow-empty", "-m", &format!("work {i}")]);
+        git(
+            &repo,
+            &["commit", "-q", "--allow-empty", "-m", &format!("work {i}")],
+        );
     }
     repo
 }
 
 fn eager() -> GitMonitorConfig {
-    GitMonitorConfig { check_interval: Duration::ZERO, ..Default::default() }
+    GitMonitorConfig {
+        check_interval: Duration::ZERO,
+        ..Default::default()
+    }
 }
 
 fn queue_titles(app: &App) -> Vec<String> {
@@ -95,7 +116,11 @@ fn commit_velocity_comes_from_the_real_git_log() {
         let repo = repo_with_commits(&dir.path().join(commits.to_string()), commits);
         let mut monitor = GitMonitor::for_repo(repo, eager());
         monitor.update();
-        assert_eq!(monitor.get_commit_velocity(), commits as f32, "{commits} commits");
+        assert_eq!(
+            monitor.get_commit_velocity(),
+            commits as f32,
+            "{commits} commits"
+        );
         assert_eq!(monitor.get_activity_level(), level, "{commits} commits");
         assert_eq!(level.recommended_mood(), mood);
     }
@@ -104,24 +129,49 @@ fn commit_velocity_comes_from_the_real_git_log() {
 #[test]
 fn the_queue_follows_coding_activity() {
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = app(dir.path()) else { return };
+    let Some(mut app) = app(dir.path()) else {
+        return;
+    };
 
     assert!(app.adapt_to_activity(ActivityLevel::Intense));
     let loud = queue_titles(&app);
-    assert_eq!(loud.first().map(String::as_str), Some("Gym Anthem"), "{loud:?}");
-    assert_eq!(loud.last().map(String::as_str), Some("Melancholy Rain"), "mood ranks, it does not filter: {loud:?}");
+    assert_eq!(
+        loud.first().map(String::as_str),
+        Some("Gym Anthem"),
+        "{loud:?}"
+    );
+    assert_eq!(
+        loud.last().map(String::as_str),
+        Some("Melancholy Rain"),
+        "mood ranks, it does not filter: {loud:?}"
+    );
 
     assert!(app.adapt_to_activity(ActivityLevel::Idle));
     let quiet = queue_titles(&app);
-    assert_eq!(quiet.first().map(String::as_str), Some("Melancholy Rain"), "{quiet:?}");
-    assert_eq!(quiet.last().map(String::as_str), Some("Gym Anthem"), "{quiet:?}");
-    assert!(app.ui_state.status_message.as_deref().unwrap_or("").starts_with("Git:"));
+    assert_eq!(
+        quiet.first().map(String::as_str),
+        Some("Melancholy Rain"),
+        "{quiet:?}"
+    );
+    assert_eq!(
+        quiet.last().map(String::as_str),
+        Some("Gym Anthem"),
+        "{quiet:?}"
+    );
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .unwrap_or("")
+        .starts_with("Git:"));
 }
 
 #[test]
 fn a_busier_hour_swaps_the_queue_at_the_next_track_change() {
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = app(dir.path()) else { return };
+    let Some(mut app) = app(dir.path()) else {
+        return;
+    };
     let repo = repo_with_commits(dir.path(), 0);
     app.config.integrations.git.adapt_music = true;
     app.git_monitor = Some(GitMonitor::for_repo(repo.clone(), eager()));
@@ -131,17 +181,33 @@ fn a_busier_hour_swaps_the_queue_at_the_next_track_change() {
     app.select_current_track();
     let own_queue = queue_titles(&app);
     app.next_track();
-    assert_eq!(queue_titles(&app), own_queue, "no change in activity, no change in music");
+    assert_eq!(
+        queue_titles(&app),
+        own_queue,
+        "no change in activity, no change in music"
+    );
 
     // a burst of commits: the next skip brings in the energetic music
     for i in 0..7 {
-        git(&repo, &["commit", "-q", "--allow-empty", "-m", &format!("burst {i}")]);
+        git(
+            &repo,
+            &["commit", "-q", "--allow-empty", "-m", &format!("burst {i}")],
+        );
     }
     app.update();
     app.next_track();
     let queue = queue_titles(&app);
-    assert_eq!(queue.first().map(String::as_str), Some("Gym Anthem"), "{queue:?}");
-    assert!(app.ui_state.status_message.as_deref().unwrap_or("").contains("energetic"));
+    assert_eq!(
+        queue.first().map(String::as_str),
+        Some("Gym Anthem"),
+        "{queue:?}"
+    );
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .unwrap_or("")
+        .contains("energetic"));
 
     // adaptation off: the queue stays as it is however busy it gets
     app.config.integrations.git.adapt_music = false;
@@ -157,14 +223,20 @@ fn symphony_status(file: &Path, format: &str) -> String {
         .env("SYMPHONY_STATUS_FILE", file)
         .output()
         .unwrap();
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
 #[test]
 fn the_running_player_publishes_what_symphony_status_prints() {
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = app(dir.path()) else { return };
+    let Some(mut app) = app(dir.path()) else {
+        return;
+    };
     let file = app.config.status_path();
     assert_eq!(file, dir.path().join("cache").join("status.json"));
 
@@ -173,7 +245,10 @@ fn the_running_player_publishes_what_symphony_status_prints() {
     app.update();
 
     let snapshot = StatusSnapshot::read(&file).expect("the player wrote its status");
-    assert_eq!((snapshot.title.as_str(), snapshot.artist.as_str()), ("Gym Anthem", "Band"));
+    assert_eq!(
+        (snapshot.title.as_str(), snapshot.artist.as_str()),
+        ("Gym Anthem", "Band")
+    );
     assert!(snapshot.playing && snapshot.duration == 180);
     assert_eq!(symphony_status(&file, "zsh"), "▶ Gym Anthem - Band");
     assert!(symphony_status(&file, "tmux").contains("Gym Anthem - Band"));
@@ -212,7 +287,10 @@ fn a_status_file_nobody_updates_means_the_player_is_gone() {
 
 #[test]
 fn unknown_status_formats_are_rejected() {
-    let out = Command::new(env!("CARGO_BIN_EXE_symphony")).args(["status", "fish"]).output().unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_symphony"))
+        .args(["status", "fish"])
+        .output()
+        .unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("unknown format"));
 }

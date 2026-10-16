@@ -21,7 +21,8 @@ pub fn should_scrobble(duration_secs: f64, played_secs: f64, threshold_percent: 
     if duration_secs < MIN_TRACK_SECS {
         return false;
     }
-    let needed = (duration_secs * f64::from(threshold_percent.clamp(1, 100)) / 100.0).min(MAX_THRESHOLD_SECS);
+    let needed = (duration_secs * f64::from(threshold_percent.clamp(1, 100)) / 100.0)
+        .min(MAX_THRESHOLD_SECS);
     played_secs >= needed
 }
 
@@ -74,7 +75,12 @@ impl LastFm {
     }
 
     /// Call a signed API method
-    async fn call(&self, method: &str, mut params: BTreeMap<String, String>, with_session: bool) -> Result<Value, String> {
+    async fn call(
+        &self,
+        method: &str,
+        mut params: BTreeMap<String, String>,
+        with_session: bool,
+    ) -> Result<Value, String> {
         params.insert("method".into(), method.into());
         params.insert("api_key".into(), self.api_key.clone());
         if with_session {
@@ -108,7 +114,9 @@ impl LastFm {
         if track.duration_secs > 0 {
             params.insert("duration".into(), track.duration_secs.to_string());
         }
-        self.call("track.updateNowPlaying", params, true).await.map(drop)
+        self.call("track.updateNowPlaying", params, true)
+            .await
+            .map(drop)
     }
 
     /// Record that `track` was played, starting at unix time `started_at`
@@ -122,14 +130,20 @@ impl LastFm {
     /// `https://www.last.fm/api/auth/?api_key=<key>&token=<token>`
     pub async fn request_token(&self) -> Result<String, String> {
         let body = self.call("auth.getToken", BTreeMap::new(), false).await?;
-        body["token"].as_str().map(str::to_string).ok_or_else(|| "Last.fm sent no token".to_string())
+        body["token"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| "Last.fm sent no token".to_string())
     }
 
     /// Step 2: trade the authorized token for `(username, session key)`
     pub async fn request_session(&self, token: &str) -> Result<(String, String), String> {
         let params = BTreeMap::from([("token".to_string(), token.to_string())]);
         let body = self.call("auth.getSession", params, false).await?;
-        match (body["session"]["name"].as_str(), body["session"]["key"].as_str()) {
+        match (
+            body["session"]["name"].as_str(),
+            body["session"]["key"].as_str(),
+        ) {
             (Some(name), Some(key)) => Ok((name.to_string(), key.to_string())),
             _ => Err("Last.fm sent no session".to_string()),
         }
@@ -137,7 +151,10 @@ impl LastFm {
 
     /// Where the user authorizes `token`
     pub fn auth_url(&self, token: &str) -> String {
-        format!("https://www.last.fm/api/auth/?api_key={}&token={token}", self.api_key)
+        format!(
+            "https://www.last.fm/api/auth/?api_key={}&token={token}",
+            self.api_key
+        )
     }
 }
 

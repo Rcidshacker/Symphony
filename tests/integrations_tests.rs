@@ -14,21 +14,30 @@ use symphony::config::Config;
 use symphony::integrations::lastfm::{LastFm, ScrobbleTrack};
 
 fn mock_lastfm() -> MockServer {
-    MockServer::start(vec![("POST /2.0/", Box::new(|request| {
-        let form = form(&request.body);
-        match form.get("method").map(String::as_str) {
-            Some("auth.getToken") => (200, r#"{"token":"tok123"}"#.to_string()),
-            Some("auth.getSession") => (200, r#"{"session":{"name":"ruchit","key":"sess456"}}"#.to_string()),
-            _ if form.get("sk").map(String::as_str) == Some("bad") => {
-                (403, r#"{"error":9,"message":"Invalid session key"}"#.to_string())
+    MockServer::start(vec![(
+        "POST /2.0/",
+        Box::new(|request| {
+            let form = form(&request.body);
+            match form.get("method").map(String::as_str) {
+                Some("auth.getToken") => (200, r#"{"token":"tok123"}"#.to_string()),
+                Some("auth.getSession") => (
+                    200,
+                    r#"{"session":{"name":"ruchit","key":"sess456"}}"#.to_string(),
+                ),
+                _ if form.get("sk").map(String::as_str) == Some("bad") => (
+                    403,
+                    r#"{"error":9,"message":"Invalid session key"}"#.to_string(),
+                ),
+                _ => (200, r#"{"scrobbles":{"@attr":{"accepted":1}}}"#.to_string()),
             }
-            _ => (200, r#"{"scrobbles":{"@attr":{"accepted":1}}}"#.to_string()),
-        }
-    }))])
+        }),
+    )])
 }
 
 fn form(body: &str) -> BTreeMap<String, String> {
-    url::form_urlencoded::parse(body.as_bytes()).into_owned().collect()
+    url::form_urlencoded::parse(body.as_bytes())
+        .into_owned()
+        .collect()
 }
 
 /// Form bodies of the requests that called `method`
@@ -46,7 +55,12 @@ fn api_url(server: &MockServer) -> String {
 }
 
 fn track() -> ScrobbleTrack {
-    ScrobbleTrack { artist: "Daft Punk".into(), title: "Around the World".into(), album: "Homework".into(), duration_secs: 429 }
+    ScrobbleTrack {
+        artist: "Daft Punk".into(),
+        title: "Around the World".into(),
+        album: "Homework".into(),
+        duration_secs: 429,
+    }
 }
 
 #[tokio::test]
@@ -58,14 +72,24 @@ async fn scrobbles_are_signed_and_carry_the_track() {
     client.scrobble(&track(), 1_700_000_000).await.unwrap();
 
     let now = &calls(&server, "track.updateNowPlaying")[0];
-    assert_eq!((now["artist"].as_str(), now["track"].as_str(), now["duration"].as_str()), ("Daft Punk", "Around the World", "429"));
+    assert_eq!(
+        (
+            now["artist"].as_str(),
+            now["track"].as_str(),
+            now["duration"].as_str()
+        ),
+        ("Daft Punk", "Around the World", "429")
+    );
 
     let scrobble = &calls(&server, "track.scrobble")[0];
     assert_eq!(scrobble["artist[0]"], "Daft Punk");
     assert_eq!(scrobble["track[0]"], "Around the World");
     assert_eq!(scrobble["album[0]"], "Homework");
     assert_eq!(scrobble["timestamp[0]"], "1700000000");
-    assert_eq!((scrobble["api_key"].as_str(), scrobble["sk"].as_str()), ("key", "sess"));
+    assert_eq!(
+        (scrobble["api_key"].as_str(), scrobble["sk"].as_str()),
+        ("key", "sess")
+    );
 
     // the signature covers every sent parameter except `format` and itself
     let mut signed: BTreeMap<String, String> = scrobble.clone();
@@ -81,8 +105,14 @@ async fn login_trades_a_token_for_a_session_and_errors_are_reported() {
 
     let token = client.request_token().await.unwrap();
     assert_eq!(token, "tok123");
-    assert_eq!(client.auth_url(&token), "https://www.last.fm/api/auth/?api_key=key&token=tok123");
-    assert_eq!(client.request_session(&token).await.unwrap(), ("ruchit".to_string(), "sess456".to_string()));
+    assert_eq!(
+        client.auth_url(&token),
+        "https://www.last.fm/api/auth/?api_key=key&token=tok123"
+    );
+    assert_eq!(
+        client.request_session(&token).await.unwrap(),
+        ("ruchit".to_string(), "sess456".to_string())
+    );
     assert_eq!(calls(&server, "auth.getSession")[0]["token"], "tok123");
 
     let rejected = LastFm::new("key", "secret", "bad", api_url(&server));
@@ -138,7 +168,10 @@ fn the_player_scrobbles_tracks_that_were_listened_to_and_skips_the_rest() {
     config.plugins.lastfm.api_url = api_url(&server);
     config.plugins.lastfm.scrobble_threshold = 1; // 1% of 31 s: about a third of a second
     let Some(mut app) = app(config) else { return };
-    app.library.tracks = vec![local_track(dir.path(), "Heard", "Band A"), local_track(dir.path(), "Skipped", "Band B")];
+    app.library.tracks = vec![
+        local_track(dir.path(), "Heard", "Band A"),
+        local_track(dir.path(), "Skipped", "Band B"),
+    ];
     app.start_integrations();
 
     app.select_current_track(); // plays "Heard"
@@ -146,11 +179,20 @@ fn the_player_scrobbles_tracks_that_were_listened_to_and_skips_the_rest() {
     app.next_track(); // "Skipped" starts right away...
     app.stop_integrations(); // ...and is left immediately
 
-    let now_playing: Vec<_> = calls(&server, "track.updateNowPlaying").iter().map(|c| c["track"].clone()).collect();
+    let now_playing: Vec<_> = calls(&server, "track.updateNowPlaying")
+        .iter()
+        .map(|c| c["track"].clone())
+        .collect();
     assert_eq!(now_playing, ["Heard", "Skipped"]);
     let scrobbles = calls(&server, "track.scrobble");
     assert_eq!(scrobbles.len(), 1, "{scrobbles:?}");
-    assert_eq!((scrobbles[0]["artist[0]"].as_str(), scrobbles[0]["track[0]"].as_str()), ("Band A", "Heard"));
+    assert_eq!(
+        (
+            scrobbles[0]["artist[0]"].as_str(),
+            scrobbles[0]["track[0]"].as_str()
+        ),
+        ("Band A", "Heard")
+    );
     assert!(scrobbles[0]["timestamp[0]"].parse::<i64>().unwrap() > 1_700_000_000);
 }
 
@@ -180,7 +222,11 @@ fn a_wasm_plugin_reacts_to_playback_and_reaches_the_status_bar() {
         "name = \"notifier\"\nversion = \"1.0.0\"\nauthor = \"t\"\ndescription = \"t\"\npermissions = [\"track_info\", \"notifications\"]\n",
     )
     .unwrap();
-    std::fs::write(plugin.join("plugin.wasm"), wat::parse_str(NOTIFIER).unwrap()).unwrap();
+    std::fs::write(
+        plugin.join("plugin.wasm"),
+        wat::parse_str(NOTIFIER).unwrap(),
+    )
+    .unwrap();
 
     let mut config = Config::default();
     config.general.cache_directory = dir.path().join("cache");
@@ -193,6 +239,9 @@ fn a_wasm_plugin_reacts_to_playback_and_reaches_the_status_bar() {
     app.select_current_track();
     app.update();
 
-    assert_eq!(app.ui_state.status_message.as_deref(), Some("Now playing!: Now"));
+    assert_eq!(
+        app.ui_state.status_message.as_deref(),
+        Some("Now playing!: Now")
+    );
     app.stop_integrations();
 }

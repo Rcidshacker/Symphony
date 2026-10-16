@@ -35,23 +35,41 @@ async fn exact_lookup_returns_synced_lyrics_and_caches_them() {
     let fetcher = fetcher(&server, cache.path(), 30);
 
     let lyrics = fetcher
-        .fetch_track("Bohemian Rhapsody", "Queen", Some("A Night at the Opera"), Some(354.6))
+        .fetch_track(
+            "Bohemian Rhapsody",
+            "Queen",
+            Some("A Night at the Opera"),
+            Some(354.6),
+        )
         .await
         .unwrap();
     assert_eq!(lyrics.lines.len(), 2);
     assert_eq!(lyrics.lines[0].timestamp_ms, 500);
     assert_eq!(lyrics.lines[1].text, "Is this just fantasy?");
-    assert!(matches!(lyrics.source, LyricsSource::Online { ref service, .. } if service == "LRCLIB"));
+    assert!(
+        matches!(lyrics.source, LyricsSource::Online { ref service, .. } if service == "LRCLIB")
+    );
 
     // the request carries what LRCLIB needs to pick the right recording
     let target = server.requests()[0].target.clone();
     assert!(target.contains("artist_name=Queen"), "{target}");
-    assert!(target.contains("track_name=Bohemian+Rhapsody") || target.contains("track_name=Bohemian%20Rhapsody"), "{target}");
-    assert!(target.contains("album_name=A+Night+at+the+Opera") || target.contains("album_name=A%20Night%20at%20the%20Opera"), "{target}");
+    assert!(
+        target.contains("track_name=Bohemian+Rhapsody")
+            || target.contains("track_name=Bohemian%20Rhapsody"),
+        "{target}"
+    );
+    assert!(
+        target.contains("album_name=A+Night+at+the+Opera")
+            || target.contains("album_name=A%20Night%20at%20the%20Opera"),
+        "{target}"
+    );
     assert!(target.contains("duration=355"), "{target}");
 
     // the second call is served from the cache: no new request
-    let again = fetcher.fetch_track("Bohemian Rhapsody", "Queen", None, None).await.unwrap();
+    let again = fetcher
+        .fetch_track("Bohemian Rhapsody", "Queen", None, None)
+        .await
+        .unwrap();
     assert_eq!(again.lines.len(), 2);
     assert_eq!(server.count("GET /api/get"), 1);
 }
@@ -65,7 +83,10 @@ async fn unknown_track_falls_back_to_search_and_prefers_the_closest_duration() {
         entry("No sync", 355.0, None, false),
     );
     let server = MockServer::start(vec![
-        ("GET /api/get", fixed(404, r#"{"statusCode":404,"name":"TrackNotFound"}"#)),
+        (
+            "GET /api/get",
+            fixed(404, r#"{"statusCode":404,"name":"TrackNotFound"}"#),
+        ),
         ("GET /api/search", fixed(200, &results)),
     ]);
     let cache = tempfile::tempdir().unwrap();
@@ -74,7 +95,11 @@ async fn unknown_track_falls_back_to_search_and_prefers_the_closest_duration() {
         .fetch_track("Bohemian Rhapsody", "Queen", None, Some(356.0))
         .await
         .unwrap();
-    assert_eq!(lyrics.lines.len(), 2, "picked the studio version, not the live one");
+    assert_eq!(
+        lyrics.lines.len(),
+        2,
+        "picked the studio version, not the live one"
+    );
     assert_eq!(server.count("GET /api/search"), 1);
 }
 
@@ -83,17 +108,27 @@ async fn instrumentals_and_unsynced_lyrics_are_not_found() {
     let cache = tempfile::tempdir().unwrap();
 
     let instrumental = MockServer::start(vec![
-        ("GET /api/get", fixed(200, &entry("Theme", 100.0, Some(SYNCED), true))),
+        (
+            "GET /api/get",
+            fixed(200, &entry("Theme", 100.0, Some(SYNCED), true)),
+        ),
         ("GET /api/search", fixed(200, "[]")),
     ]);
-    let result = fetcher(&instrumental, cache.path(), 30).fetch("Theme", "Queen").await;
+    let result = fetcher(&instrumental, cache.path(), 30)
+        .fetch("Theme", "Queen")
+        .await;
     assert!(matches!(result, Err(LyricsError::NotFound)));
 
     let plain_only = MockServer::start(vec![
-        ("GET /api/get", fixed(200, &entry("Song", 100.0, None, false))),
+        (
+            "GET /api/get",
+            fixed(200, &entry("Song", 100.0, None, false)),
+        ),
         ("GET /api/search", fixed(200, "[]")),
     ]);
-    let result = fetcher(&plain_only, cache.path(), 30).fetch("Song", "Queen").await;
+    let result = fetcher(&plain_only, cache.path(), 30)
+        .fetch("Song", "Queen")
+        .await;
     assert!(matches!(result, Err(LyricsError::NotFound)));
 }
 
@@ -105,8 +140,13 @@ async fn a_failing_service_is_a_network_error_not_a_missing_track() {
     ]);
     let cache = tempfile::tempdir().unwrap();
 
-    let result = fetcher(&server, cache.path(), 30).fetch("Song", "Queen").await;
-    assert!(matches!(result, Err(LyricsError::NetworkError(_))), "got {result:?}");
+    let result = fetcher(&server, cache.path(), 30)
+        .fetch("Song", "Queen")
+        .await;
+    assert!(
+        matches!(result, Err(LyricsError::NetworkError(_))),
+        "got {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -136,7 +176,10 @@ async fn offline_mode_never_touches_the_network() {
         ..LyricsFetcherConfig::default()
     });
 
-    assert!(matches!(fetcher.fetch("Song", "Queen").await, Err(LyricsError::NotFound)));
+    assert!(matches!(
+        fetcher.fetch("Song", "Queen").await,
+        Err(LyricsError::NotFound)
+    ));
     assert!(server.requests().is_empty());
 }
 
@@ -150,7 +193,12 @@ async fn lrclib_live() {
         ..LyricsFetcherConfig::default()
     });
     let lyrics = fetcher
-        .fetch_track("Bohemian Rhapsody", "Queen", Some("A Night at the Opera"), Some(355.0))
+        .fetch_track(
+            "Bohemian Rhapsody",
+            "Queen",
+            Some("A Night at the Opera"),
+            Some(355.0),
+        )
         .await
         .expect("lrclib.net should know Bohemian Rhapsody");
     assert!(lyrics.lines.len() > 20);

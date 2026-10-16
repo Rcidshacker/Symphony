@@ -38,8 +38,12 @@ impl App {
                 theme,
                 duration_mins,
             } => self.ai_create_playlist(theme, *duration_mins),
-            MusicIntent::Search { query } => self.ai_semantic_search(query.clone(), SearchKind::Browse),
-            MusicIntent::Suggest { based_on, count } => self.ai_suggest(based_on.as_deref(), *count),
+            MusicIntent::Search { query } => {
+                self.ai_semantic_search(query.clone(), SearchKind::Browse)
+            }
+            MusicIntent::Suggest { based_on, count } => {
+                self.ai_suggest(based_on.as_deref(), *count)
+            }
             MusicIntent::Skip { .. } => self.next_track(),
             MusicIntent::SetState {
                 volume,
@@ -65,10 +69,15 @@ impl App {
             MusicIntent::Info { about } => {
                 let question = match (about, self.playback_state.current_track.as_ref()) {
                     (Some(about), Some(track)) => {
-                        format!("Tell me about the {about} of \"{}\" by {}.", track.title, track.artist)
+                        format!(
+                            "Tell me about the {about} of \"{}\" by {}.",
+                            track.title, track.artist
+                        )
                     }
                     (Some(about), None) => format!("Tell me about {about}."),
-                    (None, Some(track)) => format!("Tell me about \"{}\" by {}.", track.title, track.artist),
+                    (None, Some(track)) => {
+                        format!("Tell me about \"{}\" by {}.", track.title, track.artist)
+                    }
                     (None, None) => "What can you tell me about music?".to_string(),
                 };
                 self.ai_ask(question);
@@ -124,7 +133,13 @@ impl App {
             // the words that were asked for ("artist:" and "music" would match everything)
             Err(_) => {
                 let asked = match intent {
-                    MusicIntent::Play { genre, mood, artist, era, .. } => [artist, genre, mood, era]
+                    MusicIntent::Play {
+                        genre,
+                        mood,
+                        artist,
+                        era,
+                        ..
+                    } => [artist, genre, mood, era]
                         .into_iter()
                         .flatten()
                         .cloned()
@@ -167,7 +182,9 @@ impl App {
             if saved { ", saved" } else { "" }
         );
         if minutes + 1 < duration_mins {
-            message.push_str(&format!(" (your library only has {minutes} of the {duration_mins} min asked for)"));
+            message.push_str(&format!(
+                " (your library only has {minutes} of the {duration_mins} min asked for)"
+            ));
         }
         for note in &playlist.notes {
             message.push_str(&format!(" ({note})"));
@@ -210,11 +227,16 @@ impl App {
         let cache_dir = self.config.general.cache_directory.join("embeddings");
         let tx = self.ai_tx.clone();
         self.ui_state.ai_pending = true;
-        self.ui_state.status_message = Some(format!("AI: searching your library for \"{query}\"..."));
+        self.ui_state.status_message =
+            Some(format!("AI: searching your library for \"{query}\"..."));
 
         runtime.spawn(async move {
             let result = semantic_rank(&provider, &model, &cache_dir, &query, &tracks).await;
-            let ids = result.hits.iter().map(|(i, _)| tracks[*i].id.clone()).collect();
+            let ids = result
+                .hits
+                .iter()
+                .map(|(i, _)| tracks[*i].id.clone())
+                .collect();
             let _ = tx.send(BackgroundEvent::Semantic {
                 query,
                 kind,
@@ -248,7 +270,8 @@ impl App {
             .filter_map(|id| self.library.tracks.iter().find(|t| &t.id == id).cloned())
             .collect();
         if tracks.is_empty() {
-            self.ui_state.error_message = Some(format!("AI: nothing in your library matches \"{query}\""));
+            self.ui_state.error_message =
+                Some(format!("AI: nothing in your library matches \"{query}\""));
             return;
         }
 
@@ -257,14 +280,16 @@ impl App {
         match kind {
             SearchKind::Browse => {
                 self.show_results(&format!("≈ {query}"), tracks);
-                self.ui_state.status_message =
-                    Some(format!("AI: {count} matches by {method}, Enter plays{note}"));
+                self.ui_state.status_message = Some(format!(
+                    "AI: {count} matches by {method}, Enter plays{note}"
+                ));
             }
             SearchKind::PlayBest => {
                 self.start_queue(tracks, false);
                 if self.ui_state.error_message.is_none() {
-                    self.ui_state.status_message =
-                        Some(format!("AI: {count} closest tracks by {method} for \"{query}\"{note}"));
+                    self.ui_state.status_message = Some(format!(
+                        "AI: {count} closest tracks by {method} for \"{query}\"{note}"
+                    ));
                 }
             }
         }
@@ -283,11 +308,18 @@ impl App {
     // ---- suggestions ----
 
     fn ai_suggest(&mut self, based_on: Option<&str>, count: usize) {
-        let count = if count == 0 { DEFAULT_SUGGESTIONS } else { count };
+        let count = if count == 0 {
+            DEFAULT_SUGGESTIONS
+        } else {
+            count
+        };
         let library = &self.library.tracks;
 
-        let named_seed = based_on
-            .and_then(|text| lexical_rank(text, library).first().map(|(i, _)| library[*i].clone()));
+        let named_seed = based_on.and_then(|text| {
+            lexical_rank(text, library)
+                .first()
+                .map(|(i, _)| library[*i].clone())
+        });
         let seed = named_seed.or_else(|| self.playback_state.current_track.clone());
 
         let (label, suggestions): (String, Vec<Track>) = match &seed {
@@ -361,9 +393,21 @@ impl App {
     /// What the AI should know about the moment: time of day, focus session, what is playing
     pub(super) fn build_ai_context(&self) -> AIContext {
         let mut context = crate::ai::context::UserContext::new().to_ai_context();
-        context.time_of_day = format!("{} ({})", TimeOfDay::current().display_name(), context.time_of_day);
-        context.current_track = self.playback_state.current_track.as_ref().map(|t| t.title.clone());
-        context.current_artist = self.playback_state.current_track.as_ref().map(|t| t.artist.clone());
+        context.time_of_day = format!(
+            "{} ({})",
+            TimeOfDay::current().display_name(),
+            context.time_of_day
+        );
+        context.current_track = self
+            .playback_state
+            .current_track
+            .as_ref()
+            .map(|t| t.title.clone());
+        context.current_artist = self
+            .playback_state
+            .current_track
+            .as_ref()
+            .map(|t| t.artist.clone());
         context.recent_tracks = self
             .history
             .iter()
@@ -427,5 +471,9 @@ fn most_common_genres(tracks: &[Track], limit: usize) -> Vec<String> {
     }
     let mut ranked: Vec<(&str, usize)> = counts.into_iter().collect();
     ranked.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
-    ranked.into_iter().take(limit).map(|(g, _)| g.to_string()).collect()
+    ranked
+        .into_iter()
+        .take(limit)
+        .map(|(g, _)| g.to_string())
+        .collect()
 }

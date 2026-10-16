@@ -84,10 +84,13 @@ impl PluginRegistry {
     }
 
     /// Load plugin info from manifest
-    fn load_plugin_info(manifest_path: &Path, plugin_dir: &Path) -> Result<PluginInfo, PluginError> {
+    fn load_plugin_info(
+        manifest_path: &Path,
+        plugin_dir: &Path,
+    ) -> Result<PluginInfo, PluginError> {
         let content = std::fs::read_to_string(manifest_path)?;
-        let manifest: PluginManifest = toml::from_str(&content)
-            .map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
+        let manifest: PluginManifest =
+            toml::from_str(&content).map_err(|e| PluginError::InvalidManifest(e.to_string()))?;
 
         Ok(PluginInfo {
             name: manifest.name,
@@ -117,7 +120,10 @@ impl PluginRegistry {
 
     /// Check if plugin is installed
     pub fn is_installed(&self, name: &str) -> bool {
-        self.available.get(name).map(|p| p.installed).unwrap_or(false)
+        self.available
+            .get(name)
+            .map(|p| p.installed)
+            .unwrap_or(false)
     }
 
     /// Delete a plugin's folder
@@ -149,7 +155,9 @@ mod tests {
         std::fs::create_dir_all(&folder).unwrap();
         std::fs::write(
             folder.join("plugin.toml"),
-            format!("name = \"{name}\"\nversion = \"1.2.3\"\nauthor = \"me\"\ndescription = \"d\"\n"),
+            format!(
+                "name = \"{name}\"\nversion = \"1.2.3\"\nauthor = \"me\"\ndescription = \"d\"\n"
+            ),
         )
         .unwrap();
     }

@@ -20,9 +20,9 @@ use symphony::audio::AudioEngine;
 use symphony::cli::{self, Command};
 use symphony::config::Config;
 use symphony::db::Database;
+use symphony::input::handle_key_event;
 use symphony::integrations::lastfm::LastFm;
 use symphony::integrations::statusline::{StatusFormat, StatusLine, StatusSnapshot};
-use symphony::input::handle_key_event;
 use symphony::scanner::LibraryScanner;
 use symphony::streaming::{StreamManager, StreamManagerConfig};
 use symphony::ui;
@@ -94,7 +94,10 @@ fn cmd_init() -> anyhow::Result<()> {
 /// `SYMPHONY_STATUS_FILE` overrides where the snapshot is read from.
 fn cmd_status(format: &str) -> anyhow::Result<()> {
     let Some(format) = StatusFormat::parse(format) else {
-        bail!("unknown format \"{format}\" (use one of: {})", StatusFormat::NAMES);
+        bail!(
+            "unknown format \"{format}\" (use one of: {})",
+            StatusFormat::NAMES
+        );
     };
     let path = match std::env::var_os("SYMPHONY_STATUS_FILE") {
         Some(path) => path.into(),
@@ -103,7 +106,10 @@ fn cmd_status(format: &str) -> anyhow::Result<()> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    println!("{}", StatusLine::render(StatusSnapshot::read(&path).as_ref(), format, now));
+    println!(
+        "{}",
+        StatusLine::render(StatusSnapshot::read(&path).as_ref(), format, now)
+    );
     Ok(())
 }
 
@@ -117,14 +123,28 @@ fn cmd_lastfm_login() -> anyhow::Result<()> {
             Config::default_config_path().display()
         );
     }
-    let client = LastFm::new(&settings.api_key, &settings.api_secret, "", &settings.api_url);
+    let client = LastFm::new(
+        &settings.api_key,
+        &settings.api_secret,
+        "",
+        &settings.api_url,
+    );
 
     let runtime = tokio::runtime::Runtime::new()?;
     let (name, key) = runtime.block_on(async {
-        let token = client.request_token().await.map_err(|e| anyhow::anyhow!(e))?;
-        println!("Open this page, click \"Yes, allow access\", then press Enter here:\n\n  {}\n", client.auth_url(&token));
+        let token = client
+            .request_token()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
+        println!(
+            "Open this page, click \"Yes, allow access\", then press Enter here:\n\n  {}\n",
+            client.auth_url(&token)
+        );
         io::stdin().read_line(&mut String::new())?;
-        client.request_session(&token).await.map_err(|e| anyhow::anyhow!(e))
+        client
+            .request_session(&token)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     })?;
 
     config.plugins.lastfm.username = name.clone();
@@ -180,7 +200,11 @@ fn cmd_add(spec: &str) -> anyhow::Result<()> {
     for track in &added {
         println!("added {} - {} ({})", track.artist, track.title, track.id);
     }
-    println!("{} track(s) added, {} in library", added.len(), db.track_count()?);
+    println!(
+        "{} track(s) added, {} in library",
+        added.len(),
+        db.track_count()?
+    );
     Ok(())
 }
 

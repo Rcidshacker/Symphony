@@ -16,7 +16,9 @@ use symphony::config::Config;
 const SYNCED: &str = "[00:00.50] Is this the real life?\\n[00:07.10] Is this just fantasy?";
 
 fn lrclib_entry() -> String {
-    format!(r#"{{"trackName":"Bohemian Rhapsody","artistName":"Queen","duration":3.0,"instrumental":false,"syncedLyrics":"{SYNCED}"}}"#)
+    format!(
+        r#"{{"trackName":"Bohemian Rhapsody","artistName":"Queen","duration":3.0,"instrumental":false,"syncedLyrics":"{SYNCED}"}}"#
+    )
 }
 
 /// A 3 s silent 8 kHz mono WAV
@@ -64,7 +66,11 @@ fn playing(dir: &Path, config: Config, artist: &str) -> Option<App> {
     app.audio_engine.set_volume(0.0);
     app.library.tracks = vec![track(wav, artist)];
     app.select_current_track();
-    assert!(app.playback_state.is_playing, "{:?}", app.ui_state.error_message);
+    assert!(
+        app.playback_state.is_playing,
+        "{:?}",
+        app.ui_state.error_message
+    );
     Some(app)
 }
 
@@ -92,7 +98,11 @@ fn screen(app: &App) -> String {
     terminal.draw(|f| symphony::ui::render(f, app)).unwrap();
     let buffer = terminal.backend().buffer().clone();
     (0..32u16)
-        .map(|y| (0..120u16).map(|x| buffer[(x, y)].symbol().to_string()).collect::<String>())
+        .map(|y| {
+            (0..120u16)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect::<String>()
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -101,11 +111,23 @@ fn screen(app: &App) -> String {
 fn lyrics_are_fetched_online_when_a_track_starts() {
     let server = MockServer::start(vec![("GET /api/get", fixed(200, &lrclib_entry()))]);
     let (dir, cache) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Queen") else { return };
+    let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Queen") else {
+        return;
+    };
 
-    assert!(run_until(&mut app, 5.0, |a| a.lyrics.has_lyrics()), "no lyrics arrived");
-    assert_eq!(app.lyrics.lyrics().unwrap().lines[0].text, "Is this the real life?");
-    assert!(app.ui_state.status_message.as_deref().is_some_and(|s| s.contains("Lyrics found online")));
+    assert!(
+        run_until(&mut app, 5.0, |a| a.lyrics.has_lyrics()),
+        "no lyrics arrived"
+    );
+    assert_eq!(
+        app.lyrics.lyrics().unwrap().lines[0].text,
+        "Is this the real life?"
+    );
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("Lyrics found online")));
 
     let request = &server.requests()[0].target;
     assert!(request.contains("artist_name=Queen"), "{request}");
@@ -120,12 +142,24 @@ fn lyrics_are_fetched_online_when_a_track_starts() {
 fn a_local_lrc_file_wins_and_no_request_is_made() {
     let server = MockServer::start(vec![("GET /", fixed(200, &lrclib_entry()))]);
     let (dir, cache) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    std::fs::write(dir.path().join("Queen - Bohemian Rhapsody.lrc"), "[00:01.00]From my own file").unwrap();
-    let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Queen") else { return };
+    std::fs::write(
+        dir.path().join("Queen - Bohemian Rhapsody.lrc"),
+        "[00:01.00]From my own file",
+    )
+    .unwrap();
+    let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Queen") else {
+        return;
+    };
 
     run_until(&mut app, 0.5, |_| false);
-    assert_eq!(app.lyrics.lyrics().unwrap().lines[0].text, "From my own file");
-    assert!(server.requests().is_empty(), "looked online although a .lrc exists");
+    assert_eq!(
+        app.lyrics.lyrics().unwrap().lines[0].text,
+        "From my own file"
+    );
+    assert!(
+        server.requests().is_empty(),
+        "looked online although a .lrc exists"
+    );
 }
 
 #[test]
@@ -134,7 +168,11 @@ fn no_lookup_for_unknown_artists_or_when_auto_fetch_is_off() {
     let cache = tempfile::tempdir().unwrap();
 
     let dir = tempfile::tempdir().unwrap();
-    if let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Unknown Artist") {
+    if let Some(mut app) = playing(
+        dir.path(),
+        lyrics_config(&server, cache.path()),
+        "Unknown Artist",
+    ) {
         run_until(&mut app, 0.4, |_| false);
         assert!(!app.lyrics.has_lyrics());
     }
@@ -154,10 +192,15 @@ fn no_lookup_for_unknown_artists_or_when_auto_fetch_is_off() {
 fn a_failing_lookup_is_reported_in_the_status_line() {
     let server = MockServer::start(vec![("GET /", fixed(503, ""))]);
     let (dir, cache) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Queen") else { return };
+    let Some(mut app) = playing(dir.path(), lyrics_config(&server, cache.path()), "Queen") else {
+        return;
+    };
 
     assert!(run_until(&mut app, 5.0, |a| {
-        a.ui_state.status_message.as_deref().is_some_and(|s| s.contains("online lookup failed"))
+        a.ui_state
+            .status_message
+            .as_deref()
+            .is_some_and(|s| s.contains("online lookup failed"))
     }));
     assert!(!app.lyrics.has_lyrics());
 }
@@ -169,7 +212,8 @@ fn mock_ollama() -> MockServer {
         (
             "POST /api/generate",
             Box::new(|request| {
-                let body: serde_json::Value = serde_json::from_str(&request.body).unwrap_or_default();
+                let body: serde_json::Value =
+                    serde_json::from_str(&request.body).unwrap_or_default();
                 let prompt = body["prompt"].as_str().unwrap_or_default();
                 let reply: String = prompt
                     .lines()
@@ -177,7 +221,10 @@ fn mock_ollama() -> MockServer {
                     .filter(|(n, _)| n.chars().all(|c| c.is_ascii_digit()) && !n.is_empty())
                     .map(|(n, text)| format!("{n}|[fr] {text}\n"))
                     .collect();
-                (200, serde_json::json!({ "response": reply, "done": true }).to_string())
+                (
+                    200,
+                    serde_json::json!({ "response": reply, "done": true }).to_string(),
+                )
             }),
         ),
     ])
@@ -189,7 +236,9 @@ fn app_with_lrc(dir: &Path, lines: usize, ollama_url: &str) -> Option<App> {
     config.ai.enabled = true;
     config.ai.provider = "ollama".into();
     config.ai.ollama.base_url = ollama_url.to_string();
-    let lrc: String = (0..lines).map(|i| format!("[00:{:02}.00]Line number {i}\n", i % 60)).collect();
+    let lrc: String = (0..lines)
+        .map(|i| format!("[00:{:02}.00]Line number {i}\n", i % 60))
+        .collect();
     std::fs::write(dir.join("Queen - Bohemian Rhapsody.lrc"), lrc).unwrap();
     playing(dir, config, "Queen")
 }
@@ -198,7 +247,9 @@ fn app_with_lrc(dir: &Path, lines: usize, ollama_url: &str) -> Option<App> {
 fn lyrics_are_translated_through_the_ai_in_chunks() {
     let ollama = mock_ollama();
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = app_with_lrc(dir.path(), 25, &ollama.url) else { return };
+    let Some(mut app) = app_with_lrc(dir.path(), 25, &ollama.url) else {
+        return;
+    };
     assert_eq!(app.lyrics.lyrics().unwrap().lines.len(), 25);
 
     app.translate_lyrics();
@@ -211,9 +262,20 @@ fn lyrics_are_translated_through_the_ai_in_chunks() {
 
     let lines = &app.lyrics.lyrics().unwrap().lines;
     assert_eq!(lines[0].translation.as_deref(), Some("[fr] Line number 0"));
-    assert_eq!(lines[24].translation.as_deref(), Some("[fr] Line number 24"), "second chunk");
-    assert_eq!(ollama.count("POST /api/generate"), 2, "25 lines go out as 20 + 5");
-    assert!(app.ui_state.show_lyrics, "the panel opens to show the translation");
+    assert_eq!(
+        lines[24].translation.as_deref(),
+        Some("[fr] Line number 24"),
+        "second chunk"
+    );
+    assert_eq!(
+        ollama.count("POST /api/generate"),
+        2,
+        "25 lines go out as 20 + 5"
+    );
+    assert!(
+        app.ui_state.show_lyrics,
+        "the panel opens to show the translation"
+    );
 
     // the translation is drawn under the original line
     let shown = screen(&app);
@@ -230,14 +292,26 @@ fn translation_explains_what_is_missing() {
     let dir = tempfile::tempdir().unwrap();
 
     // no lyrics loaded
-    let Some(mut app) = playing(dir.path(), Config::default(), "Unknown Artist") else { return };
+    let Some(mut app) = playing(dir.path(), Config::default(), "Unknown Artist") else {
+        return;
+    };
     app.translate_lyrics();
-    assert!(app.ui_state.status_message.as_deref().is_some_and(|s| s.contains("No lyrics")));
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("No lyrics")));
 
     // lyrics but the AI is switched off
     let dir = tempfile::tempdir().unwrap();
-    let Some(mut app) = app_with_lrc(dir.path(), 2, "http://127.0.0.1:9") else { return };
+    let Some(mut app) = app_with_lrc(dir.path(), 2, "http://127.0.0.1:9") else {
+        return;
+    };
     app.config.ai.enabled = false;
     app.translate_lyrics();
-    assert!(app.ui_state.status_message.as_deref().is_some_and(|s| s.contains("needs the AI")));
+    assert!(app
+        .ui_state
+        .status_message
+        .as_deref()
+        .is_some_and(|s| s.contains("needs the AI")));
 }

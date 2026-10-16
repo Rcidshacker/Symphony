@@ -4,9 +4,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use symphony::plugins::{
-    HostFunctions, PluginEvent, PluginRuntime, PluginStatus, TrackInfo,
-};
+use symphony::plugins::{HostFunctions, PluginEvent, PluginRuntime, PluginStatus, TrackInfo};
 
 /// Everything the plugins did to the outside world
 #[derive(Clone, Default)]
@@ -19,8 +17,12 @@ struct Spy {
 
 impl Spy {
     fn host(&self) -> HostFunctions {
-        let (logs, notes, discord, scrobbles) =
-            (self.logs.clone(), self.notes.clone(), self.discord.clone(), self.scrobbles.clone());
+        let (logs, notes, discord, scrobbles) = (
+            self.logs.clone(),
+            self.notes.clone(),
+            self.discord.clone(),
+            self.scrobbles.clone(),
+        );
         HostFunctions::new()
             .with_log(move |m| logs.lock().unwrap().push(m.to_string()))
             .with_notification(move |t, b| notes.lock().unwrap().push((t.into(), b.into())))
@@ -75,7 +77,11 @@ const LOOPER: &str = r#"
 fn install(dir: &Path, name: &str, permissions: &[&str], wat_source: &str) {
     let folder = dir.join(name);
     std::fs::create_dir_all(&folder).unwrap();
-    let permissions = permissions.iter().map(|p| format!("\"{p}\"")).collect::<Vec<_>>().join(", ");
+    let permissions = permissions
+        .iter()
+        .map(|p| format!("\"{p}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
     std::fs::write(
         folder.join("plugin.toml"),
         format!(
@@ -83,7 +89,11 @@ fn install(dir: &Path, name: &str, permissions: &[&str], wat_source: &str) {
         ),
     )
     .unwrap();
-    std::fs::write(folder.join("plugin.wasm"), wat::parse_str(wat_source).unwrap()).unwrap();
+    std::fs::write(
+        folder.join("plugin.wasm"),
+        wat::parse_str(wat_source).unwrap(),
+    )
+    .unwrap();
 }
 
 fn runtime(dir: &Path, spy: &Spy) -> PluginRuntime {
@@ -96,7 +106,13 @@ fn track_changed() -> PluginEvent {
     PluginEvent::TrackChanged(TrackInfo::new("t1", "Hello", "World"))
 }
 
-const ALL: &[&str] = &["track_info", "playback_state", "notifications", "discord", "lastfm"];
+const ALL: &[&str] = &[
+    "track_info",
+    "playback_state",
+    "notifications",
+    "discord",
+    "lastfm",
+];
 
 #[tokio::test]
 async fn a_plugin_runs_receives_events_and_uses_the_host() {
@@ -109,12 +125,27 @@ async fn a_plugin_runs_receives_events_and_uses_the_host() {
 
     runtime.trigger_event(&track_changed());
     let logs = spy.logs();
-    assert!(logs[1].contains("\"TrackChanged\"") && logs[1].contains("Hello"), "{logs:?}");
-    assert!(logs[2].contains("\"id\":\"t1\"") && logs[2].contains("\"duration\":200"), "get_track: {logs:?}");
+    assert!(
+        logs[1].contains("\"TrackChanged\"") && logs[1].contains("Hello"),
+        "{logs:?}"
+    );
+    assert!(
+        logs[2].contains("\"id\":\"t1\"") && logs[2].contains("\"duration\":200"),
+        "get_track: {logs:?}"
+    );
     assert_eq!(logs[3], "h", "get_volume returned 0.25");
-    assert_eq!(*spy.notes.lock().unwrap(), [("hi".to_string(), "hi".to_string())]);
-    assert_eq!(*spy.discord.lock().unwrap(), [("hi".to_string(), "hi".to_string())]);
-    assert_eq!(*spy.scrobbles.lock().unwrap(), [("hi".to_string(), "hi".to_string())]);
+    assert_eq!(
+        *spy.notes.lock().unwrap(),
+        [("hi".to_string(), "hi".to_string())]
+    );
+    assert_eq!(
+        *spy.discord.lock().unwrap(),
+        [("hi".to_string(), "hi".to_string())]
+    );
+    assert_eq!(
+        *spy.scrobbles.lock().unwrap(),
+        [("hi".to_string(), "hi".to_string())]
+    );
     assert_eq!(runtime.denied_calls("echo"), 0);
 
     // shutdown hook runs when the plugin is unloaded
@@ -138,12 +169,27 @@ async fn missing_permissions_block_events_and_host_calls() {
     assert!(spy.notes.lock().unwrap().is_empty());
     assert!(spy.discord.lock().unwrap().is_empty());
     assert!(spy.scrobbles.lock().unwrap().is_empty());
-    assert_eq!(runtime.denied_calls("limited"), 4, "notify, discord, scrobble, get_volume were refused");
-    assert_eq!(runtime.denied_calls("blind"), 0, "never got the event, so never tried");
+    assert_eq!(
+        runtime.denied_calls("limited"),
+        4,
+        "notify, discord, scrobble, get_volume were refused"
+    );
+    assert_eq!(
+        runtime.denied_calls("blind"),
+        0,
+        "never got the event, so never tried"
+    );
     // only plugin_init lines from both, plus limited's event + track
-    let events = spy.logs().iter().filter(|l| l.contains("TrackChanged")).count();
+    let events = spy
+        .logs()
+        .iter()
+        .filter(|l| l.contains("TrackChanged"))
+        .count();
     assert_eq!(events, 1);
-    assert_eq!(runtime.get_plugin_status("limited"), Some(PluginStatus::Active));
+    assert_eq!(
+        runtime.get_plugin_status("limited"),
+        Some(PluginStatus::Active)
+    );
 }
 
 #[tokio::test]
@@ -156,35 +202,82 @@ async fn a_plugin_stuck_in_a_loop_is_stopped_and_the_others_keep_working() {
 
     let started = std::time::Instant::now();
     runtime.trigger_event(&track_changed());
-    assert!(started.elapsed() < std::time::Duration::from_secs(10), "the loop was cut off");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(10),
+        "the loop was cut off"
+    );
 
-    assert_eq!(runtime.get_plugin_status("looper"), Some(PluginStatus::Error));
+    assert_eq!(
+        runtime.get_plugin_status("looper"),
+        Some(PluginStatus::Error)
+    );
     let error = runtime.plugin_error("looper").unwrap().to_lowercase();
     assert!(error.contains("fuel"), "{error}");
     assert!(!runtime.is_plugin_enabled("looper"));
-    assert!(spy.logs().iter().any(|l| l.contains("TrackChanged")), "echo still got its event");
+    assert!(
+        spy.logs().iter().any(|l| l.contains("TrackChanged")),
+        "echo still got its event"
+    );
 
     // a failed plugin gets no more events; enabling it again lets it fail again
     runtime.trigger_event(&track_changed());
-    assert_eq!(runtime.get_plugin_status("looper"), Some(PluginStatus::Error));
+    assert_eq!(
+        runtime.get_plugin_status("looper"),
+        Some(PluginStatus::Error)
+    );
     runtime.enable_plugin("looper").unwrap();
-    assert_eq!(runtime.get_plugin_status("looper"), Some(PluginStatus::Active));
+    assert_eq!(
+        runtime.get_plugin_status("looper"),
+        Some(PluginStatus::Active)
+    );
 }
 
 #[tokio::test]
 async fn broken_plugins_are_rejected_without_crashing_the_host() {
     let (dir, spy) = (tempfile::tempdir().unwrap(), Spy::default());
-    install(dir.path(), "nomemory", &[], r#"(module (func (export "on_event") (param i32 i32)))"#);
-    install(dir.path(), "noalloc", &[], r#"(module (memory (export "memory") 1) (func (export "on_event") (param i32 i32)))"#);
-    install(dir.path(), "hog", &[], r#"(module (memory (export "memory") 2000))"#); // 128 MB
-    install(dir.path(), "badimport", &[], r#"(module (import "symphony" "format_disk" (func)) (memory (export "memory") 1))"#);
+    install(
+        dir.path(),
+        "nomemory",
+        &[],
+        r#"(module (func (export "on_event") (param i32 i32)))"#,
+    );
+    install(
+        dir.path(),
+        "noalloc",
+        &[],
+        r#"(module (memory (export "memory") 1) (func (export "on_event") (param i32 i32)))"#,
+    );
+    install(
+        dir.path(),
+        "hog",
+        &[],
+        r#"(module (memory (export "memory") 2000))"#,
+    ); // 128 MB
+    install(
+        dir.path(),
+        "badimport",
+        &[],
+        r#"(module (import "symphony" "format_disk" (func)) (memory (export "memory") 1))"#,
+    );
     std::fs::create_dir_all(dir.path().join("garbage")).unwrap();
-    std::fs::write(dir.path().join("garbage/plugin.toml"), "name = \"garbage\"\nversion = \"1\"\nauthor = \"x\"\ndescription = \"x\"\n").unwrap();
-    std::fs::write(dir.path().join("garbage/plugin.wasm"), b"definitely not wasm").unwrap();
+    std::fs::write(
+        dir.path().join("garbage/plugin.toml"),
+        "name = \"garbage\"\nversion = \"1\"\nauthor = \"x\"\ndescription = \"x\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("garbage/plugin.wasm"),
+        b"definitely not wasm",
+    )
+    .unwrap();
     install(dir.path(), "echo", ALL, ECHO);
 
     let mut runtime = runtime(dir.path(), &spy);
-    assert_eq!(runtime.load_all_plugins().await.unwrap(), ["echo"], "only the valid plugin loads");
+    assert_eq!(
+        runtime.load_all_plugins().await.unwrap(),
+        ["echo"],
+        "only the valid plugin loads"
+    );
 
     // and each one is refused for its own reason
     for (name, reason) in [

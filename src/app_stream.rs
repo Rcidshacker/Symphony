@@ -44,7 +44,10 @@ pub async fn import_stream_spec(
     db: &crate::db::Database,
     spec: &str,
 ) -> Result<Vec<Track>, String> {
-    let found = manager.resolve_spec(spec).await.map_err(|e| e.to_string())?;
+    let found = manager
+        .resolve_spec(spec)
+        .await
+        .map_err(|e| e.to_string())?;
     let mut added = Vec::new();
     for stream in &found {
         let track = track_from_stream(stream);
@@ -57,8 +60,14 @@ pub async fn import_stream_spec(
 /// The streaming-side view of a library stream track
 fn stream_from_track(track: &Track) -> StreamTrack {
     let (source, id) = match track.source {
-        TrackSource::Spotify => (StreamSource::Spotify, track.id.trim_start_matches("spotify:")),
-        _ => (StreamSource::YouTube, track.id.trim_start_matches("youtube:")),
+        TrackSource::Spotify => (
+            StreamSource::Spotify,
+            track.id.trim_start_matches("spotify:"),
+        ),
+        _ => (
+            StreamSource::YouTube,
+            track.id.trim_start_matches("youtube:"),
+        ),
     };
     StreamTrack::new(id, track.title.clone(), track.artist.clone(), source)
         .with_duration(track.duration as u64)
@@ -69,7 +78,10 @@ pub(super) fn is_stream(track: &Track) -> bool {
     matches!(track.source, TrackSource::YouTube | TrackSource::Spotify)
 }
 
-async fn manager(cell: &SharedManager, config: StreamManagerConfig) -> Result<Arc<StreamManager>, String> {
+async fn manager(
+    cell: &SharedManager,
+    config: StreamManagerConfig,
+) -> Result<Arc<StreamManager>, String> {
     cell.get_or_try_init(|| async { StreamManager::new(config).await.map(Arc::new) })
         .await
         .cloned()
@@ -96,12 +108,19 @@ impl App {
         self.ui_state.status_message =
             Some(format!("Fetching: {} - {}", track.artist, track.title));
 
-        let (cell, config, tx) = (self.stream.clone(), self.manager_config(), self.ai_tx.clone());
+        let (cell, config, tx) = (
+            self.stream.clone(),
+            self.manager_config(),
+            self.ai_tx.clone(),
+        );
         let stream = stream_from_track(&track);
         let track_id = track.id;
         runtime.spawn(async move {
             let result = match manager(&cell, config).await {
-                Ok(manager) => manager.download_track(&stream).await.map_err(|e| e.to_string()),
+                Ok(manager) => manager
+                    .download_track(&stream)
+                    .await
+                    .map_err(|e| e.to_string()),
                 Err(e) => Err(e),
             };
             let _ = tx.send(match result {
@@ -134,7 +153,9 @@ impl App {
         }
         self.stream_pending = None;
         self.ui_state.status_message = None;
-        self.ui_state.error_message = Some(format!("Stream failed: {error} (n skips to the next track)"));
+        self.ui_state.error_message = Some(format!(
+            "Stream failed: {error} (n skips to the next track)"
+        ));
     }
 
     /// Download the next queued stream track so it starts instantly
@@ -149,7 +170,11 @@ impl App {
         if !is_stream(next) {
             return;
         }
-        let (cell, config, stream) = (self.stream.clone(), self.manager_config(), stream_from_track(next));
+        let (cell, config, stream) = (
+            self.stream.clone(),
+            self.manager_config(),
+            stream_from_track(next),
+        );
         runtime.spawn(async move {
             if let Ok(manager) = manager(&cell, config).await {
                 // a failed prefetch only means the track downloads when it is played
@@ -164,7 +189,11 @@ impl App {
     pub fn play_stream_query(&mut self, query: &str) {
         let Some(runtime) = &self.runtime else { return };
         self.ui_state.status_message = Some(format!("Searching streams for \"{query}\"..."));
-        let (cell, config, tx) = (self.stream.clone(), self.manager_config(), self.ai_tx.clone());
+        let (cell, config, tx) = (
+            self.stream.clone(),
+            self.manager_config(),
+            self.ai_tx.clone(),
+        );
         let query = query.to_string();
         runtime.spawn(async move {
             let result = match manager(&cell, config).await {
@@ -179,7 +208,11 @@ impl App {
         });
     }
 
-    pub(super) fn apply_stream_search(&mut self, query: &str, result: Result<Vec<StreamTrack>, String>) {
+    pub(super) fn apply_stream_search(
+        &mut self,
+        query: &str,
+        result: Result<Vec<StreamTrack>, String>,
+    ) {
         let found = match result {
             Ok(found) => found,
             Err(e) => {

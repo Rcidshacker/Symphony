@@ -34,7 +34,10 @@ fn main() {
             .map(|c| if c.is_alphanumeric() { c } else { '_' })
             .collect();
         if query == "broken" {
-            println!("{}", json!({"id": "broken", "title": "Broken", "channel": "Nobody", "duration": 60}));
+            println!(
+                "{}",
+                json!({"id": "broken", "title": "Broken", "channel": "Nobody", "duration": 60})
+            );
             return;
         }
         for (i, duration) in [60, 120, 180].iter().take(count).enumerate() {

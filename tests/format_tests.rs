@@ -43,7 +43,9 @@ fn rodio_formats_decode_to_audio() {
 /// The real engine plays each format (muted) and the audio reaches the visualizer tap
 #[test]
 fn every_format_plays_through_the_engine() {
-    let Ok(mut engine) = AudioEngine::new() else { return }; // no audio device
+    let Ok(mut engine) = AudioEngine::new() else {
+        return;
+    }; // no audio device
     engine.set_volume(0.0);
 
     for ext in FORMATS {
@@ -57,7 +59,11 @@ fn every_format_plays_through_the_engine() {
             std::thread::sleep(std::time::Duration::from_millis(20));
             samples.extend(engine.drain_samples());
         }
-        assert!(samples.len() >= 8_000, "{ext}: only {} samples reached the tap", samples.len());
+        assert!(
+            samples.len() >= 8_000,
+            "{ext}: only {} samples reached the tap",
+            samples.len()
+        );
 
         let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
         assert!(rms > 0.05, "{ext}: playback was silent (rms {rms})");
@@ -70,7 +76,11 @@ fn every_format_plays_through_the_engine() {
 fn every_format_is_scanned_with_a_duration() {
     for ext in FORMATS {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::copy(fixture(ext), dir.path().join(format!("Some Artist - Some Song.{ext}"))).unwrap();
+        std::fs::copy(
+            fixture(ext),
+            dir.path().join(format!("Some Artist - Some Song.{ext}")),
+        )
+        .unwrap();
 
         let tracks = LibraryScanner::new().scan_directory(dir.path()).unwrap();
         assert_eq!(tracks.len(), 1, "{ext}: the scanner skipped the file");
@@ -86,7 +96,11 @@ fn every_format_is_scanned_with_a_duration() {
 fn tags_are_read_from_formats_that_carry_them() {
     for ext in ["mp3", "flac", "ogg", "m4a"] {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::copy(fixture(ext), dir.path().join(format!("untagged-name.{ext}"))).unwrap();
+        std::fs::copy(
+            fixture(ext),
+            dir.path().join(format!("untagged-name.{ext}")),
+        )
+        .unwrap();
 
         let tracks = LibraryScanner::new().scan_directory(dir.path()).unwrap();
         assert_eq!(tracks[0].title, "Fixture Tone", "{ext}: title");

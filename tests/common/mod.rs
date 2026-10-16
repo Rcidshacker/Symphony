@@ -18,7 +18,11 @@ pub fn write_wav(path: &Path, freqs: &[f32], secs: f32, amplitude: f32) {
                 .iter()
                 .map(|f| (2.0 * std::f32::consts::PI * f * t).sin())
                 .sum();
-            let mixed = if freqs.is_empty() { 0.0 } else { sum / freqs.len() as f32 };
+            let mixed = if freqs.is_empty() {
+                0.0
+            } else {
+                sum / freqs.len() as f32
+            };
             (mixed * amplitude * 32_767.0) as i16
         })
         .collect();
@@ -109,7 +113,9 @@ fn serve_one(
     let mut raw = Vec::new();
     let mut chunk = [0u8; 4096];
     let (head_end, content_length) = loop {
-        let Ok(n) = stream.read(&mut chunk) else { return };
+        let Ok(n) = stream.read(&mut chunk) else {
+            return;
+        };
         if n == 0 {
             return;
         }
@@ -125,7 +131,9 @@ fn serve_one(
         }
     };
     while raw.len() < head_end + content_length {
-        let Ok(n) = stream.read(&mut chunk) else { return };
+        let Ok(n) = stream.read(&mut chunk) else {
+            return;
+        };
         if n == 0 {
             break;
         }

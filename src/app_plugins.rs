@@ -12,9 +12,11 @@ use super::{App, RepeatMode, Track};
 use crate::ai::playlists::{PlaylistCriteria, SmartPlaylistGenerator};
 use crate::integrations::discord::{Activity, DiscordPresence};
 use crate::integrations::git::ActivityLevel;
-use crate::integrations::statusline::StatusSnapshot;
 use crate::integrations::lastfm::{should_scrobble, LastFm, ScrobbleTrack};
-use crate::plugins::{HostFunctions, PlaybackState as PluginPlayback, PluginEvent, PluginRuntime, TrackInfo};
+use crate::integrations::statusline::StatusSnapshot;
+use crate::plugins::{
+    HostFunctions, PlaybackState as PluginPlayback, PluginEvent, PluginRuntime, TrackInfo,
+};
 
 /// How long quitting waits for the last scrobble to go out
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(3);
@@ -97,7 +99,10 @@ impl App {
 
         if config.lastfm.enabled {
             let lastfm = &config.lastfm;
-            if lastfm.api_key.is_empty() || lastfm.api_secret.is_empty() || lastfm.session_key.is_empty() {
+            if lastfm.api_key.is_empty()
+                || lastfm.api_secret.is_empty()
+                || lastfm.session_key.is_empty()
+            {
                 self.ui_state.error_message =
                     Some("Last.fm: run `symphony lastfm-login` first".to_string());
             } else {
@@ -174,7 +179,9 @@ impl App {
             .with_log(|message| tracing::info!("[plugin] {message}"))
             .with_get_track(move || lock(&track).track.clone())
             .with_get_volume(move || lock(&volume).volume)
-            .with_notification(move |title, body| lock(&notes).notifications.push(format!("{title}: {body}")))
+            .with_notification(move |title, body| {
+                lock(&notes).notifications.push(format!("{title}: {body}"))
+            })
             .with_discord(move |title, artist, _, _| {
                 if let (Some(discord), Some(handle)) = (discord.clone(), discord_handle.clone()) {
                     let activity = Activity {
@@ -302,7 +309,11 @@ impl App {
         let started = unix_now() - position as i64;
         self.discord_send(Some(Activity {
             details: track.title.clone(),
-            state: if playing { format!("by {}", track.artist) } else { "Paused".to_string() },
+            state: if playing {
+                format!("by {}", track.artist)
+            } else {
+                "Paused".to_string()
+            },
             start_unix: (playing && show_timer).then_some(started),
         }));
     }
@@ -312,7 +323,9 @@ impl App {
         let integrations = &mut self.integrations;
         if !integrations.started
             || !self.config.integrations.statusline.enabled
-            || integrations.last_status_write.is_some_and(|t| t.elapsed() < Duration::from_secs(1))
+            || integrations
+                .last_status_write
+                .is_some_and(|t| t.elapsed() < Duration::from_secs(1))
         {
             return;
         }
@@ -342,7 +355,9 @@ impl App {
     /// `adapt_music` is on, replace the queue with music for the new level.
     /// Returns `true` when a new queue took over.
     pub(super) fn adapt_queue_for_git(&mut self) -> bool {
-        if !self.config.integrations.git.adapt_music || self.playback_state.repeat == RepeatMode::One {
+        if !self.config.integrations.git.adapt_music
+            || self.playback_state.repeat == RepeatMode::One
+        {
             return false;
         }
         let Some(git) = self.git_monitor.as_ref().filter(|g| g.in_repo()) else {
@@ -384,7 +399,8 @@ impl App {
 
     /// Update Discord off the UI thread (`None` clears the presence)
     fn discord_send(&self, activity: Option<Activity>) {
-        let (Some(discord), Some(runtime)) = (self.integrations.discord.clone(), &self.runtime) else {
+        let (Some(discord), Some(runtime)) = (self.integrations.discord.clone(), &self.runtime)
+        else {
             return;
         };
         runtime.spawn_blocking(move || {

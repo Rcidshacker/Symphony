@@ -78,26 +78,32 @@ impl PlaylistCriteria {
     /// Create from MusicIntent
     pub fn from_intent(intent: &MusicIntent) -> Self {
         match intent {
-            MusicIntent::Play { genre, mood, artist, tempo, era, duration_mins } => {
-                Self {
-                    name: None,
-                    genre: genre.clone(),
-                    mood: mood.clone(),
-                    artists: artist.iter().cloned().collect(),
-                    tempo: tempo.as_ref().and_then(|t| TempoPreference::from_str(t)),
-                    era: era.clone(),
-                    target_tracks: duration_mins.map(|_| 20),
-                    ..Default::default()
-                }
-            }
-            MusicIntent::CreatePlaylist { theme, duration_mins } => {
-                Self {
-                    name: Some(theme.clone()),
-                    max_duration_mins: Some(*duration_mins),
-                    target_tracks: None,
-                    ..Default::default()
-                }
-            }
+            MusicIntent::Play {
+                genre,
+                mood,
+                artist,
+                tempo,
+                era,
+                duration_mins,
+            } => Self {
+                name: None,
+                genre: genre.clone(),
+                mood: mood.clone(),
+                artists: artist.iter().cloned().collect(),
+                tempo: tempo.as_ref().and_then(|t| TempoPreference::from_str(t)),
+                era: era.clone(),
+                target_tracks: duration_mins.map(|_| 20),
+                ..Default::default()
+            },
+            MusicIntent::CreatePlaylist {
+                theme,
+                duration_mins,
+            } => Self {
+                name: Some(theme.clone()),
+                max_duration_mins: Some(*duration_mins),
+                target_tracks: None,
+                ..Default::default()
+            },
             _ => Self::default(),
         }
     }
@@ -120,7 +126,13 @@ impl TempoPreference {
             Self::Medium => (95.0, 125.0),
             Self::Fast => (125.0, f32::MAX),
         };
-        let distance = if bpm < low { low - bpm } else if bpm > high { bpm - high } else { 0.0 };
+        let distance = if bpm < low {
+            low - bpm
+        } else if bpm > high {
+            bpm - high
+        } else {
+            0.0
+        };
         (1.0 - distance / 40.0).max(0.0)
     }
 
@@ -224,9 +236,10 @@ impl SmartPlaylistGenerator {
     ) -> Result<SmartPlaylist, PlaylistError> {
         let mut notes = Vec::new();
 
-        let genre_usable = criteria.genre.as_ref().is_some_and(|genre| {
-            tracks.iter().any(|t| genre_matches(t, genre))
-        });
+        let genre_usable = criteria
+            .genre
+            .as_ref()
+            .is_some_and(|genre| tracks.iter().any(|t| genre_matches(t, genre)));
         if criteria.genre.is_some() && !genre_usable {
             notes.push(format!(
                 "no track is tagged '{}', so the genre was ignored",
@@ -236,9 +249,14 @@ impl SmartPlaylistGenerator {
 
         let mood_profile = criteria.mood.as_deref().and_then(mood::mood_profile);
         let mood_known = criteria.mood.is_none() || mood_profile.is_some();
-        let analyzed = tracks.iter().filter(|t| self.features_of(t).is_some()).count();
+        let analyzed = tracks
+            .iter()
+            .filter(|t| self.features_of(t).is_some())
+            .count();
         if criteria.mood.is_some() && analyzed == 0 && !self.features.is_empty() {
-            notes.push("the library has not been analyzed yet, mood matching used tags only".to_string());
+            notes.push(
+                "the library has not been analyzed yet, mood matching used tags only".to_string(),
+            );
         }
         if criteria.mood.is_some() && !mood_known {
             notes.push(format!(
@@ -259,7 +277,10 @@ impl SmartPlaylistGenerator {
             .collect();
 
         if candidates.is_empty() {
-            return Err(PlaylistError::NotEnoughTracks(0, criteria.target_tracks.unwrap_or(1)));
+            return Err(PlaylistError::NotEnoughTracks(
+                0,
+                criteria.target_tracks.unwrap_or(1),
+            ));
         }
 
         // Best matches first (stable: equal scores keep library order)
@@ -287,7 +308,10 @@ impl SmartPlaylistGenerator {
         }
 
         if selected_tracks.is_empty() {
-            return Err(PlaylistError::NotEnoughTracks(0, criteria.target_tracks.unwrap_or(1)));
+            return Err(PlaylistError::NotEnoughTracks(
+                0,
+                criteria.target_tracks.unwrap_or(1),
+            ));
         }
 
         // Create playlist
@@ -310,7 +334,12 @@ impl SmartPlaylistGenerator {
     }
 
     /// Check if a track matches the criteria
-    fn matches_criteria(&self, track: &Track, criteria: &PlaylistCriteria, genre_usable: bool) -> bool {
+    fn matches_criteria(
+        &self,
+        track: &Track,
+        criteria: &PlaylistCriteria,
+        genre_usable: bool,
+    ) -> bool {
         // Genre filter (only when the library has tags to filter on)
         if let Some(ref genre) = criteria.genre {
             if genre_usable && !genre_matches(track, genre) {
@@ -320,9 +349,10 @@ impl SmartPlaylistGenerator {
 
         // Artist filter
         if !criteria.artists.is_empty() {
-            let matches = criteria.artists.iter().any(|a| {
-                track.artist.to_lowercase().contains(&a.to_lowercase())
-            });
+            let matches = criteria
+                .artists
+                .iter()
+                .any(|a| track.artist.to_lowercase().contains(&a.to_lowercase()));
             if !matches {
                 return false;
             }
@@ -330,9 +360,10 @@ impl SmartPlaylistGenerator {
 
         // Exclude artists
         if !criteria.exclude_artists.is_empty() {
-            let excluded = criteria.exclude_artists.iter().any(|a| {
-                track.artist.to_lowercase().contains(&a.to_lowercase())
-            });
+            let excluded = criteria
+                .exclude_artists
+                .iter()
+                .any(|a| track.artist.to_lowercase().contains(&a.to_lowercase()));
             if excluded {
                 return false;
             }
@@ -374,7 +405,10 @@ impl SmartPlaylistGenerator {
         if let Some(ref mood_word) = criteria.mood {
             let mood_genres = mood_to_genres(mood_word);
             if let Some(ref track_genre) = track.genre {
-                if mood_genres.iter().any(|g| track_genre.to_lowercase().contains(&g.to_lowercase())) {
+                if mood_genres
+                    .iter()
+                    .any(|g| track_genre.to_lowercase().contains(&g.to_lowercase()))
+                {
                     score += self.mood_weight;
                 }
             }
@@ -394,7 +428,11 @@ impl SmartPlaylistGenerator {
     }
 
     /// Generate playlist from mood
-    pub fn from_mood(tracks: &[Track], mood: &str, duration_mins: u32) -> Result<SmartPlaylist, PlaylistError> {
+    pub fn from_mood(
+        tracks: &[Track],
+        mood: &str,
+        duration_mins: u32,
+    ) -> Result<SmartPlaylist, PlaylistError> {
         let criteria = PlaylistCriteria {
             mood: Some(mood.to_string()),
             genre: mood_to_genres(mood).first().map(|s| s.to_string()),
@@ -406,7 +444,10 @@ impl SmartPlaylistGenerator {
     }
 
     /// Generate focus playlist
-    pub fn focus_playlist(tracks: &[Track], duration_mins: u32) -> Result<SmartPlaylist, PlaylistError> {
+    pub fn focus_playlist(
+        tracks: &[Track],
+        duration_mins: u32,
+    ) -> Result<SmartPlaylist, PlaylistError> {
         let criteria = PlaylistCriteria {
             name: Some("Focus Session".to_string()),
             mood: Some("focus".to_string()),
@@ -420,7 +461,10 @@ impl SmartPlaylistGenerator {
     }
 
     /// Generate workout playlist
-    pub fn workout_playlist(tracks: &[Track], duration_mins: u32) -> Result<SmartPlaylist, PlaylistError> {
+    pub fn workout_playlist(
+        tracks: &[Track],
+        duration_mins: u32,
+    ) -> Result<SmartPlaylist, PlaylistError> {
         let criteria = PlaylistCriteria {
             name: Some("Workout Mix".to_string()),
             mood: Some("energetic".to_string()),
@@ -525,7 +569,11 @@ mod tests {
 
     fn analyzed_library() -> (Vec<Track>, HashMap<String, AudioFeatures>) {
         // untagged tracks with different sound: (quiet+slow, medium, loud+fast)
-        let specs = [("calm one", 0.15, 70.0), ("middle", 0.5, 105.0), ("banger", 0.9, 150.0)];
+        let specs = [
+            ("calm one", 0.15, 70.0),
+            ("middle", 0.5, 105.0),
+            ("banger", 0.9, 150.0),
+        ];
         let mut tracks = Vec::new();
         let mut features = HashMap::new();
         for (i, (title, energy, bpm)) in specs.iter().enumerate() {
@@ -534,7 +582,11 @@ mod tests {
             track.path = PathBuf::from(format!("/music/{i}.mp3"));
             features.insert(
                 track.path.to_string_lossy().to_string(),
-                AudioFeatures { energy: *energy, bpm: *bpm, beat_strength: 0.4 },
+                AudioFeatures {
+                    energy: *energy,
+                    bpm: *bpm,
+                    beat_strength: 0.4,
+                },
             );
             tracks.push(track);
         }
@@ -546,8 +598,17 @@ mod tests {
         let (tracks, features) = analyzed_library();
         let generator = SmartPlaylistGenerator::new().with_features(features);
         let ids = |mood: &str| -> Vec<String> {
-            let criteria = PlaylistCriteria { mood: Some(mood.into()), ..Default::default() };
-            generator.generate(&tracks, &criteria).unwrap().tracks.into_iter().map(|t| t.title).collect()
+            let criteria = PlaylistCriteria {
+                mood: Some(mood.into()),
+                ..Default::default()
+            };
+            generator
+                .generate(&tracks, &criteria)
+                .unwrap()
+                .tracks
+                .into_iter()
+                .map(|t| t.title)
+                .collect()
         };
 
         assert_eq!(ids("energetic")[0], "banger");
@@ -560,8 +621,13 @@ mod tests {
         let (tracks, features) = analyzed_library();
         let generator = SmartPlaylistGenerator::new().with_features(features);
         let first = |tempo| {
-            let criteria = PlaylistCriteria { tempo: Some(tempo), ..Default::default() };
-            generator.generate(&tracks, &criteria).unwrap().tracks[0].title.clone()
+            let criteria = PlaylistCriteria {
+                tempo: Some(tempo),
+                ..Default::default()
+            };
+            generator.generate(&tracks, &criteria).unwrap().tracks[0]
+                .title
+                .clone()
         };
         assert_eq!(first(TempoPreference::Fast), "banger");
         assert_eq!(first(TempoPreference::Slow), "calm one");
@@ -576,8 +642,15 @@ mod tests {
             mood: Some("focus".into()),
             ..Default::default()
         };
-        let playlist = SmartPlaylistGenerator::new().with_features(features).generate(&tracks, &criteria).unwrap();
-        assert_eq!(playlist.tracks.len(), 3, "untagged library: the genre must not empty the playlist");
+        let playlist = SmartPlaylistGenerator::new()
+            .with_features(features)
+            .generate(&tracks, &criteria)
+            .unwrap();
+        assert_eq!(
+            playlist.tracks.len(),
+            3,
+            "untagged library: the genre must not empty the playlist"
+        );
         assert!(playlist.notes.iter().any(|n| n.contains("ambient")));
         assert_eq!(playlist.tracks[0].title, "calm one");
     }
@@ -590,8 +663,14 @@ mod tests {
         ];
         tracks[0].duration = 600.0;
         tracks[1].duration = 120.0;
-        let criteria = PlaylistCriteria { max_duration_mins: Some(5), target_tracks: None, ..Default::default() };
-        let playlist = SmartPlaylistGenerator::new().generate(&tracks, &criteria).unwrap();
+        let criteria = PlaylistCriteria {
+            max_duration_mins: Some(5),
+            target_tracks: None,
+            ..Default::default()
+        };
+        let playlist = SmartPlaylistGenerator::new()
+            .generate(&tracks, &criteria)
+            .unwrap();
         assert_eq!(playlist.tracks.len(), 1);
         assert_eq!(playlist.tracks[0].title, "Short");
         assert!(playlist.total_duration <= 300.0);
