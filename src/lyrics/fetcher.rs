@@ -18,6 +18,8 @@ pub struct LyricsFetcherConfig {
     pub auto_fetch: bool,
     /// Cache expiration in days
     pub cache_expiration_days: u32,
+    /// Base URL of the LRCLIB API
+    pub lrclib_url: String,
 }
 
 impl Default for LyricsFetcherConfig {
@@ -32,6 +34,7 @@ impl Default for LyricsFetcherConfig {
             online_enabled: true,
             auto_fetch: true,
             cache_expiration_days: 30,
+            lrclib_url: "https://lrclib.net".to_string(),
         }
     }
 }
@@ -65,19 +68,29 @@ impl LyricsFetcher {
 
     /// Fetch lyrics for a track
     pub async fn fetch(&self, title: &str, artist: &str) -> Result<Lyrics, LyricsError> {
-        // 1. Try cache
+        self.fetch_track(title, artist, None, None).await
+    }
+
+    /// Fetch lyrics, using album and duration (seconds) to pick the right recording
+    pub async fn fetch_track(
+        &self,
+        title: &str,
+        artist: &str,
+        album: Option<&str>,
+        duration_secs: Option<f64>,
+    ) -> Result<Lyrics, LyricsError> {
+        // 1. Cache
         if let Some(lyrics) = self.fetch_from_cache(title, artist).await? {
             debug!("Found cached lyrics for {} - {}", artist, title);
             return Ok(lyrics);
         }
 
-        // 2. Try local LRC files (same directory as track)
-        // This would need the track path, skipped for now
-
-        // 3. Try online sources
+        // 2. Online (LRCLIB)
         if self.config.online_enabled {
-            if let Some(lyrics) = self.fetch_online(title, artist).await? {
-                // Cache the result
+            if let Some(lyrics) = self
+                .fetch_online(title, artist, album, duration_secs)
+                .await?
+            {
                 self.cache_lyrics(&lyrics, title, artist).await?;
                 return Ok(lyrics);
             }
@@ -86,90 +99,145 @@ impl LyricsFetcher {
         Err(LyricsError::NotFound)
     }
 
-    /// Fetch lyrics from local cache
+    /// Fetch lyrics from local cache (entries older than `cache_expiration_days` are ignored)
     async fn fetch_from_cache(
         &self,
         title: &str,
         artist: &str,
     ) -> Result<Option<Lyrics>, LyricsError> {
         let cache_path = self.get_cache_path(title, artist);
+        if !cache_path.exists() {
+            return Ok(None);
+        }
 
-        if cache_path.exists() {
-            let content = fs::read_to_string(&cache_path).await?;
-            let mut lyrics = LrcParser::parse(&content)?;
-            lyrics.source = LyricsSource::LocalFile;
+        let max_age = std::time::Duration::from_secs(u64::from(self.config.cache_expiration_days) * 86_400);
+        let age = fs::metadata(&cache_path)
+            .await
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|modified| modified.elapsed().ok());
+        if age.is_some_and(|age| age > max_age) {
+            debug!("Cached lyrics for {} - {} expired", artist, title);
+            return Ok(None);
+        }
+
+        let content = fs::read_to_string(&cache_path).await?;
+        let mut lyrics = LrcParser::parse(&content)?;
+        lyrics.source = LyricsSource::LocalFile;
+        Ok(Some(lyrics))
+    }
+
+    /// Fetch lyrics from LRCLIB: exact lookup first, then a search
+    async fn fetch_online(
+        &self,
+        title: &str,
+        artist: &str,
+        album: Option<&str>,
+        duration_secs: Option<f64>,
+    ) -> Result<Option<Lyrics>, LyricsError> {
+        let Some(client) = &self.http_client else {
+            return Ok(None);
+        };
+
+        let exact = self
+            .lrclib_get(client, title, artist, album, duration_secs)
+            .await;
+        if let Ok(Some(lyrics)) = exact {
             return Ok(Some(lyrics));
         }
 
-        Ok(None)
+        match self.lrclib_search(client, title, artist, duration_secs).await {
+            Ok(Some(lyrics)) => Ok(Some(lyrics)),
+            // the search found nothing: report the lookup's network error if there was one
+            Ok(None) => exact.map(|_| None),
+            Err(search_err) => exact.map(|_| None).or(Err(search_err)),
+        }
     }
 
-    /// Fetch lyrics from online sources
-    async fn fetch_online(&self, title: &str, artist: &str) -> Result<Option<Lyrics>, LyricsError> {
-        let client = match &self.http_client {
-            Some(c) => c,
-            None => return Ok(None),
-        };
-
-        // Try multiple sources in order
-        // Note: Real implementation would use proper APIs with keys
-
-        // For now, return None as we don't have API keys
-        // In production, you would:
-        // 1. Try MusicBrainz for track metadata
-        // 2. Try LRCLIB (https://lrclib.net/) - free API
-        // 3. Try other services as needed
-
-        debug!("Online lyrics fetch not implemented for {} - {}", artist, title);
-        Ok(None)
-    }
-
-    /// Try to fetch from LRCLIB (free lyrics API)
-    #[allow(dead_code)]
-    async fn fetch_from_lrclib(
+    /// `GET /api/get`: the exact recording
+    async fn lrclib_get(
         &self,
         client: &reqwest::Client,
         title: &str,
         artist: &str,
+        album: Option<&str>,
+        duration_secs: Option<f64>,
     ) -> Result<Option<Lyrics>, LyricsError> {
-        let url = format!(
-            "https://lrclib.net/api/get?artist_name={}&track_name={}",
-            urlencoding::encode(artist),
-            urlencoding::encode(title)
-        );
+        let mut query = vec![
+            ("artist_name", artist.to_string()),
+            ("track_name", title.to_string()),
+        ];
+        if let Some(album) = album.filter(|a| !a.is_empty() && *a != "Unknown") {
+            query.push(("album_name", album.to_string()));
+        }
+        if let Some(duration) = duration_secs.filter(|d| *d > 0.0) {
+            query.push(("duration", format!("{}", duration.round() as u64)));
+        }
 
+        let url = format!("{}/api/get", self.config.lrclib_url.trim_end_matches('/'));
         let response = client
             .get(&url)
+            .query(&query)
             .send()
             .await
             .map_err(|e| LyricsError::NetworkError(e.to_string()))?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
-
-        // Parse LRCLIB response
-        #[derive(serde::Deserialize)]
-        struct LrclibResponse {
-            plain_lyrics: Option<String>,
-            synced_lyrics: Option<String>,
+        if !status.is_success() {
+            return Err(LyricsError::NetworkError(format!("LRCLIB returned {status}")));
         }
 
-        let data: LrclibResponse = response
+        let entry: LrclibEntry = response
+            .json()
+            .await
+            .map_err(|e| LyricsError::NetworkError(e.to_string()))?;
+        entry.into_lyrics(&url)
+    }
+
+    /// `GET /api/search`: the best synced match, preferring the closest duration
+    async fn lrclib_search(
+        &self,
+        client: &reqwest::Client,
+        title: &str,
+        artist: &str,
+        duration_secs: Option<f64>,
+    ) -> Result<Option<Lyrics>, LyricsError> {
+        let url = format!("{}/api/search", self.config.lrclib_url.trim_end_matches('/'));
+        let response = client
+            .get(&url)
+            .query(&[("track_name", title), ("artist_name", artist)])
+            .send()
+            .await
+            .map_err(|e| LyricsError::NetworkError(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(LyricsError::NetworkError(format!("LRCLIB returned {status}")));
+        }
+
+        let entries: Vec<LrclibEntry> = response
             .json()
             .await
             .map_err(|e| LyricsError::NetworkError(e.to_string()))?;
 
-        if let Some(synced) = data.synced_lyrics {
-            let mut lyrics = LrcParser::parse(&synced)?;
-            lyrics.source = LyricsSource::Online {
-                service: "LRCLIB".to_string(),
-                url: Some(url),
-            };
-            return Ok(Some(lyrics));
-        }
+        let best = entries
+            .into_iter()
+            .filter(|e| !e.instrumental && e.synced_lyrics.as_deref().is_some_and(|s| !s.trim().is_empty()))
+            .min_by(|a, b| {
+                let distance = |e: &LrclibEntry| match (duration_secs, e.duration) {
+                    (Some(wanted), Some(got)) if wanted > 0.0 => (wanted - got).abs(),
+                    _ => 0.0,
+                };
+                distance(a).total_cmp(&distance(b))
+            });
 
-        Ok(None)
+        match best {
+            Some(entry) => entry.into_lyrics(&url),
+            None => Ok(None),
+        }
     }
 
     /// Cache lyrics to local storage
@@ -258,10 +326,37 @@ fn sanitize_filename(s: &str) -> String {
         .to_string()
 }
 
-/// URL encoding module
-mod urlencoding {
-    pub fn encode(s: &str) -> String {
-        url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+/// One LRCLIB record (`/api/get` returns one, `/api/search` a list)
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LrclibEntry {
+    #[serde(default)]
+    synced_lyrics: Option<String>,
+    #[serde(default)]
+    instrumental: bool,
+    #[serde(default)]
+    duration: Option<f64>,
+}
+
+impl LrclibEntry {
+    /// Synced lyrics only: plain text has no timestamps to follow
+    fn into_lyrics(self, url: &str) -> Result<Option<Lyrics>, LyricsError> {
+        if self.instrumental {
+            return Ok(None);
+        }
+        let Some(synced) = self.synced_lyrics.filter(|s| !s.trim().is_empty()) else {
+            return Ok(None);
+        };
+
+        let mut lyrics = LrcParser::parse(&synced)?;
+        if lyrics.is_empty() {
+            return Ok(None);
+        }
+        lyrics.source = LyricsSource::Online {
+            service: "LRCLIB".to_string(),
+            url: Some(url.to_string()),
+        };
+        Ok(Some(lyrics))
     }
 }
 

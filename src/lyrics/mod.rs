@@ -34,6 +34,7 @@
 pub mod display;
 pub mod fetcher;
 pub mod lrc;
+pub mod translate;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

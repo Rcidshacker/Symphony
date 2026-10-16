@@ -50,6 +50,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         KeyCode::Char('/') => app.enter_search_mode(),
         KeyCode::Char('a') => app.enter_ai_mode(),
         KeyCode::Char('l') => app.toggle_lyrics(),
+        KeyCode::Char('x') => app.translate_lyrics(),
         KeyCode::Char('w') => app.toggle_pomodoro(),
 
         KeyCode::Esc => app.exit_search_mode(),

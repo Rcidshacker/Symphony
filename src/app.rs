@@ -13,7 +13,9 @@ use crate::integrations::git::GitMonitorConfig;
 use crate::integrations::pomodoro::PomodoroConfig;
 use crate::integrations::{GitMonitor, PomodoroEvent, PomodoroState, PomodoroTimer};
 use crate::lyrics::display::LyricsDisplayConfig;
-use crate::lyrics::{LrcParser, LyricsDisplay};
+use crate::lyrics::fetcher::{LyricsFetcher, LyricsFetcherConfig};
+use crate::lyrics::translate::translate_lines;
+use crate::lyrics::{LrcParser, Lyrics, LyricsDisplay, LyricsError};
 
 use crate::audio::AudioEngine;
 use crate::config::theme::ThemeManager;
@@ -76,14 +78,26 @@ pub struct App {
     runtime: Option<tokio::runtime::Runtime>,
 
     /// AI results come back from the runtime over this channel
-    ai_tx: Sender<AiEvent>,
-    ai_rx: Receiver<AiEvent>,
+    ai_tx: Sender<BackgroundEvent>,
+    ai_rx: Receiver<BackgroundEvent>,
 }
 
-/// Result of a background AI request
-enum AiEvent {
+/// Result of background work, handed back to the UI thread over a channel
+enum BackgroundEvent {
+    /// The AI understood a prompt
     Intent(MusicIntent),
-    Error(String),
+    /// The AI request failed
+    AiError(String),
+    /// Online lyrics lookup for a track finished
+    Lyrics {
+        track_id: String,
+        result: Result<Lyrics, LyricsError>,
+    },
+    /// AI translation of a track's lyrics finished
+    Translation {
+        track_id: String,
+        result: Result<Vec<Option<String>>, String>,
+    },
 }
 
 /// Playback state
@@ -448,6 +462,11 @@ impl App {
         self.ui_state.error_message = None;
 
         self.load_lyrics_for(&track_path);
+        if !self.lyrics.has_lyrics() {
+            if let Some(track) = self.playback_state.current_track.clone() {
+                self.fetch_lyrics_online(&track);
+            }
+        }
         let track_id = self.playback_state.current_track.as_ref().map(|t| t.id.clone());
         if let Some(id) = track_id {
             self.load_artwork(&id, &track_path);
@@ -703,7 +722,7 @@ impl App {
         let elapsed = now.duration_since(self.last_tick).as_secs_f64();
         self.last_tick = now;
 
-        self.poll_ai();
+        self.poll_background();
         self.poll_integrations();
         self.update_visualizer();
 
@@ -826,22 +845,40 @@ impl App {
             }
             .await;
             let event = match result {
-                Ok(intent) => AiEvent::Intent(intent),
-                Err(e) => AiEvent::Error(e.to_string()),
+                Ok(intent) => BackgroundEvent::Intent(intent),
+                Err(e) => BackgroundEvent::AiError(e.to_string()),
             };
             let _ = tx.send(event);
         });
     }
 
-    /// Collect finished AI requests (called every frame)
-    fn poll_ai(&mut self) {
+    /// Collect finished background work: AI prompts, lyrics lookups, translations (every frame)
+    fn poll_background(&mut self) {
         while let Ok(event) = self.ai_rx.try_recv() {
-            self.ui_state.ai_pending = false;
             match event {
-                AiEvent::Intent(intent) => self.apply_ai_intent(intent),
-                AiEvent::Error(e) => self.ui_state.error_message = Some(format!("AI: {e}")),
+                BackgroundEvent::Intent(intent) => {
+                    self.ui_state.ai_pending = false;
+                    self.apply_ai_intent(intent);
+                }
+                BackgroundEvent::AiError(e) => {
+                    self.ui_state.ai_pending = false;
+                    self.ui_state.error_message = Some(format!("AI: {e}"));
+                }
+                BackgroundEvent::Lyrics { track_id, result } => {
+                    self.apply_fetched_lyrics(&track_id, result);
+                }
+                BackgroundEvent::Translation { track_id, result } => {
+                    self.apply_translation(&track_id, result);
+                }
             }
         }
+    }
+
+    fn is_current_track(&self, track_id: &str) -> bool {
+        self.playback_state
+            .current_track
+            .as_ref()
+            .is_some_and(|t| t.id == track_id)
     }
 
     /// Act on what the AI understood
@@ -974,6 +1011,125 @@ impl App {
             return;
         }
         self.ui_state.show_lyrics = !self.ui_state.show_lyrics;
+    }
+
+    /// Look the track up on LRCLIB in the background (cached on disk; skipped for unknown artists)
+    fn fetch_lyrics_online(&mut self, track: &Track) {
+        let config = &self.config.lyrics;
+        if !config.enabled
+            || !config.auto_fetch
+            || track.title.trim().is_empty()
+            || track.artist == "Unknown Artist"
+        {
+            return;
+        }
+        let Some(runtime) = &self.runtime else { return };
+
+        let fetcher = LyricsFetcher::new(LyricsFetcherConfig {
+            cache_dir: config.cache_dir.clone(),
+            lrclib_url: config.lrclib_url.clone(),
+            ..LyricsFetcherConfig::default()
+        });
+        let (id, title, artist, album, duration) = (
+            track.id.clone(),
+            track.title.clone(),
+            track.artist.clone(),
+            track.album.clone(),
+            track.duration,
+        );
+        let tx = self.ai_tx.clone();
+
+        runtime.spawn(async move {
+            let result = fetcher
+                .fetch_track(&title, &artist, Some(&album), Some(duration))
+                .await;
+            let _ = tx.send(BackgroundEvent::Lyrics { track_id: id, result });
+        });
+    }
+
+    /// A lookup finished: show the lyrics if that track is still playing
+    fn apply_fetched_lyrics(&mut self, track_id: &str, result: Result<Lyrics, LyricsError>) {
+        if !self.is_current_track(track_id) {
+            return;
+        }
+        match result {
+            Ok(lyrics) => {
+                self.lyrics.set_lyrics(lyrics);
+                self.lyrics
+                    .update_position((self.playback_state.position * 1000.0) as u64);
+                self.ui_state.status_message =
+                    Some("Lyrics found online, press l to show them".to_string());
+            }
+            Err(LyricsError::NotFound) => {}
+            Err(e) => {
+                self.ui_state.status_message = Some(format!("Lyrics: online lookup failed ({e})"));
+            }
+        }
+    }
+
+    /// Translate the lyrics with the AI provider (`x`); pressed again it shows/hides the translation
+    pub fn translate_lyrics(&mut self) {
+        if !self.lyrics.has_lyrics() {
+            self.ui_state.status_message =
+                Some("No lyrics to translate: add a .lrc file or enable [lyrics] auto_fetch".to_string());
+            return;
+        }
+        if self.lyrics.has_translations() {
+            self.lyrics.toggle_translation();
+            return;
+        }
+        if !self.config.ai.enabled {
+            self.ui_state.status_message =
+                Some("Translation needs the AI: set enabled = true under [ai]".to_string());
+            return;
+        }
+        let provider = match self.config.ai.get_provider_config() {
+            Ok(provider) => provider,
+            Err(e) => {
+                self.ui_state.error_message = Some(format!("AI: {e}"));
+                return;
+            }
+        };
+        let (Some(runtime), Some(track_id)) = (
+            &self.runtime,
+            self.playback_state.current_track.as_ref().map(|t| t.id.clone()),
+        ) else {
+            return;
+        };
+        let Some(lines) = self
+            .lyrics
+            .lyrics()
+            .map(|l| l.lines.iter().map(|line| line.text.clone()).collect::<Vec<_>>())
+        else {
+            return;
+        };
+
+        let language = self.config.lyrics.translate_to.clone();
+        self.ui_state.status_message = Some(format!("Translating lyrics to {language}..."));
+        let tx = self.ai_tx.clone();
+        runtime.spawn(async move {
+            let result = translate_lines(provider, &language, &lines).await;
+            let _ = tx.send(BackgroundEvent::Translation { track_id, result });
+        });
+    }
+
+    /// A translation finished: attach it to the lyrics and show the lyrics panel
+    fn apply_translation(&mut self, track_id: &str, result: Result<Vec<Option<String>>, String>) {
+        if !self.is_current_track(track_id) {
+            return;
+        }
+        match result {
+            Ok(translations) => {
+                let translated = translations.iter().flatten().count();
+                self.lyrics.set_translations(translations);
+                self.ui_state.show_lyrics = true;
+                self.ui_state.status_message = Some(format!(
+                    "Lyrics translated to {} ({translated} lines, x hides it)",
+                    self.config.lyrics.translate_to
+                ));
+            }
+            Err(e) => self.ui_state.error_message = Some(format!("Translation: {e}")),
+        }
     }
 
     /// Load the `.lrc` file next to the audio file, if there is one

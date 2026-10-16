@@ -324,7 +324,7 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
 /// Key hints shown on the second status line
 const KEY_HINTS: [&str; 2] = [
     "space play/pause · n/p next/prev · +/- volume · m mute · s shuffle · r repeat · q quit",
-    "/ search · a ask AI · l lyrics · w pomodoro · v visualizer · t theme · ? help",
+    "/ search · a ask AI · l lyrics · x translate · w pomodoro · v visualizer · t theme · ? help",
 ];
 
 /// Render status bar (state + message line, key hint line)
@@ -435,7 +435,8 @@ fn render_help(f: &mut Frame, theme: &Theme) {
 ║  s        Shuffle toggle                  ║
 ║  r        Cycle repeat modes              ║
 ║  a        Ask the AI (type, Enter)        ║
-║  l        Show/hide lyrics (.lrc file)    ║
+║  l        Show/hide lyrics                ║
+║  x        Translate lyrics (AI)           ║
 ║  w        Pomodoro start/stop             ║
 ║  /        Search mode                     ║
 ║  Esc      Exit search/cancel              ║

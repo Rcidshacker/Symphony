@@ -2,7 +2,7 @@
 //!
 //! Renders karaoke-style synced lyrics in the terminal.
 
-use super::{Lyrics, LyricsLine};
+use super::{Lyrics, LyricsLine, WordTimestamp};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -90,6 +90,28 @@ impl LyricsDisplay {
         self.lyrics = Some(lyrics);
         self.current_position_ms = 0;
         self.karaoke_progress = 0.0;
+    }
+
+    /// The lyrics being displayed
+    pub fn lyrics(&self) -> Option<&Lyrics> {
+        self.lyrics.as_ref()
+    }
+
+    /// Attach translations (one per line, `None` where missing) and show them
+    pub fn set_translations(&mut self, translations: Vec<Option<String>>) {
+        if let Some(lyrics) = &mut self.lyrics {
+            for (line, translation) in lyrics.lines.iter_mut().zip(translations) {
+                line.translation = translation;
+            }
+            self.config.show_translation = true;
+        }
+    }
+
+    /// Whether any line has a translation
+    pub fn has_translations(&self) -> bool {
+        self.lyrics
+            .as_ref()
+            .is_some_and(|l| l.lines.iter().any(|line| line.translation.is_some()))
     }
 
     /// Clear the current lyrics
@@ -185,8 +207,9 @@ impl LyricsDisplay {
             let line = &lyrics.lines[idx];
 
             let text_line = self.render_line(line, is_current, idx, current_idx);
+            display_lines.push(text_line);
 
-            // Add translation if enabled and available
+            // Translation goes under the original line
             if self.config.show_translation {
                 if let Some(translation) = &line.translation {
                     let trans_style = if is_current {
@@ -205,8 +228,6 @@ impl LyricsDisplay {
                     )));
                 }
             }
-
-            display_lines.push(text_line);
         }
 
         // Create paragraph
@@ -263,36 +284,67 @@ impl LyricsDisplay {
             Style::default().fg(Color::Gray)
         };
 
-        // Karaoke-style partial highlighting
-        if is_current && self.config.karaoke_mode && self.karaoke_progress > 0.0 {
-            let text = &line.text;
-            let highlight_len = ((text.len() as f32) * self.karaoke_progress) as usize;
+        if is_current && self.config.karaoke_mode {
+            // Real word timing (enhanced LRC): sung words lit, the current word underlined
+            if let Some(words) = line.word_timestamps.as_ref().filter(|w| !w.is_empty()) {
+                return self.word_level_line(words);
+            }
 
-            let highlighted = &text[..highlight_len.min(text.len())];
-            let remaining = &text[highlight_len.min(text.len())..];
+            // Otherwise light up a share of the characters proportional to the time in the line
+            if self.karaoke_progress > 0.0 {
+                let chars: Vec<char> = line.text.chars().collect();
+                let lit = ((chars.len() as f32 * self.karaoke_progress) as usize).min(chars.len());
+                let (done, rest) = chars.split_at(lit);
 
-            Line::from(vec![
-                Span::styled(
-                    highlighted.to_string(),
-                    Style::default()
-                        .fg(self.config.highlight_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    remaining.to_string(),
-                    Style::default()
-                        .fg(self.config.future_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ])
-        } else {
-            Line::from(Span::styled(line.text.clone(), style))
+                return Line::from(vec![
+                    Span::styled(
+                        done.iter().collect::<String>(),
+                        Style::default()
+                            .fg(self.config.highlight_color)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        rest.iter().collect::<String>(),
+                        Style::default()
+                            .fg(self.config.future_color)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]);
+            }
         }
+
+        Line::from(Span::styled(line.text.clone(), style))
+    }
+
+    /// Current line with per-word highlighting from word timestamps
+    fn word_level_line(&self, words: &[WordTimestamp]) -> Line<'static> {
+        let position = self.current_position_ms;
+        let highlight = Style::default()
+            .fg(self.config.highlight_color)
+            .add_modifier(Modifier::BOLD);
+
+        let mut spans = Vec::with_capacity(words.len() * 2);
+        for (i, word) in words.iter().enumerate() {
+            let style = if position >= word.end_ms {
+                highlight
+            } else if position >= word.start_ms {
+                highlight.add_modifier(Modifier::UNDERLINED)
+            } else {
+                Style::default()
+                    .fg(self.config.future_color)
+                    .add_modifier(Modifier::BOLD)
+            };
+            spans.push(Span::styled(word.word.clone(), style));
+            if i + 1 < words.len() {
+                spans.push(Span::raw(" "));
+            }
+        }
+        Line::from(spans)
     }
 
     /// Render empty state
     fn render_empty(&self, frame: &mut Frame, area: Rect) {
-        let paragraph = Paragraph::new("No lyrics available\n\nPress 'L' to load lyrics")
+        let paragraph = Paragraph::new("No lyrics for this track\n\nPut a .lrc file next to the song,\nor enable auto_fetch under [lyrics]")
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -427,6 +479,81 @@ mod tests {
 
         assert_eq!(mini.get_current_text(10), "Test Line");
         assert_eq!(mini.get_current_text(5), "Te...");
+    }
+
+    fn render_to_buffer(display: &LyricsDisplay, width: u16, height: u16) -> ratatui::buffer::Buffer {
+        let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+        terminal.draw(|f| display.render(f, f.area())).unwrap();
+        terminal.backend().buffer().clone()
+    }
+
+    /// First cell of `needle` on the screen (row text must be ASCII-only before it)
+    fn find(buffer: &ratatui::buffer::Buffer, needle: &str) -> Option<(u16, u16)> {
+        for y in 0..buffer.area.height {
+            let row: String = (0..buffer.area.width).map(|x| buffer[(x, y)].symbol().to_string()).collect();
+            if let Some(byte) = row.find(needle) {
+                return Some((row[..byte].chars().count() as u16, y));
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn test_word_level_highlighting_follows_the_timestamps() {
+        let lyrics = crate::lyrics::LrcParser::parse(
+            "[00:12.00]<00:12.00>Hello <00:12.50>big <00:13.20>world\n[00:20.00]Next line",
+        )
+        .unwrap();
+        let mut display = LyricsDisplay::new();
+        display.set_lyrics(lyrics);
+        display.update_position(12_800); // "Hello" sung, "big" being sung, "world" ahead
+
+        let buffer = render_to_buffer(&display, 40, 8);
+        let (x, y) = find(&buffer, "Hello").unwrap();
+        let hello = &buffer[(x, y)];
+        assert_eq!(hello.fg, Color::Yellow);
+        assert!(!hello.modifier.contains(Modifier::UNDERLINED));
+
+        let (x, y) = find(&buffer, "big").unwrap();
+        assert_eq!(buffer[(x, y)].fg, Color::Yellow);
+        assert!(buffer[(x, y)].modifier.contains(Modifier::UNDERLINED), "current word underlined");
+
+        let (x, y) = find(&buffer, "world").unwrap();
+        assert_eq!(buffer[(x, y)].fg, Color::Gray, "unsung word keeps the future color");
+    }
+
+    #[test]
+    fn test_karaoke_does_not_split_multibyte_characters() {
+        // 3-byte characters: byte slicing at a proportional offset would panic
+        let lyrics = Lyrics::new(
+            "t",
+            vec![LyricsLine::new(0, "旧支配者のキャロル"), LyricsLine::new(10_000, "次")],
+        );
+        let mut display = LyricsDisplay::new();
+        display.set_lyrics(lyrics);
+        for position in (0..10_000).step_by(317) {
+            display.update_position(position);
+            render_to_buffer(&display, 30, 6); // must not panic
+        }
+    }
+
+    #[test]
+    fn test_translation_is_shown_under_the_original() {
+        let lyrics = Lyrics::new(
+            "t",
+            vec![LyricsLine::new(0, "Bonjour").with_translation("Hello")],
+        );
+        let mut display = LyricsDisplay::with_config(LyricsDisplayConfig {
+            show_translation: true,
+            ..Default::default()
+        });
+        display.set_lyrics(lyrics);
+        display.update_position(100);
+
+        let buffer = render_to_buffer(&display, 30, 6);
+        let (_, original_row) = find(&buffer, "Bonjour").unwrap();
+        let (_, translation_row) = find(&buffer, "Hello").unwrap();
+        assert_eq!(translation_row, original_row + 1);
     }
 
     #[test]

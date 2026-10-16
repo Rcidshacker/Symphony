@@ -720,6 +720,22 @@ pub struct LyricsConfig {
     /// Context lines before/after current
     #[serde(default = "default_context_lines")]
     pub context_lines: usize,
+
+    /// Base URL of the LRCLIB lyrics API
+    #[serde(default = "default_lrclib_url")]
+    pub lrclib_url: String,
+
+    /// Language lyrics are translated into (`x` key, needs the AI provider)
+    #[serde(default = "default_translate_to")]
+    pub translate_to: String,
+}
+
+fn default_lrclib_url() -> String {
+    "https://lrclib.net".to_string()
+}
+
+fn default_translate_to() -> String {
+    "English".to_string()
 }
 
 fn default_lyrics_cache_dir() -> PathBuf {
@@ -742,6 +758,8 @@ impl Default for LyricsConfig {
             show_translation: false,
             karaoke_mode: true,
             context_lines: default_context_lines(),
+            lrclib_url: default_lrclib_url(),
+            translate_to: default_translate_to(),
         }
     }
 }
