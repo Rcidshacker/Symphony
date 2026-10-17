@@ -2,12 +2,13 @@
 //! and decode to audio. Fixtures are 1.5 s mono 440 Hz tones made with ffmpeg
 //! (tone.<ext> in tests/fixtures/audio, with title/artist tags where the format has them).
 
+mod common;
+
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use rodio::{Decoder, Source};
-use symphony::audio::AudioEngine;
 use symphony::scanner::LibraryScanner;
 
 fn fixture(ext: &str) -> PathBuf {
@@ -43,7 +44,7 @@ fn rodio_formats_decode_to_audio() {
 /// The real engine plays each format (muted) and the audio reaches the visualizer tap
 #[test]
 fn every_format_plays_through_the_engine() {
-    let Ok(mut engine) = AudioEngine::new() else {
+    let Some(mut engine) = common::audio_engine() else {
         return;
     }; // no audio device
     engine.set_volume(0.0);

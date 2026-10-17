@@ -12,7 +12,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{backend::TestBackend, Terminal};
 use symphony::app::{App, Track, TrackSource};
 use symphony::audio::features::AudioFeatures;
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 use symphony::db::Database;
 use symphony::input::handle_key_event;
@@ -125,7 +124,7 @@ fn app_with_library(dir: &Path, ollama_url: &str) -> Option<App> {
     config.general.cache_directory = dir.join("cache");
     config.lyrics.auto_fetch = false;
 
-    let engine = AudioEngine::new().ok()?;
+    let engine = common::audio_engine()?;
     let mut app = App::new(config, engine);
     app.audio_engine.set_volume(0.0);
     for (title, energy, bpm) in LIBRARY {
@@ -381,7 +380,7 @@ fn the_library_is_analyzed_in_the_background_and_remembered() {
     for track in LibraryScanner::new().scan_directory(dir.path()).unwrap() {
         db.upsert_track(&track).unwrap();
     }
-    let Ok(engine) = AudioEngine::new() else {
+    let Some(engine) = common::audio_engine() else {
         return;
     };
     let mut app = App::new(Config::default(), engine);

@@ -1,13 +1,14 @@
 //! End-to-end: audio decoded and played by the real engine reaches the visualizer.
 //! Playback is muted (the tap sits before the volume stage). Skipped without an audio device.
 
+mod common;
+
 use std::f32::consts::PI;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use ratatui::{backend::TestBackend, Terminal};
 use symphony::app::{App, Track, TrackSource};
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 use symphony::ui::visualizer::VisualizationMode;
 
@@ -64,7 +65,7 @@ fn playing_tone_app(dir: &Path) -> Option<App> {
 
 /// App playing a muted chord, or `None` when there is no audio device
 fn playing_app(dir: &Path, freqs: &[f32], amplitude: f32) -> Option<App> {
-    let engine = AudioEngine::new().ok()?;
+    let engine = common::audio_engine()?;
     let mut app = App::new(Config::default(), engine);
     let wav = dir.join("tone.wav");
     write_chord_wav(&wav, freqs, 3.0, amplitude);

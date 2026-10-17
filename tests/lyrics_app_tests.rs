@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 use common::{fixed, MockServer};
 use ratatui::{backend::TestBackend, Terminal};
 use symphony::app::{App, Track, TrackSource};
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 
 const SYNCED: &str = "[00:00.50] Is this the real life?\\n[00:07.10] Is this just fantasy?";
@@ -59,7 +58,7 @@ fn track(path: PathBuf, artist: &str) -> Track {
 
 /// App with a muted track playing; `None` without an audio device
 fn playing(dir: &Path, config: Config, artist: &str) -> Option<App> {
-    let engine = AudioEngine::new().ok()?;
+    let engine = common::audio_engine()?;
     let mut app = App::new(config, engine);
     let wav = dir.join("Queen - Bohemian Rhapsody.wav");
     write_wav(&wav);

@@ -5,6 +5,7 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -160,4 +161,25 @@ fn serve_one(
         body.len()
     );
     let _ = stream.write_all(response.as_bytes());
+}
+
+/// A new audio engine, or `None` on a machine without an output device.
+///
+/// The first failure is remembered. On Windows runners without an audio service, probing for
+/// the device again and again crashes the process (STATUS_ACCESS_VIOLATION) after a few tries,
+/// and the probes of parallel tests must not overlap either.
+pub fn audio_engine() -> Option<symphony::audio::AudioEngine> {
+    static NO_DEVICE: AtomicBool = AtomicBool::new(false);
+    static PROBE: Mutex<()> = Mutex::new(());
+    let _one_at_a_time = PROBE.lock().unwrap_or_else(|e| e.into_inner());
+    if NO_DEVICE.load(Ordering::Relaxed) {
+        return None;
+    }
+    match symphony::audio::AudioEngine::new() {
+        Ok(engine) => Some(engine),
+        Err(_) => {
+            NO_DEVICE.store(true, Ordering::Relaxed);
+            None
+        }
+    }
 }

@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 
 use common::{write_wav, MockServer};
 use symphony::app::{App, Track, TrackSource};
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 use symphony::integrations::lastfm::{LastFm, ScrobbleTrack};
 
@@ -141,7 +140,7 @@ fn local_track(dir: &Path, name: &str, artist: &str) -> Track {
 }
 
 fn app(config: Config) -> Option<App> {
-    let app = App::new(config, AudioEngine::new().ok()?);
+    let app = App::new(config, common::audio_engine()?);
     app.audio_engine.set_volume(0.0);
     Some(app)
 }

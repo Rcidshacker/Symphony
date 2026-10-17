@@ -1,13 +1,14 @@
 //! Album art: covers embedded in tags or stored next to the track become colored ASCII art
 //! sized for the album-art panel. Fixtures live in tests/fixtures/audio (made with ffmpeg).
 
+mod common;
+
 use std::collections::HashSet;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 use ratatui::{backend::TestBackend, Terminal};
 use symphony::app::{App, Track, TrackSource};
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 use symphony::ui::artwork::{extract_album_art, ArtworkConfig, AsciiArt, ART_COLS, ART_ROWS};
 
@@ -111,7 +112,7 @@ fn track_for(path: PathBuf) -> Track {
 }
 
 fn play_muted(path: PathBuf) -> Option<App> {
-    let engine = AudioEngine::new().ok()?;
+    let engine = common::audio_engine()?;
     let mut app = App::new(Config::default(), engine);
     app.audio_engine.set_volume(0.0);
     app.library.tracks = vec![track_for(path)];

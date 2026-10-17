@@ -11,7 +11,6 @@ use std::time::Duration;
 use common::write_wav;
 use symphony::app::{App, Track, TrackSource};
 use symphony::audio::features::AudioFeatures;
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 use symphony::integrations::git::{ActivityLevel, GitMonitor, GitMonitorConfig};
 use symphony::integrations::statusline::StatusSnapshot;
@@ -30,7 +29,7 @@ fn app(dir: &Path) -> Option<App> {
     config.lyrics.auto_fetch = false;
     config.plugins.enabled = false;
     config.integrations.git.enabled = false;
-    let mut app = App::new(config, AudioEngine::new().ok()?);
+    let mut app = App::new(config, common::audio_engine()?);
     app.audio_engine.set_volume(0.0);
     for (title, energy, bpm) in LIBRARY {
         let path: PathBuf = dir.join(format!("{title}.wav"));

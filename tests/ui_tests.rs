@@ -1,12 +1,13 @@
 //! Headless checks of the player: renders the TUI into an in-memory terminal
 //! and exercises the queue/shuffle/progress logic. Skipped when there is no audio device.
 
+mod common;
+
 use std::path::PathBuf;
 use std::time::Duration;
 
 use ratatui::{backend::TestBackend, Terminal};
 use symphony::app::{App, Track, TrackSource};
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 
 fn track(n: usize, duration: f64) -> Track {
@@ -26,7 +27,7 @@ fn track(n: usize, duration: f64) -> Track {
 
 /// Build an app with `count` tracks, or `None` when no audio device exists (CI).
 fn app_with_tracks(count: usize) -> Option<App> {
-    let engine = AudioEngine::new().ok()?;
+    let engine = common::audio_engine()?;
     let mut app = App::new(Config::default(), engine);
     app.library.tracks = (0..count).map(|n| track(n, 638.0)).collect();
     Some(app)
@@ -163,7 +164,7 @@ fn type_text(app: &mut App, text: &str) {
 }
 
 fn app_with_config(count: usize, config: Config) -> Option<App> {
-    let engine = AudioEngine::new().ok()?;
+    let engine = common::audio_engine()?;
     let mut app = App::new(config, engine);
     app.library.tracks = (0..count).map(|n| track(n, 200.0)).collect();
     Some(app)

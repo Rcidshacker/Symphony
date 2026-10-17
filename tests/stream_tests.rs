@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 
 use common::{fixed, MockServer};
 use symphony::app::{import_stream_spec, App};
-use symphony::audio::AudioEngine;
 use symphony::config::Config;
 use symphony::db::Database;
 use symphony::streaming::{StreamManager, StreamManagerConfig};
@@ -91,7 +90,7 @@ fn config(dir: &Path) -> Config {
 }
 
 fn new_app(config: Config) -> Option<App> {
-    let app = App::new(config, AudioEngine::new().ok()?);
+    let app = App::new(config, common::audio_engine()?);
     app.audio_engine.set_volume(0.0);
     Some(app)
 }
