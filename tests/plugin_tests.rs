@@ -154,6 +154,41 @@ async fn a_plugin_runs_receives_events_and_uses_the_host() {
     assert!(runtime.list_plugins().is_empty());
 }
 
+/// The example plugin from docs/PLUGIN_DEVELOPMENT.md, taken from the page itself
+fn documented_example() -> String {
+    let page = include_str!("../docs/PLUGIN_DEVELOPMENT.md");
+    let after = page
+        .split("```wat")
+        .nth(1)
+        .expect("a wat block in the page");
+    after.split("```").next().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn the_plugin_in_the_docs_loads_and_logs_events() {
+    let (dir, spy) = (tempfile::tempdir().unwrap(), Spy::default());
+    install(
+        dir.path(),
+        "event-logger",
+        &["track_info", "playback_state"],
+        &documented_example(),
+    );
+    let mut runtime = runtime(dir.path(), &spy);
+    assert_eq!(runtime.load_all_plugins().await.unwrap(), ["event-logger"]);
+
+    runtime.trigger_event(&PluginEvent::AppStarted);
+    runtime.trigger_event(&track_changed());
+    runtime.trigger_event(&PluginEvent::VolumeChanged(0.5));
+
+    let logs = spy.logs();
+    assert_eq!(logs[0], "\"AppStarted\"", "{logs:?}");
+    assert!(
+        logs[1].starts_with("{\"TrackChanged\":{\"title\":\"Hello\""),
+        "{logs:?}"
+    );
+    assert_eq!(logs[2], "{\"VolumeChanged\":0.5}", "{logs:?}");
+}
+
 #[tokio::test]
 async fn missing_permissions_block_events_and_host_calls() {
     let (dir, spy) = (tempfile::tempdir().unwrap(), Spy::default());

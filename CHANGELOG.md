@@ -27,7 +27,11 @@ built. This release is the first where each item below is wired into the player 
   and ratatui's `TestBackend`
 
 ### Changed
-- Minimum Rust version is 1.82
+- Minimum Rust version is 1.88 (verified: the first draft said 1.82, but wasmi and other locked dependencies need 1.88); CI now builds on it
+- Key `5` turns the visualizer off, as the in-app help always said
+- `symphony stream` skips livestreams and results over 20 minutes when picking the default, so a 12-hour loop is no longer "the song"
+- An open question the AI files as a suggestion with nothing to base it on is answered in the popup instead of showing an unrelated mix
+- CI: the Security Audit job gets the token permissions it needs; the coverage job builds the fake yt-dlp the stream tests use; the visualizer test no longer counts the panel title and tolerates slow sound cards
 - Status line truncation no longer panics on multi-byte titles
 - Fixed the FFT peak search, Windows double key presses (key release events), volume, progress
   and shuffle handling

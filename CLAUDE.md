@@ -1,7 +1,7 @@
 # Project Brain
 
 ## Stack
-Rust 2021 (MSRV 1.82) terminal music player. Ratatui + crossterm (TUI), rodio + symphonia (audio), rustfft/realfft (FFT), tokio + reqwest (async/HTTP), rusqlite bundled (SQLite), wasmi (WASM plugins), serde/toml (config), thiserror + anyhow (errors), tracing (logs). Tests: built-in `cargo test`; benches with criterion. CI: `.github/workflows/ci.yml` (fmt, clippy `-D warnings`, test on ubuntu/macos/windows, tarpaulin).
+Rust 2021 (MSRV 1.88, enforced by a CI job) terminal music player. Ratatui + crossterm (TUI), rodio + symphonia (audio), rustfft/realfft (FFT), tokio + reqwest (async/HTTP), rusqlite bundled (SQLite), wasmi (WASM plugins), serde/toml (config), thiserror + anyhow (errors), tracing (logs). Tests: built-in `cargo test`; benches with criterion. CI: `.github/workflows/ci.yml` (fmt, clippy `-D warnings`, test on ubuntu/macos/windows, tarpaulin).
 
 ## Commands
 - Build: `cargo build` | `cargo build --release`
@@ -34,7 +34,7 @@ Wired from `main.rs`/`app.rs` and covered by integration tests:
 
 Never exercised against the real service (mock servers only): Ollama, OpenRouter, real `yt-dlp`, Spotify API, Discord, Last.fm. LRCLIB was also run live once. Developed and tested on Windows; Linux/macOS are built by CI only.
 Not built: Spotify user login (liked songs, private playlists), plugin SDK/marketplace, seeking, crossfade, gapless, normalization.
-`docs/*.md` predate the audit and may describe features that do not exist; README.md and this file win. Do not describe a feature as working until it is wired and tested.
+`docs/*.md` were rewritten against the code (config keys marked read/ignored, plugin example run by a test). Do not describe a feature as working until it is wired and tested.
 
 ## Project Structure
 - `src/main.rs`, `src/app.rs` (+ `app_assistant.rs`, `app_stream.rs`, `app_plugins.rs`) — entry point, event loop, app state

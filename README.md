@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/rust-1.82%2B-orange.svg?style=flat-square" alt="Rust 1.82+">
+  <img src="https://img.shields.io/badge/rust-1.88%2B-orange.svg?style=flat-square" alt="Rust 1.88+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://github.com/Rcidshacker/Symphony/actions"><img src="https://img.shields.io/github/actions/workflow/status/Rcidshacker/Symphony/ci.yml?style=flat-square" alt="CI Status"></a>
 </p>
@@ -62,7 +62,7 @@ symphony add spotify:playlist:37i9dQZF1DXcBWIGoYBM5M   # public playlists
 
 ### 🎨 Visualizer
 
-Live FFT spectrum of the audio actually being played: bars, waveform, circular and minimal modes (`v` cycles, `1`–`5` select). Five themes (`t`): Monokai, Gruvbox, Nord, Dracula, Solarized.
+Live FFT spectrum of the audio actually being played: bars, waveform, circular and minimal modes (`v` cycles, `1`–`4` select a mode and `5` turns it off). Five themes (`t`): Monokai, Gruvbox, Nord, Dracula, Solarized.
 
 ### 🎤 Lyrics
 
@@ -88,7 +88,7 @@ Live FFT spectrum of the audio actually being played: bars, waveform, circular a
 
 Symphony is built from source. There is no crates.io package, Homebrew tap or AUR package.
 
-**Requirements**: Rust 1.82+. On Linux: `sudo apt install -y libasound2-dev pkg-config build-essential`.
+**Requirements**: Rust 1.88+ (the oldest compiler the locked dependencies build on). On Linux: `sudo apt install -y libasound2-dev pkg-config build-essential`.
 
 ```bash
 git clone https://github.com/Rcidshacker/Symphony.git
@@ -179,7 +179,7 @@ Not measured: Linux and macOS, long sessions, large libraries.
 | [API Reference](docs/API.md) | Plugin API |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
 
-The files in `docs/` were written before the audit that produced this README and may still describe features that do not exist. When they disagree with this page, this page wins.
+The files in `docs/` were rewritten to match the code: every setting they list is marked as read or ignored, and the plugin example is run by the test suite.
 
 ---
 
