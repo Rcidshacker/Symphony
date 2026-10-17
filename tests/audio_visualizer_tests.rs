@@ -104,7 +104,10 @@ fn spectrum_follows_the_audio_that_is_playing() {
         run_until(&mut app, 3.0, |a| a.visualizer_state.spectrum.is_some()),
         "no spectrum arrived from the playing audio"
     );
-    run_until(&mut app, 0.4, |_| false); // let the bars settle
+    // let the bars settle: they rise a step per frame, so a slow CI machine needs longer
+    run_until(&mut app, 3.0, |a| {
+        a.visualizer_state.bar_heights.iter().any(|h| *h > 0.6)
+    });
 
     let spectrum = app.visualizer_state.spectrum.clone().unwrap();
     assert!(
@@ -166,7 +169,9 @@ fn every_visualizer_mode_draws_the_playing_audio() {
         .visualizer_state
         .spectrum
         .is_some()));
-    run_until(&mut app, 0.4, |_| false);
+    run_until(&mut app, 3.0, |a| {
+        a.visualizer_state.bar_heights.iter().any(|h| *h > 0.3)
+    });
 
     for mode in [
         VisualizationMode::Bars,

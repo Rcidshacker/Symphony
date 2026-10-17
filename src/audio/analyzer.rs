@@ -760,7 +760,8 @@ mod tests {
 
         println!("Average FFT time: {:.2} µs", avg_time);
 
-        // Should be less than 5ms per FFT
-        assert!(avg_time < 5000.0, "FFT took too long: {:.2} µs", avg_time);
+        // A real-time frame is 16 ms; 20 ms leaves room for slow CI runners and coverage tools,
+        // while a real regression (an FFT takes under 1 ms in a debug build) would still trip it
+        assert!(avg_time < 20_000.0, "FFT took too long: {:.2} µs", avg_time);
     }
 }

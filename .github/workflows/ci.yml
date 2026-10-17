@@ -106,6 +106,9 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libasound2-dev libpulse-dev pkg-config
     
+    - name: Build the fake yt-dlp the stream tests run
+      run: cargo build --example fake_ytdlp
+
     - name: Install tarpaulin
       run: cargo install cargo-tarpaulin
     
