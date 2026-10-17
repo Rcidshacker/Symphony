@@ -67,6 +67,11 @@ jobs:
     - name: Build
       run: cargo build --verbose --all-features
     
+    - name: DIAGNOSTIC (temporary) assistant tests one at a time on Windows
+      if: matrix.os == 'windows-latest'
+      continue-on-error: true
+      run: cargo test --all-features --test assistant_tests -- --test-threads=1 --nocapture
+
     - name: Run tests
       run: cargo test --verbose --all-features
     
@@ -113,7 +118,7 @@ jobs:
       run: cargo install cargo-tarpaulin
     
     - name: Generate coverage
-      run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+      run: cargo tarpaulin --engine llvm --all-features --workspace --timeout 300 --out xml
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
