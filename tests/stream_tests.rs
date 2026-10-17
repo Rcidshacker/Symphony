@@ -14,16 +14,45 @@ use symphony::config::Config;
 use symphony::db::Database;
 use symphony::streaming::{StreamManager, StreamManagerConfig};
 
-/// Path of the compiled `fake_ytdlp` example (cargo builds examples for `cargo test`)
+/// Path of the compiled `fake_ytdlp` example. `cargo test` builds examples next to the test
+/// binary; runners that do not (cargo tarpaulin) get it built on demand.
 fn fake_ytdlp() -> PathBuf {
-    let exe = std::env::current_exe().unwrap();
-    let examples = exe.parent().unwrap().parent().unwrap().join("examples");
-    let name = if cfg!(windows) {
-        "fake_ytdlp.exe"
-    } else {
-        "fake_ytdlp"
-    };
-    examples.join(name)
+    static PATH: OnceLock<PathBuf> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let name = if cfg!(windows) {
+            "fake_ytdlp.exe"
+        } else {
+            "fake_ytdlp"
+        };
+        let exe = std::env::current_exe().unwrap();
+        let beside = exe
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("examples")
+            .join(name);
+        if beside.exists() {
+            return beside;
+        }
+        let target = Path::new(env!("CARGO_TARGET_TMPDIR")).join("fake_ytdlp");
+        let status = std::process::Command::new(env!("CARGO"))
+            .args([
+                "build",
+                "--quiet",
+                "--example",
+                "fake_ytdlp",
+                "--manifest-path",
+            ])
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+            .arg("--target-dir")
+            .arg(&target)
+            .status()
+            .expect("cargo runs");
+        assert!(status.success(), "building the fake yt-dlp failed");
+        target.join("debug").join("examples").join(name)
+    })
+    .clone()
 }
 
 /// The fake yt-dlp is configured through process-wide env vars, so these tests run one at a time
@@ -127,6 +156,28 @@ fn mock_spotify() -> MockServer {
     ]);
     let _ = own_url.set(server.url.clone());
     server
+}
+
+#[test]
+fn a_stream_query_skips_marathon_results_for_the_first_song() {
+    let _serial = serial();
+    let (dir, log) = (
+        tempfile::tempdir().unwrap(),
+        tempfile::NamedTempFile::new().unwrap(),
+    );
+    fake_env(log.path());
+    let Some(mut app) = new_app(config(dir.path())) else {
+        return;
+    };
+
+    // the fake finds a 12-hour loop first and a 200 s song second
+    app.play_stream_query("marathon");
+    assert!(
+        wait_for(&mut app, |a| playing(a).is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
+    assert_eq!(playing(&app).as_deref(), Some("youtube:marathon-200"));
 }
 
 #[test]

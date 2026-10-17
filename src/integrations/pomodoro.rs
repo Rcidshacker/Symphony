@@ -184,7 +184,9 @@ impl PomodoroTimer {
     pub fn start_break(&mut self) -> PomodoroEvent {
         // Every N sessions = long break
         if self.sessions_completed > 0
-            && self.sessions_completed % self.config.sessions_before_long_break == 0
+            && self
+                .sessions_completed
+                .is_multiple_of(self.config.sessions_before_long_break)
         {
             self.state = PomodoroState::LongBreak;
         } else {

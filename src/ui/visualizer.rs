@@ -463,7 +463,7 @@ fn render_minimal(
         let y = inner.y + row as u16;
         let filled_eighths = (band.magnitude.clamp(0.0, 1.0) * meter_width as f32 * 8.0) as usize;
         let mut meter = "█".repeat(filled_eighths / 8);
-        if filled_eighths % 8 > 0 {
+        if !filled_eighths.is_multiple_of(8) {
             meter.push_str(EIGHTHS[filled_eighths % 8 - 1]);
         }
 
