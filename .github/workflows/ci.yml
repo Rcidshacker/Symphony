@@ -72,6 +72,16 @@ jobs:
       continue-on-error: true
       run: cargo test --all-features --test assistant_tests -- --test-threads=1 --nocapture
 
+    - name: DIAGNOSTIC (temporary) focus test alone
+      if: matrix.os == 'windows-latest'
+      continue-on-error: true
+      run: cargo test --all-features --test assistant_tests focus_session -- --nocapture
+
+    - name: DIAGNOSTIC (temporary) open and drop the audio engine repeatedly
+      if: matrix.os == 'windows-latest'
+      continue-on-error: true
+      run: cargo run --example audio_cycle -- tests/fixtures/audio/tone.wav
+
     - name: Run tests
       run: cargo test --verbose --all-features
     
