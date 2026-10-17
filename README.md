@@ -1,40 +1,97 @@
-# 🎵 Symphony
+<h1 align="center">🎵 Symphony</h1>
 
 <p align="center">
-  <strong>A terminal music player with an AI assistant, streaming, synced lyrics and a real spectrum analyzer.</strong>
+  <strong>A terminal music player that understands what you want to hear.</strong><br>
+  Local files and YouTube, an AI that picks music by how it actually sounds, synced lyrics,<br>
+  a live spectrum, and a status line for your shell. One Rust binary, no Electron.
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#what-is-not-done-or-not-verified">Limits</a> •
+  <a href="https://github.com/Rcidshacker/Symphony/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Rcidshacker/Symphony/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/rust-1.88%2B-orange?style=for-the-badge&logo=rust" alt="Rust 1.88+">
+  <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=for-the-badge" alt="Windows, macOS, Linux">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="#install-and-run">Install</a> ·
+  <a href="#what-you-can-do">Features</a> ·
+  <a href="#keys">Keys</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#honest-status">Honest status</a> ·
+  <a href="docs/USER_GUIDE.md">User guide</a> ·
   <a href="#contributing">Contributing</a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/rust-1.88%2B-orange.svg?style=flat-square" alt="Rust 1.88+">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://github.com/Rcidshacker/Symphony/actions"><img src="https://img.shields.io/github/actions/workflow/status/Rcidshacker/Symphony/ci.yml?style=flat-square" alt="CI Status"></a>
-</p>
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│🎵  SYMPHONY v2.0 | Theme: monokai | AI-Powered Terminal Music Player                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ 🖼️  Night Drive ──┐┌ 🎵  NOW PLAYING ─────────────────────────────────────────┐┌ 📊  SPECTRUM  ─────────┐
+│                  ││▶ Playing  [LOCAL]                                       ││                       │
+│                  ││Night Drive                                              ││                       │
+│                  ││Neon Harbor · 0:02 / 3:34                                ││                       │
+│                  ││                                                         ││     ▀▀    ▀           │
+│                  │└─────────────────────────────────────────────────────────┘│    ▀██    █    ▀    ▀ │
+│        ♪         │┌ Progress ───────────────────────────────────────────────┐│    ███    █    █    █ │
+│       ♫♪♪        ││█                      0:02 / 3:34                       ││    ███   ▀█    █    █ │
+│      ♪♪♪♪♪       │└─────────────────────────────────────────────────────────┘│    ███   ██    █    █ │
+│       ♪♪♪        │┌ 🔊  ─────────────────────────────────────────────────────┐│   ▀███▀  ██    █    █ │
+│        ♪         ││████████████████████████VOL: 60% █                       ││  ▀█████  ██    █    █ │
+└──────────────────┘└─────────────────────────────────────────────────────────┘└───────────────────────┘
+┌ 📚  LIBRARY ──────────────────────────────────────────────────────────────────────────────────────────┐
+│› ▶ Neon Harbor - Night Drive (3:34)                                                                  │
+│    Mika Sato - Paper Lanterns (3:07)                                                                 │
+│    The Low Tide - Static Bloom (4:01)                                                                │
+│    Voltage - Gym Anthem (2:56)                                                                       │
+│    Oak & Ember - Sunday Stroll (3:23)                                                                │
+│    Ida Wren - Melancholy Rain (4:28)                                                                 │
+│                                                                                                      │
+│                                                                                                      │
+│                                                                                                      │
+│                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│📊  Bars │ 📁  6 tracks │ Playing: Neon Harbor - Night Drive                                            │
+│space play/pause · n/p next/prev · +/- volume · m mute · s shuffle · r repeat · q quit                │
+│/ search · a ask AI · l lyrics · x translate · w pomodoro · v visualizer · t theme · ? help           │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+<p align="center"><sub>This is the player's real output (ratatui's test backend rendering a six-track library while a chord plays), not a mock-up.</sub></p>
 
 ---
 
-## Features
+## Why Symphony
 
-Every feature below is wired into the player and covered by automated tests. How each was
-verified (mock servers, fake `yt-dlp`, or the real thing) is in [What is not done or not verified](#what-is-not-done-or-not-verified).
+Most terminal players play files. Symphony also listens to them.
 
-### 🎧 Playback
+* **Ask in plain words.** `symphony "play something energetic"` queues the tracks whose measured loudness and tempo fit, not the ones whose file names happen to contain the word.
+* **Your shell knows what is playing.** `symphony status` feeds tmux, zsh, waybar, polybar and i3blocks.
+* **Your commits set the mood.** Optionally, the queue moves from calm to energetic as your commits per hour climb.
+* **Honest about itself.** Every feature below is wired in and covered by tests, and the [status table](#honest-status) says exactly how each one was verified and what is missing.
 
-- MP3, FLAC, OGG/Vorbis, WAV, AAC and M4A, with tags, duration, progress bar, volume, mute, shuffle and repeat
-- Album art from embedded covers or `cover.jpg`/`folder.png` next to the file (JPEG/PNG, drawn with block characters)
-- Library kept in SQLite (`symphony scan <dir>`), plus search (`/`)
+## Install and run
 
-### 🤖 AI assistant
+You need Rust 1.88 or newer. On Linux also install the ALSA headers: `sudo apt install libasound2-dev pkg-config build-essential`.
 
-Press `a` in the player, or pass a prompt on the command line. It needs a running
-[Ollama](https://ollama.com) or an OpenRouter key.
+```bash
+git clone https://github.com/Rcidshacker/Symphony.git
+cd Symphony
+cargo build --release          # binary: target/release/symphony
+
+symphony init                  # create the config and database
+symphony scan ~/Music          # add your music
+symphony                       # open the player
+```
+
+Optional: [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) for YouTube, and either [Ollama](https://ollama.com) or an [OpenRouter](https://openrouter.ai) key for the AI assistant (OpenRouter has free models).
+
+## What you can do
+
+### 🤖 Talk to your library
+
+Press `a` in the player, or pass a prompt on the command line.
 
 ```bash
 symphony "play something calm"
@@ -43,158 +100,140 @@ symphony "more like Gym Anthem"
 symphony "what should I listen to while debugging?"
 ```
 
-- **Play by mood**: mood and tempo are matched against what Symphony measured from your audio (loudness and tempo per track, analysed in the background), not against file names
-- **Playlists**: time-boxed playlists, saved in the library database
-- **Suggestions** based on a track, **semantic search** by meaning (embeddings via Ollama, lexical fallback), and **questions** answered with your library as context
+| Say | You get |
+|-----|---------|
+| "play something energetic", "calm music" | Tracks ranked by measured loudness and tempo, analysed in the background and remembered |
+| "play Radiohead", "some jazz" | Artist and genre matches from your tags |
+| "a 2-hour focus session" | A playlist of about that length, calm tracks first, saved to your library |
+| "more like Gym Anthem" | The tracks that sound most alike |
+| "something sad" | Search by meaning (embeddings, with a plain-text fallback) |
+| "what should I listen to while debugging?" | A short answer in a popup |
+| "volume 30", "shuffle on", "skip" | The player obeys |
 
-### 🌐 YouTube
+Works with Ollama or OpenRouter. Switch with `provider` under `[ai]`; details in [Configuration](docs/CONFIGURATION.md).
 
-Requires [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) on your `PATH` (or set `streaming.youtube.ytdlp_path`).
-
-```bash
-symphony stream "lofi hip hop"                 # search and play the best match
-symphony add youtube:https://youtube.com/watch?v=...   # save to the library
-```
-
-- Stream tracks are downloaded to a local cache (as M4A) and played from there, so replays and the prefetched next track start instantly and work offline
-
-### 🎨 Visualizer
-
-Live FFT spectrum of the audio actually being played: bars, waveform, circular and minimal modes (`v` cycles, `1`–`4` select a mode and `5` turns it off). Five themes (`t`): Monokai, Gruvbox, Nord, Dracula, Solarized.
-
-### 🎤 Lyrics
-
-- Synced `.lrc` files next to the audio, with word-level highlighting for enhanced LRC
-- Online lookup on [LRCLIB](https://lrclib.net) when no `.lrc` exists
-- Translation of the current lyrics through your local model (`x`, target language in `lyrics.translate_to`)
-
-### 🔌 Plugins, Discord, Last.fm
-
-- **WASM plugins** run in a sandbox ([`wasmi`](https://github.com/wasmi-labs/wasmi)): metered execution (runaway plugins are stopped), 16 MB memory cap, and host functions gated by the permissions in the plugin's `plugin.toml`. See [Plugin Development](docs/PLUGIN_DEVELOPMENT.md)
-- **Discord Rich Presence** (`[plugins.discord]`): create an application at the Discord developer portal and set its Application ID as `client_id`
-- **Last.fm scrobbling** (`[plugins.lastfm]`): set `api_key` and `api_secret`, then run `symphony lastfm-login`
-
-### 💻 Developer touches
-
-- **Status line**: `symphony status [tmux|zsh|json|waybar|i3blocks|polybar|minimal]` prints what the running player is playing. In tmux: `set -g status-right '#(symphony status tmux)'`
-- **Git-adaptive music**: with `integrations.git.adapt_music = true`, the queue switches to calmer or more energetic music at the next track change as your commits per hour change
-- **Pomodoro timer** (`w`) and git activity in the status bar
-
----
-
-## Installation
-
-Symphony is built from source. There is no crates.io package, Homebrew tap or AUR package.
-
-**Requirements**: Rust 1.88+ (the oldest compiler the locked dependencies build on). On Linux: `sudo apt install -y libasound2-dev pkg-config build-essential`.
+### 🌐 Play YouTube like local files
 
 ```bash
-git clone https://github.com/Rcidshacker/Symphony.git
-cd Symphony
-cargo build --release
-./target/release/symphony
+symphony stream "lofi hip hop"                          # search and play the best match
+symphony add youtube:https://youtube.com/watch?v=...    # save a track to the library
 ```
 
-Optional: `yt-dlp` for YouTube playback, [Ollama](https://ollama.com) for the AI assistant.
+Tracks are downloaded once into a tiered cache (hot, warm, cold) and played from there, so replays and the prefetched next track start instantly and work offline. The default pick skips livestreams and anything over 20 minutes, so a 12-hour loop is never "the song".
 
----
+### 📊 See and read the music
 
-## Quick Start
+* **Spectrum** computed from the audio that is actually playing: bars, waveform, circular, minimal (`v`, `1`-`5`). Five themes (`t`): monokai, gruvbox, nord, dracula, solarized-dark.
+* **Lyrics**: a `.lrc` next to the song, or an automatic [LRCLIB](https://lrclib.net) lookup, with word-by-word highlighting. `x` translates them with your AI model.
+* **Album art** from embedded covers or a `cover.jpg` beside the file, drawn with block characters.
+
+### 💻 Built for developers
 
 ```bash
-symphony init            # create the config and database
-symphony scan ~/Music    # add your music
-symphony                 # open the player
+# tmux.conf
+set -g status-right '#(symphony status tmux)'
+# .zshrc
+RPROMPT='$(symphony status zsh)'
 ```
 
-| Key | Action |
-|-----|--------|
-| `Space` | Play/Pause |
-| `n` / `]`, `p` / `[` | Next / previous track |
-| `+` / `-`, `m` | Volume up/down, mute |
-| `s`, `r` | Shuffle, repeat |
-| `j` / `k`, `Enter` | Move, play |
-| `/` | Search |
-| `a` | AI assistant |
-| `l`, `x` | Lyrics, translate lyrics |
-| `v`, `1`–`5`, `t` | Visualizer mode, theme |
-| `w` | Pomodoro |
-| `h` / `?` | Help |
-| `q` | Quit |
+* **Status line**: `symphony status [tmux|zsh|minimal|json|waybar|i3blocks|polybar]`.
+* **Git-adaptive music**: with `adapt_music = true`, 0 commits in the last hour means calm, 1-2 steady, 3-5 driven, 6 or more energetic, applied at the next track change.
+* **Pomodoro timer** (`w`), with calm focus music during work sessions.
 
-The config lives at `~/.config/symphony/config.toml` (on Windows: `%APPDATA%\symphony\config.toml`). `symphony --help` lists all commands.
+### 🔌 Extend it
 
-### AI setup
+* **Last.fm**: now playing and scrobbling (`symphony lastfm-login`).
+* **Discord Rich Presence**: show what you are playing.
+* **WASM plugins**: sandboxed (the wasmi interpreter), permissioned, CPU-metered and memory-capped. The [plugin guide](docs/PLUGIN_DEVELOPMENT.md) walks through a working example, and the [API reference](docs/API.md) lists every host function and event.
 
-```bash
-ollama pull gemma3:4b
+## Keys
+
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `Space` | Play / pause | `a` | Ask the AI |
+| `n` `]` / `p` `[` | Next / previous | `l` / `x` | Lyrics / translate |
+| `+` `-` / `m` | Volume / mute | `v` `1`-`5` | Visualizer mode (`5` = off) |
+| `s` / `r` | Shuffle / repeat | `t` | Theme |
+| `j` `k` `Enter` | Move / play | `w` | Pomodoro |
+| `/` | Search | `h` `?` | Help |
+| `q` `Ctrl+C` | Quit | | |
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Input
+        K[Keys and CLI] --> APP
+        AI[AI prompt] --> APP
+    end
+    APP[App state and event loop]
+    APP --> ENG[Audio engine<br/>rodio + symphonia]
+    ENG --> TAP[Audio tap] --> FFT[FFT analyzer] --> VIZ[Visualizer]
+    ENG --> FEAT[Feature extraction<br/>loudness and tempo]
+    FEAT --> DB[(SQLite library)]
+    APP --> LLM[AI providers<br/>Ollama / OpenRouter]
+    LLM --> MOOD[Mood and playlist matching] --> APP
+    FEAT --> MOOD
+    APP --> STR[Stream manager<br/>yt-dlp] --> CACHE[Tiered cache] --> ENG
+    APP --> PLG[WASM plugins]
+    APP --> INT[Last.fm - Discord<br/>Git - Pomodoro - Status line]
 ```
 
-```toml
-[ai]
-enabled = true
-provider = "ollama"          # or "openrouter"
+The idea that makes "play something calm" work: while you play music, Symphony measures each track's loudness and tempo in the background and remembers them in the library database. A mood is a target on those two axes, so the AI only has to understand your sentence; the ranking uses what the audio really sounds like.
 
-[ai.ollama]
-model = "gemma3:4b"
-embedding_model = "nomic-embed-text"   # optional, for semantic search
-```
+## Measured performance
 
----
+One run on the author's Windows 11 laptop with a release build, playing an MP3 and drawing the whole UI at 60 fps into an in-memory terminal (`cargo run --release --example perf_probe`). A single run, not a benchmark suite.
 
-## Performance
-
-Measured on the author's Windows 11 laptop with a release build, playing an MP3 and rendering the full UI at 60 fps into an in-memory terminal (`cargo run --release --example perf_probe`). Single runs, not a benchmark suite.
-
-| Metric | Measured |
-|--------|----------|
+| | |
+|--|--|
 | Binary size | 11.6 MB |
-| Start to first rendered frame | 77–93 ms |
-| Memory while playing | 16–24 MB |
+| Start to first rendered frame | 77-93 ms |
+| Memory while playing | 16-24 MB |
 | CPU while playing | about 3.6% of one core |
-| Frame time (update + render) | 0.5 ms average, one 130–155 ms frame at track start |
+| Frame time (update + draw) | 0.5 ms average |
 
-Not measured: Linux and macOS, long sessions, large libraries.
+## Honest status
 
----
+**313 automated tests** (about 22k lines of Rust) run on Linux, macOS and Windows in CI, plus a clippy `-D warnings` gate, a formatting check, a security audit, and a build on the declared minimum Rust version. Playback tests need a sound device and skip themselves on machines without one, such as CI runners.
 
-## What is not done or not verified
+| Feature | Verified |
+|---------|----------|
+| Local playback, library, search, themes, visualizer, album art, lyrics files | Automated tests with real audio files |
+| AI assistant | Automated tests against a mock Ollama; run live through OpenRouter with a free model |
+| YouTube search, download, cache, playback | Automated tests with a fake `yt-dlp`; run live with the real one |
+| Last.fm now-playing and scrobbling | Run live against a real account |
+| LRCLIB lyrics lookup | Run live once |
+| Status line, git-adaptive music, Pomodoro | Automated tests (real git repositories) |
+| WASM plugins | Automated tests with hand-written WebAssembly; the example in the docs is run by a test |
+| Discord Rich Presence, Ollama | Tested against fakes only: not run live |
 
-- **Live services**: the AI assistant, LRCLIB lyrics and YouTube were first tested against mock servers and a fake `yt-dlp`. Since then OpenRouter (one free model), real `yt-dlp` and Last.fm have each been run live; Ollama and Discord have not. Please report what breaks
-- **Missing**: seeking inside a track, crossfade, gapless playback, loudness normalization, a plugin marketplace. Spotify was dropped on purpose (its developer API needs the app owner to have Premium)
-- **Platforms**: developed and tested on Windows. Linux and macOS should work (CI is set up to build on both) but are not verified by hand
-- **Plugin toolchain**: the runtime is tested with hand-written WebAssembly; no Rust/C plugin SDK is provided yet
-
----
+**Not built:** seeking inside a track, crossfade, gapless playback, loudness normalization, a plugin SDK or marketplace. Spotify was dropped on purpose: its developer API requires the app owner to have Premium. **Platforms:** developed on Windows; Linux and macOS are built and tested by CI but not used by hand.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [User Guide](docs/USER_GUIDE.md) | User documentation |
-| [Configuration](docs/CONFIGURATION.md) | Configuration reference |
-| [Plugin Development](docs/PLUGIN_DEVELOPMENT.md) | Creating plugins |
-| [API Reference](docs/API.md) | Plugin API |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
-
-The files in `docs/` were rewritten to match the code: every setting they list is marked as read or ignored, and the plugin example is run by the test suite.
-
----
+| | |
+|--|--|
+| [User guide](docs/USER_GUIDE.md) | Everything the player does |
+| [Configuration](docs/CONFIGURATION.md) | Every setting, with which ones are actually read |
+| [Plugin development](docs/PLUGIN_DEVELOPMENT.md) · [API](docs/API.md) | Write a WASM plugin |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Real error messages and what fixes them |
+| [Changelog](CHANGELOG.md) | What changed |
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports with a reproduction and small focused pull requests are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md). Before you push:
 
 ```bash
-cargo test                                                  # unit + integration tests
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
+cargo test
 ```
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[MIT](LICENSE).
 
 ## Built with
 
-[Ratatui](https://github.com/ratatui-org/ratatui), [Rodio](https://github.com/RustAudio/rodio), [Symphonia](https://github.com/pdeljanov/Symphonia), [RustFFT](https://github.com/ejmahler/RustFFT), [wasmi](https://github.com/wasmi-labs/wasmi), [Ollama](https://ollama.com), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [LRCLIB](https://lrclib.net).
+[Ratatui](https://github.com/ratatui-org/ratatui) · [Rodio](https://github.com/RustAudio/rodio) · [Symphonia](https://github.com/pdeljanov/Symphonia) · [RustFFT](https://github.com/ejmahler/RustFFT) · [wasmi](https://github.com/wasmi-labs/wasmi) · [rusqlite](https://github.com/rusqlite/rusqlite) · [Tokio](https://tokio.rs) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) · [LRCLIB](https://lrclib.net) · [Ollama](https://ollama.com)
