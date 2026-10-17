@@ -1,6 +1,6 @@
 //! Stream provider abstraction
 //!
-//! Defines the common interface for all streaming providers (YouTube, Spotify, etc.)
+//! Defines the common interface for all streaming providers (YouTube, etc.)
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -13,8 +13,6 @@ use thiserror::Error;
 pub enum StreamSource {
     /// YouTube video
     YouTube,
-    /// Spotify track
-    Spotify,
     /// Local file
     Local,
     /// Cached stream
@@ -26,7 +24,6 @@ impl StreamSource {
     pub fn icon(&self) -> &'static str {
         match self {
             StreamSource::YouTube => "🔴", // YouTube red
-            StreamSource::Spotify => "🟢", // Spotify green
             StreamSource::Local => "💿",   // Local disc
             StreamSource::Cached => "⚡",  // Cached lightning
         }
@@ -36,7 +33,6 @@ impl StreamSource {
     pub fn label(&self) -> &'static str {
         match self {
             StreamSource::YouTube => "YOUTUBE",
-            StreamSource::Spotify => "SPOTIFY",
             StreamSource::Local => "LOCAL",
             StreamSource::Cached => "CACHED",
         }
@@ -339,7 +335,7 @@ pub enum DownloadStatus {
 
 /// Stream provider trait
 ///
-/// All streaming providers (YouTube, Spotify, etc.) implement this trait
+/// All streaming providers (YouTube, etc.) implement this trait
 /// to provide a unified interface for searching and playing content.
 #[async_trait]
 #[allow(clippy::double_must_use)] // from async_trait's expansion
@@ -470,7 +466,6 @@ mod tests {
     #[test]
     fn test_stream_source_display() {
         assert_eq!(StreamSource::YouTube.label(), "YOUTUBE");
-        assert_eq!(StreamSource::Spotify.label(), "SPOTIFY");
         assert_eq!(StreamSource::Local.label(), "LOCAL");
         assert_eq!(StreamSource::Cached.label(), "CACHED");
     }

@@ -21,7 +21,6 @@ fn test_stream_source_display() {
     use symphony::streaming::StreamSource;
 
     assert_eq!(StreamSource::YouTube.label(), "YOUTUBE");
-    assert_eq!(StreamSource::Spotify.label(), "SPOTIFY");
     assert_eq!(StreamSource::Local.label(), "LOCAL");
     assert_eq!(StreamSource::Cached.label(), "CACHED");
 
@@ -67,7 +66,7 @@ fn test_search_result() {
     use symphony::streaming::{SearchResult, StreamSource, StreamTrack};
 
     let track1 = StreamTrack::new("id1", "Song 1", "Artist 1", StreamSource::YouTube);
-    let track2 = StreamTrack::new("id2", "Song 2", "Artist 2", StreamSource::Spotify);
+    let track2 = StreamTrack::new("id2", "Song 2", "Artist 2", StreamSource::Cached);
 
     let result = SearchResult::new(vec![track1, track2], "test query", StreamSource::YouTube);
 
@@ -145,12 +144,11 @@ fn test_combined_search_result() {
     use symphony::streaming::{CombinedSearchResult, StreamSource, StreamTrack};
 
     let track_yt = StreamTrack::new("yt1", "Song", "Artist", StreamSource::YouTube);
-    let track_sp = StreamTrack::new("sp1", "Song", "Artist", StreamSource::Spotify);
+    let track_cached = StreamTrack::new("c1", "Song", "Artist", StreamSource::Cached);
 
     let result = CombinedSearchResult {
         youtube: None,
-        spotify: None,
-        tracks: vec![track_yt, track_sp],
+        tracks: vec![track_yt, track_cached],
         total: 2,
         query: "test".to_string(),
     };
@@ -161,8 +159,8 @@ fn test_combined_search_result() {
     let youtube_only = result.filter_by_source(StreamSource::YouTube);
     assert_eq!(youtube_only.len(), 1);
 
-    let spotify_only = result.filter_by_source(StreamSource::Spotify);
-    assert_eq!(spotify_only.len(), 1);
+    let cached_only = result.filter_by_source(StreamSource::Cached);
+    assert_eq!(cached_only.len(), 1);
 }
 
 /// Test format bytes function
@@ -190,19 +188,6 @@ fn test_youtube_config_defaults() {
     );
     assert!(config.include_thumbnails);
     assert_eq!(config.max_results, 20);
-}
-
-/// Test Spotify config defaults
-#[test]
-fn test_spotify_config_defaults() {
-    use symphony::streaming::spotify::SpotifyConfig;
-
-    let config = SpotifyConfig::default();
-
-    assert!(config.client_id.is_empty());
-    assert!(config.client_secret.is_empty());
-    assert!(!config.enabled);
-    assert!(config.redirect_uri.contains("localhost"));
 }
 
 /// Test stream manager config defaults

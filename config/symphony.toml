@@ -58,7 +58,7 @@ app_name = "Symphony Music Player"
 # =============================================================================
 # Streaming Configuration - Phase 4
 # =============================================================================
-# Stream music from YouTube and Spotify alongside your local library
+# Stream music from YouTube alongside your local library
 
 [streaming]
 enabled = true
@@ -67,13 +67,6 @@ enabled = true
 enabled = true
 quality = "medium"  # low, medium, high, best
 ytdlp_path = "yt-dlp"
-
-[streaming.spotify]
-enabled = false
-client_id = ""
-client_secret = ""
-redirect_uri = "http://localhost:8888/callback"
-quality = "high"
 
 [streaming.cache]
 enabled = true

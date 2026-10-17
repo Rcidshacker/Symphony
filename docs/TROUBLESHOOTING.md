@@ -47,9 +47,6 @@ The text after the colon is yt-dlp's own error. Try the same search in yt-dlp di
 **A search picked a strange video**
 The default pick is the first result that is between 1 second and 20 minutes long. Long mixes and livestreams are skipped, but anything else YouTube ranks first can still win; the results list is not filtered.
 
-**Spotify**
-Needs `client_id` and `client_secret` under `[streaming.spotify]` and `enabled = true`. Spotify requires the account that owns the developer app to have Premium for a development-mode app to work (per Spotify's quota-modes page), so requests fail on a free account. Only track and public playlist metadata is read, and the audio is the closest-length YouTube match, so the played version can differ from the studio track. Private playlists and liked songs are not supported.
-
 **Disk usage**
 Streams are cached under your cache folder (`symphony/streams`) in hot, warm and cold tiers with the size limits in `[streaming.cache]`. Deleting that folder is safe; tracks are fetched again when played.
 

@@ -447,7 +447,6 @@ fn track_source_to_string(source: TrackSource) -> String {
     match source {
         TrackSource::Local => "local".to_string(),
         TrackSource::YouTube => "youtube".to_string(),
-        TrackSource::Spotify => "spotify".to_string(),
         TrackSource::SoundCloud => "soundcloud".to_string(),
         TrackSource::Cached => "cached".to_string(),
     }
@@ -457,7 +456,6 @@ fn track_source_to_string(source: TrackSource) -> String {
 fn parse_track_source(s: &str) -> TrackSource {
     match s {
         "youtube" => TrackSource::YouTube,
-        "spotify" => TrackSource::Spotify,
         "soundcloud" => TrackSource::SoundCloud,
         "cached" => TrackSource::Cached,
         _ => TrackSource::Local,

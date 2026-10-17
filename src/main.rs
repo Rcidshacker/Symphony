@@ -176,12 +176,10 @@ fn cmd_scan(dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `symphony add <path | youtube:… | spotify:…>`: add local music or stream tracks to the library.
+/// `symphony add <path | youtube:…>`: add local music or stream tracks to the library.
 fn cmd_add(spec: &str) -> anyhow::Result<()> {
-    let is_stream = spec.starts_with("youtube:")
-        || spec.starts_with("spotify:")
-        || spec.starts_with("http://")
-        || spec.starts_with("https://");
+    let is_stream =
+        spec.starts_with("youtube:") || spec.starts_with("http://") || spec.starts_with("https://");
     if !is_stream {
         return cmd_scan(Path::new(spec));
     }

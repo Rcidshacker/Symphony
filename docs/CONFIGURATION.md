@@ -75,10 +75,6 @@ Free models are rate limited and the list changes; "Rate limited" in the status 
 | `[streaming.youtube]` `ytdlp_path` | `"yt-dlp"` | Command or full path |
 | `[streaming.youtube]` `quality` | `"medium"` | `low`, `medium`, `high`, `best`: picks the audio quality downloaded |
 | `[streaming.youtube]` `enabled` | `true` | Ignored |
-| `[streaming.spotify]` `enabled` | `false` | Turns Spotify metadata on |
-| `[streaming.spotify]` `client_id`, `client_secret` | `""` | From developer.spotify.com. Metadata and public playlists only |
-| `[streaming.spotify]` `redirect_uri`, `api_url`, `accounts_url` | Spotify's defaults | Change `api_url` / `accounts_url` only to point at a test server |
-| `[streaming.spotify]` `quality` | `"high"` | Ignored |
 | `[streaming.cache]` `cache_dir` | cache folder + `symphony/streams` | Where downloaded streams are kept |
 | `[streaming.cache]` `max_hot_size_mb`, `max_warm_size_mb`, `max_cold_size_mb` | 100, 2048, 20480 | Size of the three cache tiers |
 | `[streaming.cache]` `prefetch_enabled`, `prefetch_count` | `true`, `3` | Download the next tracks in advance |

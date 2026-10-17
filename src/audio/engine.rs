@@ -271,8 +271,6 @@ impl AudioEngine {
         // Determine source from URL
         let source = if url.contains("youtube") || url.contains("googlevideo") {
             StreamSource::YouTube
-        } else if url.contains("spotify") || url.contains("scdn.co") {
-            StreamSource::Spotify
         } else if url.starts_with("file://") {
             StreamSource::Cached
         } else {

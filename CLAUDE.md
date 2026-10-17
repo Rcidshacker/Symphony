@@ -27,13 +27,13 @@ Wired from `main.rs`/`app.rs` and covered by integration tests:
 - Playback: tags, duration, progress, volume, mute, shuffle, repeat, MP3/FLAC/OGG/WAV/AAC/M4A (symphonia fallback in `audio/symphonia_source.rs`). No seeking, crossfade, gapless or loudness normalization
 - Visualizer fed by the played audio (`audio/tap.rs` -> `analyzer.rs`); album art from tags or sidecar images (`ui/artwork.rs`)
 - AI assistant (`app_assistant.rs`, `ai/`): play by mood/tempo from measured audio features (`audio/features.rs`), playlists, suggestions, semantic search (embeddings with lexical fallback), questions. Ollama or OpenRouter
-- Streaming (`app_stream.rs`, `streaming/`): YouTube via `yt-dlp`, Spotify metadata + public playlists (audio from a YouTube match), M4A cache, prefetch
+- Streaming (`app_stream.rs`, `streaming/`): YouTube via `yt-dlp`, M4A cache, prefetch (Spotify was removed on purpose)
 - Lyrics (`lyrics/`): `.lrc`, LRCLIB lookup, word highlighting, translation via the AI model
 - Plugins (`app_plugins.rs`, `plugins/`): wasmi runtime with permissions, metering and a memory cap; Discord Rich Presence and Last.fm are built in (`integrations/`)
 - Developer features: `symphony status` + status file (`integrations/statusline.rs`), git-adaptive queue (`integrations/git.rs`, `App::adapt_to_activity`), Pomodoro
 
-Never exercised against the real service (mock servers only): Ollama, OpenRouter, real `yt-dlp`, Spotify API, Discord, Last.fm. LRCLIB was also run live once. Developed and tested on Windows; Linux/macOS are built by CI only.
-Not built: Spotify user login (liked songs, private playlists), plugin SDK/marketplace, seeking, crossfade, gapless, normalization.
+Run live once: OpenRouter (free model), real `yt-dlp`, Last.fm, LRCLIB. Never run against the real service: Ollama, Discord. Developed and tested on Windows; Linux/macOS are built by CI only.
+Not built: plugin SDK/marketplace, seeking, crossfade, gapless, normalization.
 `docs/*.md` were rewritten against the code (config keys marked read/ignored, plugin example run by a test). Do not describe a feature as working until it is wired and tested.
 
 ## Project Structure

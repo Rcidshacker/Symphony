@@ -47,18 +47,16 @@ symphony "what should I listen to while debugging?"
 - **Playlists**: time-boxed playlists, saved in the library database
 - **Suggestions** based on a track, **semantic search** by meaning (embeddings via Ollama, lexical fallback), and **questions** answered with your library as context
 
-### 🌐 YouTube and Spotify
+### 🌐 YouTube
 
 Requires [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) on your `PATH` (or set `streaming.youtube.ytdlp_path`).
 
 ```bash
 symphony stream "lofi hip hop"                 # search and play the best match
 symphony add youtube:https://youtube.com/watch?v=...   # save to the library
-symphony add spotify:playlist:37i9dQZF1DXcBWIGoYBM5M   # public playlists
 ```
 
 - Stream tracks are downloaded to a local cache (as M4A) and played from there, so replays and the prefetched next track start instantly and work offline
-- **Spotify** needs a client id and secret in the config. It only reads metadata and public playlists; audio is the closest-length YouTube match. Liked songs and private playlists are not supported
 
 ### 🎨 Visualizer
 
@@ -97,7 +95,7 @@ cargo build --release
 ./target/release/symphony
 ```
 
-Optional: `yt-dlp` for YouTube/Spotify playback, [Ollama](https://ollama.com) for the AI assistant.
+Optional: `yt-dlp` for YouTube playback, [Ollama](https://ollama.com) for the AI assistant.
 
 ---
 
@@ -162,8 +160,8 @@ Not measured: Linux and macOS, long sessions, large libraries.
 
 ## What is not done or not verified
 
-- **Live services**: the AI assistant, LRCLIB lyrics, YouTube and Spotify were tested against mock servers and a fake `yt-dlp`; only LRCLIB was also run against the real service. Ollama, OpenRouter, real `yt-dlp`, the Spotify API, Discord and Last.fm have not been run live by the author. Please report what breaks
-- **Missing**: seeking inside a track, crossfade, gapless playback, loudness normalization, Spotify user login (liked songs, private playlists), a plugin marketplace
+- **Live services**: the AI assistant, LRCLIB lyrics and YouTube were first tested against mock servers and a fake `yt-dlp`. Since then OpenRouter (one free model), real `yt-dlp` and Last.fm have each been run live; Ollama and Discord have not. Please report what breaks
+- **Missing**: seeking inside a track, crossfade, gapless playback, loudness normalization, a plugin marketplace. Spotify was dropped on purpose (its developer API needs the app owner to have Premium)
 - **Platforms**: developed and tested on Windows. Linux and macOS should work (CI is set up to build on both) but are not verified by hand
 - **Plugin toolchain**: the runtime is tested with hand-written WebAssembly; no Rust/C plugin SDK is provided yet
 

@@ -14,8 +14,7 @@ built. This release is the first where each item below is wired into the player 
 - `symphony` CLI: `init`, `scan`, `add`, `stream`, `status`, `lastfm-login`, and `symphony "<prompt>"`
 - AI assistant (`a` key and command line): play by mood and tempo from measured audio features,
   playlists, suggestions, semantic search (Ollama embeddings with lexical fallback), questions
-- Streaming: YouTube through `yt-dlp` and Spotify (public playlists and tracks, audio from the
-  closest YouTube match), cached as M4A for instant replays and offline playback, with prefetch
+- Streaming: YouTube through `yt-dlp`, cached as M4A for instant replays and offline playback, with prefetch
 - Real WASM plugin runtime (`wasmi`) with permissions, execution metering and a memory cap
 - Discord Rich Presence over local IPC; Last.fm now playing and scrobbling
 - `symphony status` for tmux, zsh, waybar, i3blocks, polybar and JSON
@@ -23,7 +22,7 @@ built. This release is the first where each item below is wired into the player 
 - Lyrics: LRCLIB lookup, word-level highlighting, translation through the local model
 - Album art from embedded covers or sidecar images; M4A/MP4 decoding
 - Visualizer fed by the audio being played (bars, waveform, circular, minimal)
-- Integration tests with mock Ollama, LRCLIB, Spotify and Last.fm servers, a fake `yt-dlp`
+- Integration tests with mock Ollama, LRCLIB and Last.fm servers, a fake `yt-dlp`
   and ratatui's `TestBackend`
 
 ### Changed
@@ -35,6 +34,9 @@ built. This release is the first where each item below is wired into the player 
 - Status line truncation no longer panics on multi-byte titles
 - Fixed the FFT peak search, Windows double key presses (key release events), volume, progress
   and shuffle handling
+
+### Removed
+- Spotify: the provider, `[streaming.spotify]` config, `spotify:` specs and its tests. Its API needs the app owner to have Premium, only gave metadata (audio always came from YouTube), and was never run against the real service. An old `[streaming.spotify]` section in a config file is ignored
 
 ### Removed (announced earlier, never built)
 - Crossfade, gapless playback, EBU R128 normalization, seeking

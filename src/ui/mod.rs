@@ -153,7 +153,6 @@ fn render_track_info(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         let source = match track.source {
             crate::app::TrackSource::Local => "LOCAL",
             crate::app::TrackSource::YouTube => "YOUTUBE",
-            crate::app::TrackSource::Spotify => "SPOTIFY",
             crate::app::TrackSource::SoundCloud => "SOUNDCLOUD",
             crate::app::TrackSource::Cached => "CACHED",
         };
@@ -278,7 +277,6 @@ fn render_library(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             let source = match track.source {
                 crate::app::TrackSource::Local => "",
                 crate::app::TrackSource::YouTube => " [YT]",
-                crate::app::TrackSource::Spotify => " [SP]",
                 crate::app::TrackSource::SoundCloud => " [SC]",
                 crate::app::TrackSource::Cached => " [CA]",
             };

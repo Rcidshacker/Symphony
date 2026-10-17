@@ -35,8 +35,8 @@ Where things live (`<config>` is `~/.config` on Linux, `~/Library/Application Su
 | `symphony` | Opens the interactive player |
 | `symphony init` | Creates the config file, folders and database |
 | `symphony scan <dir>` | Adds the music in a folder to the library |
-| `symphony stream <query>` | Searches YouTube (and Spotify, if configured) and plays the best match |
-| `symphony add <source>` | Saves a track or playlist to the library without playing: a path, `youtube:<id or url>`, `spotify:track:<id>`, `spotify:playlist:<id>`, or a youtube.com / youtu.be / open.spotify.com link |
+| `symphony stream <query>` | Searches YouTube and plays the best match |
+| `symphony add <source>` | Saves a track to the library without playing: a path, `youtube:<id or url>`, or a youtube.com / youtu.be link |
 | `symphony status [format]` | Prints one line about the running player (see [Status line](#status-line)) |
 | `symphony lastfm-login` | Authorizes Last.fm scrobbling |
 | `symphony "<prompt>"` | Opens the player and sends the prompt to the AI |
@@ -102,7 +102,6 @@ Needs [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) on your `PATH` (or set `strea
 * `symphony stream "lofi hip hop"` searches and plays the best match. Results that are livestreams or longer than 20 minutes are skipped for the default pick.
 * Streamed tracks are downloaded to the cache as M4A and played from there, so replays and the prefetched next track start instantly and work offline. The cache has hot, warm and cold tiers sized by `[streaming.cache]`.
 * Saved stream tracks stay in your library; `Enter` fetches and plays them.
-* **Spotify** (`[streaming.spotify]`, needs a client id and secret; the API itself is free, but Spotify requires the app owner's account to be Premium for a development-mode app to work, and limits it to 5 users) reads track and public-playlist metadata only; the audio comes from the closest-length YouTube match. Liked songs and private playlists are not supported, and the Spotify path has only been tested against a mock server.
 
 ## Lyrics
 

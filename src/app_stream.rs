@@ -1,4 +1,4 @@
-//! Playing from YouTube and Spotify: a stream track is downloaded to the cache (so repeat
+//! Playing from YouTube: a stream track is downloaded to the cache (so repeat
 //! plays and prefetched tracks are instant and work offline), then played like a local file.
 
 use std::path::PathBuf;
@@ -19,14 +19,10 @@ const SEARCH_LIMIT: usize = 5;
 /// is rarely the song that was asked for. They stay in the results; they are just not the default.
 const MAX_AUTO_PICK_SECS: u64 = 20 * 60;
 
-/// Library entry for a stream track. The id and path are `youtube:<id>` / `spotify:<id>`
-/// so the same track is never added twice.
+/// Library entry for a stream track. The id and path are `youtube:<id>` so the same track is
+/// never added twice.
 pub fn track_from_stream(stream: &StreamTrack) -> Track {
-    let (source, prefix) = match stream.source {
-        StreamSource::Spotify => (TrackSource::Spotify, "spotify"),
-        _ => (TrackSource::YouTube, "youtube"),
-    };
-    let key = format!("{prefix}:{}", stream.id);
+    let key = format!("youtube:{}", stream.id);
     Track {
         id: key.clone(),
         title: stream.title.clone(),
@@ -37,11 +33,11 @@ pub fn track_from_stream(stream: &StreamTrack) -> Track {
         track_number: None,
         genre: None,
         year: None,
-        source,
+        source: TrackSource::YouTube,
     }
 }
 
-/// Resolve a `youtube:` / `spotify:` spec (or link) and save its tracks in the library.
+/// Resolve a `youtube:` spec (or link) and save its tracks in the library.
 /// Returns the tracks that were added.
 pub async fn import_stream_spec(
     manager: &StreamManager,
@@ -63,23 +59,19 @@ pub async fn import_stream_spec(
 
 /// The streaming-side view of a library stream track
 fn stream_from_track(track: &Track) -> StreamTrack {
-    let (source, id) = match track.source {
-        TrackSource::Spotify => (
-            StreamSource::Spotify,
-            track.id.trim_start_matches("spotify:"),
-        ),
-        _ => (
-            StreamSource::YouTube,
-            track.id.trim_start_matches("youtube:"),
-        ),
-    };
-    StreamTrack::new(id, track.title.clone(), track.artist.clone(), source)
-        .with_duration(track.duration as u64)
+    let id = track.id.trim_start_matches("youtube:");
+    StreamTrack::new(
+        id,
+        track.title.clone(),
+        track.artist.clone(),
+        StreamSource::YouTube,
+    )
+    .with_duration(track.duration as u64)
 }
 
 /// Tracks that must be fetched before they can play
 pub(super) fn is_stream(track: &Track) -> bool {
-    matches!(track.source, TrackSource::YouTube | TrackSource::Spotify)
+    track.source == TrackSource::YouTube
 }
 
 async fn manager(

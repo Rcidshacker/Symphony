@@ -370,7 +370,6 @@ impl SmartCache {
                     track_id: row.get(0)?,
                     source: match row.get::<_, String>(1)?.as_str() {
                         "youtube" => StreamSource::YouTube,
-                        "spotify" => StreamSource::Spotify,
                         _ => StreamSource::Local,
                     },
                     file_path: PathBuf::from(row.get::<_, String>(2)?),
@@ -627,7 +626,6 @@ impl SmartCache {
 
         let source_dir = match track.source {
             StreamSource::YouTube => "youtube",
-            StreamSource::Spotify => "spotify",
             StreamSource::Local => "local",
             StreamSource::Cached => "cached",
         };
@@ -708,7 +706,6 @@ impl SmartCache {
                         track_id: row.get(0)?,
                         source: match row.get::<_, String>(1)?.as_str() {
                             "youtube" => StreamSource::YouTube,
-                            "spotify" => StreamSource::Spotify,
                             _ => StreamSource::Local,
                         },
                         title: row.get(2)?,

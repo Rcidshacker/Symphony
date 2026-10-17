@@ -3,7 +3,7 @@
 //! `symphony`                      start the TUI
 //! `symphony init`                 create config, data dirs and database
 //! `symphony scan <dir>`           add a music directory to the library
-//! `symphony stream <query>`       search YouTube/Spotify and play the best match
+//! `symphony stream <query>`       search YouTube and play the best match
 //! `symphony add <path|source:id>` add local music (or a stream source)
 //! `symphony lastfm-login`         authorize Last.fm scrobbling
 //! `symphony status [format]`      one line about what is playing (tmux, zsh, json, ...)
@@ -23,8 +23,8 @@ USAGE:
 COMMANDS:
     init                   Create config file, data directories and database
     scan <DIR>             Scan a directory and add its music to the library
-    stream <QUERY>         Search YouTube/Spotify and play the best match
-    add <SOURCE>           Add a local path, youtube:<id|url> or spotify:<track|playlist>:<id>
+    stream <QUERY>         Search YouTube and play the best match
+    add <SOURCE>           Add a local path or a youtube:<id|url> track
     status [FORMAT]        Print what the running player is playing, for tmux/zsh/bars
                            (tmux, zsh, minimal, json, i3blocks, waybar, polybar; default tmux)
     lastfm-login           Authorize Last.fm scrobbling (needs api_key/api_secret in the config)

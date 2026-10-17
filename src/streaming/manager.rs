@@ -2,7 +2,6 @@
 //!
 //! Provides a facade pattern for:
 //! - YouTube streaming
-//! - Spotify search/preview
 //! - Smart caching
 //! - Predictive prefetching
 //!
@@ -35,7 +34,6 @@ use super::predictor::{Prediction, PredictiveCache, PredictorConfig, PredictorSt
 use super::provider::{
     SearchResult, StreamError, StreamProvider, StreamQuality, StreamSource, StreamTrack,
 };
-use super::spotify::{SpotifyConfig, SpotifyProvider};
 use super::youtube::{YouTubeConfig, YouTubeProvider};
 
 /// Stream manager configuration
@@ -45,8 +43,6 @@ pub struct StreamManagerConfig {
     pub enabled: bool,
     /// YouTube configuration
     pub youtube: YouTubeConfig,
-    /// Spotify configuration
-    pub spotify: SpotifyConfig,
     /// Cache configuration
     pub cache: CacheConfig,
     /// Predictor configuration
@@ -80,12 +76,6 @@ impl StreamManagerConfig {
             ..Self::default()
         };
         config.youtube.ytdlp_path = cfg.youtube.ytdlp_path.clone();
-        config.spotify.enabled = cfg.spotify.enabled;
-        config.spotify.client_id = cfg.spotify.client_id.clone();
-        config.spotify.client_secret = cfg.spotify.client_secret.clone();
-        config.spotify.redirect_uri = cfg.spotify.redirect_uri.clone();
-        config.spotify.api_url = cfg.spotify.api_url.clone();
-        config.spotify.accounts_url = cfg.spotify.accounts_url.clone();
         config.cache.cache_dir = cfg.cache.cache_dir.clone();
         config.cache.max_hot_size = cfg.cache.max_hot_size_mb * mb;
         config.cache.max_warm_size = cfg.cache.max_warm_size_mb * mb;
@@ -101,7 +91,6 @@ impl Default for StreamManagerConfig {
         Self {
             enabled: true,
             youtube: YouTubeConfig::default(),
-            spotify: SpotifyConfig::default(),
             cache: CacheConfig::default(),
             predictor: PredictorConfig::default(),
             default_quality: StreamQuality::Medium,
@@ -116,8 +105,6 @@ impl Default for StreamManagerConfig {
 pub struct CombinedSearchResult {
     /// YouTube results
     pub youtube: Option<SearchResult>,
-    /// Spotify results
-    pub spotify: Option<SearchResult>,
     /// Combined and deduplicated tracks
     pub tracks: Vec<StreamTrack>,
     /// Total count across all sources
@@ -218,7 +205,6 @@ pub enum DownloadStatus {
 pub struct StreamManager {
     config: StreamManagerConfig,
     youtube: Option<YouTubeProvider>,
-    spotify: Option<SpotifyProvider>,
     cache: Arc<SmartCache>,
     predictor: Arc<PredictiveCache>,
     active_downloads: Arc<RwLock<Vec<DownloadTask>>>,
@@ -260,27 +246,9 @@ impl StreamManager {
             None
         };
 
-        // Initialize Spotify provider
-        let spotify = if config.enabled && config.spotify.enabled {
-            let mut sp = SpotifyProvider::new(config.spotify.clone());
-            match sp.initialize().await {
-                Ok(()) => {
-                    info!("Spotify provider initialized successfully");
-                    Some(sp)
-                }
-                Err(e) => {
-                    warn!("Spotify provider initialization failed: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
         Ok(Self {
             config,
             youtube,
-            spotify,
             cache,
             predictor,
             active_downloads: Arc::new(RwLock::new(Vec::new())),
@@ -293,11 +261,6 @@ impl StreamManager {
         self.youtube.is_some()
     }
 
-    /// Check if Spotify is available
-    pub fn is_spotify_available(&self) -> bool {
-        self.spotify.is_some()
-    }
-
     /// Search all available sources
     pub async fn search_all(
         &self,
@@ -306,7 +269,6 @@ impl StreamManager {
     ) -> Result<CombinedSearchResult, StreamError> {
         let mut results = CombinedSearchResult {
             youtube: None,
-            spotify: None,
             tracks: Vec::new(),
             total: 0,
             query: query.to_string(),
@@ -322,20 +284,6 @@ impl StreamManager {
                 }
                 Err(e) => {
                     warn!("YouTube search failed: {}", e);
-                }
-            }
-        }
-
-        // Search Spotify
-        if let Some(ref spotify) = self.spotify {
-            match spotify.search(query, limit).await {
-                Ok(sp_results) => {
-                    results.total += sp_results.total;
-                    results.tracks.extend(sp_results.tracks.clone());
-                    results.spotify = Some(sp_results);
-                }
-                Err(e) => {
-                    warn!("Spotify search failed: {}", e);
                 }
             }
         }
@@ -366,20 +314,6 @@ impl StreamManager {
         }
     }
 
-    /// Search only Spotify
-    pub async fn search_spotify(
-        &self,
-        query: &str,
-        limit: usize,
-    ) -> Result<SearchResult, StreamError> {
-        match &self.spotify {
-            Some(spotify) => spotify.search(query, limit).await,
-            None => Err(StreamError::Unavailable(
-                "Spotify provider is not available".to_string(),
-            )),
-        }
-    }
-
     /// Get a playable URL for a track
     pub async fn get_playable_url(&self, track: &StreamTrack) -> Result<String, StreamError> {
         // Check cache first
@@ -400,16 +334,6 @@ impl StreamManager {
                 }
                 None => Err(StreamError::Unavailable(
                     "YouTube provider is not available".to_string(),
-                )),
-            },
-            StreamSource::Spotify => match &self.spotify {
-                Some(spotify) => {
-                    spotify
-                        .get_stream_url(&track.id, self.config.default_quality)
-                        .await
-                }
-                None => Err(StreamError::Unavailable(
-                    "Spotify provider is not available".to_string(),
                 )),
             },
             StreamSource::Local | StreamSource::Cached => {
@@ -503,42 +427,6 @@ impl StreamManager {
                     )),
                 }
             }
-            StreamSource::Spotify => {
-                // Spotify only serves 30 s previews, so play the closest YouTube match instead
-                let query = format!("{} {}", track.artist, track.title);
-                let found = self.search_youtube(&query, 5).await?;
-                let best = found
-                    .tracks
-                    .iter()
-                    .min_by_key(|t| (t.duration as i64 - track.duration as i64).abs())
-                    .ok_or_else(|| {
-                        StreamError::TrackNotFound(format!("no YouTube match for {query}"))
-                    })?;
-                info!("Spotify track {} resolved to YouTube {}", track.id, best.id);
-                let youtube_path = self
-                    .cache
-                    .generate_cache_path(best, self.config.default_quality);
-                match &self.youtube {
-                    Some(youtube) => {
-                        self.add_download(&track.id, &track.title, track.source)
-                            .await;
-                        let result = youtube
-                            .download_track(&best.id, self.config.default_quality, &youtube_path)
-                            .await;
-                        self.remove_download(&track.id).await;
-                        result?;
-                    }
-                    None => {
-                        return Err(StreamError::Unavailable(
-                            "YouTube provider is not available".to_string(),
-                        ))
-                    }
-                }
-                self.cache
-                    .add_track(track, &youtube_path, self.config.default_quality)
-                    .await?;
-                Ok(youtube_path)
-            }
             _ => Err(StreamError::DownloadFailed(format!(
                 "Cannot download {} tracks",
                 track.source
@@ -546,26 +434,15 @@ impl StreamManager {
         }
     }
 
-    /// Turn `youtube:<id|url>`, `spotify:track:<id>`, `spotify:playlist:<id>` or a
-    /// youtube.com / youtu.be / open.spotify.com link into tracks
+    /// Turn `youtube:<id|url>` or a youtube.com / youtu.be link into tracks
     pub async fn resolve_spec(&self, spec: &str) -> Result<Vec<StreamTrack>, StreamError> {
         let spec = spec.trim();
         if let Some(id) = youtube_id(spec) {
             return Ok(vec![self.get_track_info(&id, StreamSource::YouTube).await?]);
         }
-        match spotify_ref(spec) {
-            Some(("track", id)) => Ok(vec![self.get_track_info(id, StreamSource::Spotify).await?]),
-            Some(("playlist", id)) => match &self.spotify {
-                Some(spotify) => spotify.playlist_tracks(id).await,
-                None => Err(StreamError::Unavailable(
-                    "Spotify is not configured (set client_id and client_secret in symphony.toml)"
-                        .to_string(),
-                )),
-            },
-            _ => Err(StreamError::TrackNotFound(format!(
-                "unrecognized stream source: {spec}"
-            ))),
-        }
+        Err(StreamError::TrackNotFound(format!(
+            "unrecognized stream source: {spec}"
+        )))
     }
 
     /// Run prediction and prefetch for current track
@@ -674,12 +551,6 @@ impl StreamManager {
                     "YouTube not available".to_string(),
                 )),
             },
-            StreamSource::Spotify => match &self.spotify {
-                Some(spotify) => spotify.get_track_info(track_id).await,
-                None => Err(StreamError::Unavailable(
-                    "Spotify not available".to_string(),
-                )),
-            },
             _ => Err(StreamError::TrackNotFound(format!(
                 "Unknown source: {}",
                 source
@@ -762,19 +633,6 @@ pub fn youtube_id(spec: &str) -> Option<String> {
     (!id.is_empty()).then_some(id)
 }
 
-/// `(kind, id)` from `spotify:track:<id>` or an open.spotify.com link
-pub fn spotify_ref(spec: &str) -> Option<(&str, &str)> {
-    if let Some(rest) = spec.strip_prefix("spotify:") {
-        let (kind, id) = rest.split_once(':')?;
-        return (!id.is_empty()).then_some((kind, id));
-    }
-    let path = spec.split("open.spotify.com/").nth(1)?;
-    let mut parts = path.split(['/', '?']);
-    let kind = parts.next()?;
-    let id = parts.next()?;
-    (!id.is_empty()).then_some((kind, id))
-}
-
 /// Result of playing a track
 #[derive(Debug, Clone)]
 pub struct PlayResult {
@@ -803,25 +661,16 @@ mod tests {
         );
         assert_eq!(youtube_id("abc123"), None);
         assert_eq!(youtube_id("https://example.com/watch?v=abc"), None);
-        assert_eq!(
-            spotify_ref("spotify:playlist:37i9"),
-            Some(("playlist", "37i9"))
-        );
-        assert_eq!(
-            spotify_ref("https://open.spotify.com/track/6rq?si=abc"),
-            Some(("track", "6rq"))
-        );
-        assert_eq!(spotify_ref("youtube:abc"), None);
+        assert_eq!(youtube_id("spotify:track:6rq"), None);
     }
 
     #[test]
     fn test_combined_search_result() {
         let result = CombinedSearchResult {
             youtube: None,
-            spotify: None,
             tracks: vec![
                 StreamTrack::new("1", "Song A", "Artist", StreamSource::YouTube),
-                StreamTrack::new("2", "Song B", "Artist", StreamSource::Spotify),
+                StreamTrack::new("2", "Song B", "Artist", StreamSource::Cached),
             ],
             total: 2,
             query: "test".to_string(),

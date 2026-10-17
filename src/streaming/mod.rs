@@ -1,7 +1,7 @@
 //! Streaming module (Phase 4)
 //!
 //! This module provides streaming capabilities for Symphony, enabling playback
-//! from YouTube and Spotify in addition to local files.
+//! from YouTube in addition to local files.
 //!
 //! # Architecture
 //! ```text
@@ -11,12 +11,12 @@
 //! │  ┌─────────────────────────────────────┐       │
 //! │  │   StreamProvider (Trait)            │       │
 //! │  └─────────────────────────────────────┘       │
-//! │           ↑              ↑                      │
-//! │           │              │                      │
-//! │  ┌────────────┐  ┌──────────────┐              │
-//! │  │  YouTube   │  │   Spotify    │              │
-//! │  │ (yt-dlp)   │  │  (Web API)   │              │
-//! │  └────────────┘  └──────────────┘              │
+//! │           ↑                                     │
+//! │           │                                     │
+//! │  ┌────────────┐                                │
+//! │  │  YouTube   │                                │
+//! │  │ (yt-dlp)   │                                │
+//! │  └────────────┘                                │
 //! │                                                  │
 //! │  ┌─────────────────────────────────┐           │
 //! │  │      SmartCache                 │           │
@@ -53,7 +53,6 @@
 //!
 //! # Features
 //! - **YouTube**: Full streaming via yt-dlp, supports download and caching
-//! - **Spotify**: Search and metadata, 30-second previews via Web API
 //! - **Smart Caching**: Multi-tier LRU cache with automatic promotion/demotion
 //! - **Predictive Prefetching**: ML-based prediction of what to play next
 
@@ -61,7 +60,6 @@ pub mod cache;
 pub mod manager;
 pub mod predictor;
 pub mod provider;
-pub mod spotify;
 pub mod youtube;
 
 // Re-export main types
@@ -77,5 +75,4 @@ pub use provider::{
     DownloadProgress, DownloadStatus as ProviderDownloadStatus, SearchResult, StreamError,
     StreamProvider, StreamQuality, StreamSource, StreamTrack,
 };
-pub use spotify::{SpotifyConfig, SpotifyProvider};
 pub use youtube::{YouTubeConfig, YouTubeProvider};

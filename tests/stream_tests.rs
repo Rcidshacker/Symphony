@@ -1,13 +1,12 @@
-//! Playing from YouTube and Spotify end to end, with a fake yt-dlp (examples/fake_ytdlp.rs)
-//! and a mock Spotify API. Needs an audio device for the playback tests (skipped without one).
+//! Playing from YouTube end to end, with a fake yt-dlp (examples/fake_ytdlp.rs). Needs an audio
+//! device for the playback tests (skipped without one).
 
 mod common;
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, Once, OnceLock};
+use std::sync::{Mutex, MutexGuard, Once, OnceLock};
 use std::time::{Duration, Instant};
 
-use common::{fixed, MockServer};
 use symphony::app::{import_stream_spec, App};
 use symphony::config::Config;
 use symphony::db::Database;
@@ -112,49 +111,6 @@ fn playing(app: &App) -> Option<String> {
         .current_track
         .as_ref()
         .map(|t| t.id.clone())
-}
-
-fn spotify_track(id: &str, name: &str, artist: &str, duration_ms: u64) -> serde_json::Value {
-    serde_json::json!({
-        "id": id,
-        "name": name,
-        "duration_ms": duration_ms,
-        "preview_url": null,
-        "artists": [{"id": "a1", "name": artist}],
-        "album": {"id": "al1", "name": "Album", "images": []},
-        "external_urls": {"spotify": format!("https://open.spotify.com/track/{id}")},
-    })
-}
-
-fn mock_spotify() -> MockServer {
-    let token =
-        serde_json::json!({"access_token": "tok", "token_type": "Bearer", "expires_in": 3600});
-    // the playlist has two tracks and one removed entry; its second page proves pagination
-    let page_one = |base: &str| {
-        serde_json::json!({
-            "items": [{"track": spotify_track("s1", "Song One", "Band", 118_000)}, {"track": null}],
-            "next": format!("{base}/playlists/PL1/tracks?offset=2"),
-        })
-        .to_string()
-    };
-    let page_two = serde_json::json!({
-        "items": [{"track": spotify_track("s2", "Song Two", "Band", 60_000)}],
-        "next": null,
-    })
-    .to_string();
-    // the next-page link must point back at the server, whose port is only known once it runs
-    let own_url: Arc<OnceLock<String>> = Arc::default();
-    let url = own_url.clone();
-    let server = MockServer::start(vec![
-        ("POST /api/token", fixed(200, &token.to_string())),
-        ("GET /playlists/PL1/tracks?offset=2", fixed(200, &page_two)),
-        (
-            "GET /playlists/PL1/tracks",
-            Box::new(move |_| (200, page_one(url.get().map_or("", String::as_str)))),
-        ),
-    ]);
-    let _ = own_url.set(server.url.clone());
-    server
 }
 
 #[test]
@@ -334,61 +290,6 @@ fn enter_on_a_saved_stream_track_fetches_and_plays_it() {
 }
 
 #[test]
-fn spotify_playlists_import_page_by_page_and_play_through_the_closest_youtube_match() {
-    let _serial = serial();
-    let (dir, log) = (
-        tempfile::tempdir().unwrap(),
-        tempfile::NamedTempFile::new().unwrap(),
-    );
-    fake_env(log.path());
-    let spotify = mock_spotify();
-
-    let mut config = config(dir.path());
-    config.streaming.spotify.enabled = true;
-    config.streaming.spotify.client_id = "id".into();
-    config.streaming.spotify.client_secret = "secret".into();
-    config.streaming.spotify.api_url = spotify.url.clone();
-    config.streaming.spotify.accounts_url = spotify.url.clone();
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let db = Database::new(dir.path().join("lib.db").to_str().unwrap()).unwrap();
-    let added = runtime.block_on(async {
-        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming))
-            .await
-            .unwrap();
-        import_stream_spec(&manager, &db, "spotify:playlist:PL1")
-            .await
-            .unwrap()
-    });
-    let ids: Vec<_> = added.iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(
-        ids,
-        ["spotify:s1", "spotify:s2"],
-        "removed entries are skipped, both pages read"
-    );
-    assert_eq!(db.track_count().unwrap(), 2);
-    assert!(spotify.count("GET /playlists/PL1/tracks?offset=2") == 1);
-
-    let Some(mut app) = new_app(config) else {
-        return;
-    };
-    app.database = Some(db);
-    app.load_library().unwrap();
-    app.select_current_track();
-    assert!(
-        wait_for(&mut app, |a| playing(a).is_some()),
-        "{:?}",
-        app.ui_state.error_message
-    );
-
-    // Spotify itself only has 30 s previews: the 118 s track plays the 120 s YouTube result
-    assert_eq!(playing(&app).as_deref(), Some("spotify:s1"));
-    let log = std::fs::read_to_string(log.path()).unwrap();
-    assert!(log.contains("ytsearch5:Band Song One"), "{log}");
-    assert!(log.contains("watch?v=band_song_one-120"), "{log}");
-}
-
-#[test]
 fn unknown_sources_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
     let config = config(dir.path());
@@ -399,6 +300,17 @@ fn unknown_sources_are_rejected() {
             .await
             .unwrap();
         import_stream_spec(&manager, &db, "https://example.com/song.mp3")
+            .await
+            .unwrap_err()
+    });
+    assert!(err.contains("unrecognized"), "{err}");
+
+    // Spotify was removed: its specs are no longer recognized either
+    let err = runtime.block_on(async {
+        let manager = StreamManager::new(StreamManagerConfig::from_config(&config.streaming))
+            .await
+            .unwrap();
+        import_stream_spec(&manager, &db, "spotify:playlist:PL1")
             .await
             .unwrap_err()
     });

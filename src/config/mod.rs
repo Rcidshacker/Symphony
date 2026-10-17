@@ -359,10 +359,6 @@ pub struct StreamingConfig {
     #[serde(default)]
     pub youtube: YouTubeStreamingConfig,
 
-    /// Spotify settings
-    #[serde(default)]
-    pub spotify: SpotifyStreamingConfig,
-
     /// Cache settings
     #[serde(default)]
     pub cache: StreamingCacheConfig,
@@ -398,64 +394,6 @@ impl Default for YouTubeStreamingConfig {
             enabled: true,
             quality: "medium".to_string(),
             ytdlp_path: "yt-dlp".to_string(),
-        }
-    }
-}
-
-/// Spotify streaming configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SpotifyStreamingConfig {
-    /// Enable Spotify provider
-    #[serde(default)]
-    pub enabled: bool,
-
-    /// Spotify Client ID
-    #[serde(default)]
-    pub client_id: String,
-
-    /// Spotify Client Secret
-    #[serde(default)]
-    pub client_secret: String,
-
-    /// Redirect URI for OAuth
-    #[serde(default = "default_spotify_redirect")]
-    pub redirect_uri: String,
-
-    /// Default quality
-    #[serde(default)]
-    pub quality: String,
-
-    /// Web API base URL (change only to point at a test server)
-    #[serde(default = "default_spotify_api_url")]
-    pub api_url: String,
-
-    /// Accounts service base URL (change only to point at a test server)
-    #[serde(default = "default_spotify_accounts_url")]
-    pub accounts_url: String,
-}
-
-fn default_spotify_api_url() -> String {
-    "https://api.spotify.com/v1".to_string()
-}
-
-fn default_spotify_accounts_url() -> String {
-    "https://accounts.spotify.com".to_string()
-}
-
-fn default_spotify_redirect() -> String {
-    "http://localhost:8888/callback".to_string()
-}
-
-impl Default for SpotifyStreamingConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            client_id: String::new(),
-            client_secret: String::new(),
-            redirect_uri: default_spotify_redirect(),
-            quality: "high".to_string(),
-            api_url: default_spotify_api_url(),
-            accounts_url: default_spotify_accounts_url(),
         }
     }
 }
@@ -569,7 +507,6 @@ impl Default for StreamingConfig {
         Self {
             enabled: true,
             youtube: YouTubeStreamingConfig::default(),
-            spotify: SpotifyStreamingConfig::default(),
             cache: StreamingCacheConfig::default(),
             network: NetworkConfig::default(),
         }

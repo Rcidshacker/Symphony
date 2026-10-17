@@ -227,7 +227,7 @@ pub struct Track {
     /// Year
     pub year: Option<u32>,
 
-    /// Source (local, youtube, spotify)
+    /// Source (local, youtube)
     pub source: TrackSource,
 }
 
@@ -238,8 +238,6 @@ pub enum TrackSource {
     Local,
     /// YouTube stream
     YouTube,
-    /// Spotify stream
-    Spotify,
     /// SoundCloud stream
     SoundCloud,
     /// Cached stream
