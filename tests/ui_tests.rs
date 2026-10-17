@@ -181,6 +181,25 @@ fn play_intent(artist: Option<&str>, genre: Option<&str>) -> MusicIntent {
 }
 
 #[test]
+fn number_keys_pick_the_visualizer_and_5_turns_it_off() {
+    use symphony::ui::visualizer::VisualizationMode;
+
+    let Some(mut app) = app_with_tracks(1) else {
+        return;
+    };
+    for (c, mode) in [
+        ('2', VisualizationMode::Waveform),
+        ('3', VisualizationMode::Circular),
+        ('4', VisualizationMode::Minimal),
+        ('5', VisualizationMode::Off),
+        ('1', VisualizationMode::Bars),
+    ] {
+        press(&mut app, c);
+        assert_eq!(app.visualizer_state.mode, mode, "key {c}");
+    }
+}
+
+#[test]
 fn key_release_events_are_ignored() {
     let Some(mut app) = app_with_tracks(1) else {
         return;

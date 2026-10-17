@@ -322,6 +322,14 @@ impl App {
         });
         let seed = named_seed.or_else(|| self.playback_state.current_track.clone());
 
+        // Nothing to be similar to (no track named, nothing playing): the prompt was really an open
+        // question ("what should I listen to while debugging?"), so answer it instead of guessing
+        if seed.is_none() && !self.ui_state.last_ai_prompt.is_empty() {
+            let question = self.ui_state.last_ai_prompt.clone();
+            self.ai_ask(question);
+            return;
+        }
+
         let (label, suggestions): (String, Vec<Track>) = match &seed {
             Some(seed) => (
                 format!("similar to {}", seed.title),

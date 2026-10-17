@@ -2,6 +2,7 @@
 //!
 //! - `--version`                prints a version
 //! - `ytsearchN:query ...`      three results (durations 60 / 120 / 180 s); the query "broken" finds one broken video
+//! - `ytsearchN:marathon`       a 12-hour loop followed by a 200 s song
 //! - `... -o <path> <url>`      "downloads" by copying $FAKE_YTDLP_AUDIO to `<path>`
 //! - `<url>` with `-j`          info for the video id in the url (id "broken" fails like an unavailable video)
 //!
@@ -40,7 +41,13 @@ fn main() {
             );
             return;
         }
-        for (i, duration) in [60, 120, 180].iter().take(count).enumerate() {
+        // the query "marathon" finds a 12-hour loop first and a normal song second
+        let durations: &[u64] = if query == "marathon" {
+            &[43_069, 200]
+        } else {
+            &[60, 120, 180]
+        };
+        for (i, duration) in durations.iter().take(count).enumerate() {
             println!(
                 "{}",
                 json!({

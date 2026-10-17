@@ -15,6 +15,10 @@ pub(super) type SharedManager = Arc<OnceCell<Arc<StreamManager>>>;
 /// How many search results a `symphony stream <query>` looks at
 const SEARCH_LIMIT: usize = 5;
 
+/// Longest result `symphony stream` picks on its own: a 12-hour loop or a livestream (duration 0)
+/// is rarely the song that was asked for. They stay in the results; they are just not the default.
+const MAX_AUTO_PICK_SECS: u64 = 20 * 60;
+
 /// Library entry for a stream track. The id and path are `youtube:<id>` / `spotify:<id>`
 /// so the same track is never added twice.
 pub fn track_from_stream(stream: &StreamTrack) -> Track {
@@ -221,7 +225,8 @@ impl App {
                 return;
             }
         };
-        let Some(best) = found.first() else {
+        let song_length = |t: &&StreamTrack| (1..=MAX_AUTO_PICK_SECS).contains(&t.duration);
+        let Some(best) = found.iter().find(song_length).or(found.first()) else {
             self.ui_state.status_message = None;
             self.ui_state.error_message = Some(format!("No streams found for \"{query}\""));
             return;

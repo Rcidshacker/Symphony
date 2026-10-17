@@ -314,6 +314,9 @@ pub struct UiState {
     /// Text typed into the AI prompt
     pub ai_query: String,
 
+    /// The last prompt sent to the AI (a Suggest with nothing to go on is answered with it)
+    pub last_ai_prompt: String,
+
     /// An AI request is in flight
     pub ai_pending: bool,
 
@@ -422,6 +425,7 @@ impl App {
                 show_lyrics: false,
                 ai_mode: false,
                 ai_query: String::new(),
+                last_ai_prompt: String::new(),
                 ai_pending: false,
                 ai_answer: None,
                 pinned_results: false,
@@ -802,7 +806,7 @@ impl App {
         self.ui_state.status_message = Some(format!("Visualizer: {}", mode_name));
     }
 
-    /// Set visualization mode by number (1-4)
+    /// Set visualization mode by number (1-4 pick a mode, 5 turns it off)
     pub fn set_visualization_mode(&mut self, mode: u8) {
         let viz_mode = match mode {
             1 => VisualizationMode::Bars,
@@ -946,6 +950,7 @@ impl App {
         if query.is_empty() {
             return;
         }
+        self.ui_state.last_ai_prompt = query.clone();
 
         let provider = match self.config.ai.get_provider_config() {
             Ok(provider) => provider,
@@ -1341,6 +1346,7 @@ impl Default for UiState {
             show_lyrics: false,
             ai_mode: false,
             ai_query: String::new(),
+            last_ai_prompt: String::new(),
             ai_pending: false,
             ai_answer: None,
             pinned_results: false,

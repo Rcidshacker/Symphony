@@ -73,6 +73,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) -> anyhow::Result<bool> {
         KeyCode::Char('2') => app.set_visualization_mode(2),
         KeyCode::Char('3') => app.set_visualization_mode(3),
         KeyCode::Char('4') => app.set_visualization_mode(4),
+        KeyCode::Char('5') => app.set_visualization_mode(5),
 
         _ => {}
     }

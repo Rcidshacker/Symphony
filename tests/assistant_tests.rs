@@ -57,6 +57,9 @@ fn mock_ollama() -> MockServer {
                     r#"{"intent":"suggest","based_on":"Gym Anthem","count":5}"#
                 } else if prompt.contains("something sad") {
                     r#"{"intent":"search","query":"something sad"}"#
+                } else if prompt.contains("anything good for debugging") {
+                    // a model that files an open question under "suggest" with nothing to go on
+                    r#"{"intent":"suggest","count":5}"#
                 } else if prompt.contains("what should i listen to") {
                     r#"{"intent":"unknown","query":"what should I listen to while debugging?"}"#
                 } else {
@@ -285,6 +288,24 @@ fn a_search_prompt_finds_tracks_by_meaning() {
         .status_message
         .as_deref()
         .is_some_and(|s| s.contains("embeddings")));
+}
+
+#[test]
+fn an_open_question_filed_as_a_suggestion_is_still_answered() {
+    let (ollama, dir) = (mock_ollama(), tempfile::tempdir().unwrap());
+    let Some(mut app) = app_with_library(dir.path(), &ollama.url) else {
+        return;
+    };
+
+    // nothing playing, no track named: there is nothing to be "similar" to
+    app.submit_prompt("anything good for debugging?");
+    assert!(
+        wait_for(&mut app, |a| a.ui_state.ai_answer.is_some()),
+        "{:?}",
+        app.ui_state.error_message
+    );
+    assert!(screen(&app).contains("Try some lo-fi beats"));
+    assert!(app.ui_state.error_message.is_none());
 }
 
 #[test]
